@@ -5,7 +5,7 @@ import utils
 from logger import KuriLogger
 from repository import *
 from transactional import transactional
-from locale import Locale
+from locales import Locale
 
 l = Locale()
 

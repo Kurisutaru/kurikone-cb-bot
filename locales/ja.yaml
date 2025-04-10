@@ -41,4 +41,4 @@ ja:
       user_added_to_booking_list: "{user} {emoji} が予約リストに追加されました"
       boss_killed: "{user} が {attack_type} でボスを撃破しました（{leftover_time}s）"
   system:
-    command_error: "{user} は sudoers ファイルに存在しません。この操作は報告されます。"
+    not_administrator: "{user} は sudoers ファイルに存在しません。この操作は報告されます。"

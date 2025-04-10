@@ -3,7 +3,7 @@ import re
 from discord.ext import commands
 
 import utils
-from locale import Locale, guild_locale
+from locales import Locale, guild_locale
 from logger import KuriLogger
 from repository import *
 from services import GuildService, ChannelService, ClanBattlePeriodService, MainService
@@ -28,8 +28,7 @@ intents.message_content = True
 bot = commands.Bot(command_prefix='!', intents=intents)
 
 logger = KuriLogger()
-
-locale = Locale()
+l = Locale()
 
 
 @bot.event
@@ -37,10 +36,7 @@ async def on_ready():
     await bot.wait_until_ready()
     logger.info(f'We have logged in as {bot.user}')
     for guild in bot.guilds:
-        # Kuri Note : for time being I just cut the first two character returned from the preferred_locale
-        # so if en_US or en_GB = en
-        # dunno the best way with the current i18n package
-        guild_locale[guild.id] = guild.preferred_locale.value[:2]
+        guild_locale[guild.id] = guild.preferred_locale.value.lower()
         await setup_channel(guild)
 
 

@@ -1,9 +1,9 @@
 from pyi18n import PyI18n
+import discord
 
 # Guild Locale on startup, should be guild_local[guild_id] = lang
 guild_locale = {}
-available_locales = ('en', 'ja')
-default_locale = 'en'
+default_locale = discord.enums.Locale.american_english.value.lower()
 
 class Locale:
     _instance = None
@@ -12,7 +12,10 @@ class Locale:
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super().__new__(cls)
-            i18n: PyI18n = PyI18n(available_locales=available_locales)
+            available_locales = []
+            for locale in discord.enums.Locale:
+                available_locales.append(locale.value.lower())
+            i18n: PyI18n = PyI18n(available_locales=tuple(available_locales))
             cls._locale = i18n.gettext
 
         return cls._instance

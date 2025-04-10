@@ -1,4 +1,4 @@
-en:
+en-us:
   ui:
     label:
       done_list: "Done List"
@@ -41,4 +41,6 @@ en:
       user_added_to_booking_list: "{user} {emoji} added to book list"
       boss_killed: "Boss killed by {user} with {attack_type} ({leftover_time}s)"
   system:
-    command_error: "{user} is not in the sudoers file. This incident will be reported."
+    not_administrator: "{user} is not in the sudoers file. This incident will be reported."
+    install_command_description: "This command will try to uninstall all channel related to the bots and removing data from database"
+    uninstall_command_description: "This command will try to uninstall all channel related to the bots and removing data from database"

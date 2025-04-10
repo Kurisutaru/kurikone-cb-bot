@@ -5,7 +5,7 @@ import enums
 import utils
 from config import config
 from enums import EmojiEnum, AttackTypeEnum
-from locale import Locale
+from locales import Locale
 from logger import KuriLogger
 from models import ClanBattleLeftover
 from services import ClanBattleBossBookService, ClanBattleOverallEntryService, MainService, ClanBattleBossEntryService
