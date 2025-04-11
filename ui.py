@@ -32,7 +32,7 @@ class BookButton(Button):
 
         boss_book = await self.clan_battle_boss_book_service.get_player_book_count(guild_id, user_id)
         if not boss_book.is_success:
-            interaction.response.defer(ephemeral=True)
+            await interaction.response.defer(ephemeral=True)
             self.logger.error(boss_book.error_messages)
             return
 
@@ -43,7 +43,7 @@ class BookButton(Button):
         entry_count = await self.clan_battle_overall_entry_service.get_player_overall_entry_count(
             guild_id, user_id)
         if not entry_count.is_success:
-            interaction.response.defer(ephemeral=True)
+            await interaction.response.defer(ephemeral=True)
             self.logger.error(entry_count.error_messages)
             return
 
@@ -55,7 +55,7 @@ class BookButton(Button):
         leftover = await self.clan_battle_overall_entry_service.get_leftover_by_guild_id_and_player_id(
             guild_id=guild_id, player_id=user_id)
         if not leftover.is_success:
-            interaction.response.defer(ephemeral=True)
+            await interaction.response.defer(ephemeral=True)
             self.logger.error(leftover.error_messages)
             return
 
@@ -176,7 +176,7 @@ class EntryInputModal(Modal):
         book = book_result.result
 
         if not book_result.is_success:
-            interaction.response.defer(ephemeral=True)
+            await interaction.response.defer(ephemeral=True)
             self.logger.error(book_result.error_messages)
             return
 
@@ -186,7 +186,7 @@ class EntryInputModal(Modal):
             damage)
 
         if not update_result.is_success:
-            interaction.response.defer(ephemeral=True)
+            await interaction.response.defer(ephemeral=True)
             self.logger.error(book_result.error_messages)
             return
 
@@ -196,7 +196,7 @@ class EntryInputModal(Modal):
             embeds = await self.main_service.refresh_clan_battle_boss_embeds(guild_id=interaction.guild_id,
                                                                              message_id=interaction.message.id)
             if not embeds.is_success:
-                interaction.response.defer(ephemeral=True)
+                await interaction.response.defer(ephemeral=True)
                 self.logger.error(embeds.error_messages)
                 return
 
@@ -259,7 +259,7 @@ class DoneOkButton(Button):
 
         done_service = await self.main_service.done_entry(guild_id, message_id, user_id, display_name)
         if not done_service.is_success:
-            interaction.response.defer(ephemeral=True)
+            await utils.discord_close_response(interaction=interaction)
             self.logger.error(done_service.error_messages)
             return
 
@@ -268,7 +268,7 @@ class DoneOkButton(Button):
         if message:
             embeds = await self.main_service.refresh_clan_battle_boss_embeds(guild_id, message_id)
             if not embeds.is_success:
-                interaction.response.defer(ephemeral=True)
+                await interaction.response.defer(ephemeral=True)
                 self.logger.error(embeds.error_messages)
                 return
 
@@ -295,7 +295,7 @@ class DeadButton(Button):
         book_result = await self.clan_battle_boss_book_service.get_player_book_entry(message_id=message_id,
                                                                                      player_id=user_id)
         if not book_result.is_success:
-            interaction.response.defer(ephemeral=True)
+            await interaction.response.defer(ephemeral=True)
             self.logger.error(book_result.error_messages)
             return
 
@@ -312,7 +312,7 @@ class DeadButton(Button):
 
         boss_entry = await self.clan_battle_boss_entry_service.get_last_by_message_id(message_id)
         if not book_result.is_success:
-            interaction.response.defer(ephemeral=True)
+            await interaction.response.defer(ephemeral=True)
             self.logger.error(boss_entry.error_messages)
             return
 
@@ -421,7 +421,7 @@ class DeadOkButton(Button):
 
         embeds = await self.main_service.refresh_clan_battle_boss_embeds(guild_id, message.id)
         if not embeds.is_success:
-            interaction.response.defer(ephemeral=True)
+            await interaction.response.defer(ephemeral=True)
             self.logger.error(embeds.error_messages)
             return
 
@@ -453,19 +453,19 @@ class BookPatkButton(Button):
         insert_result = await self.main_service.insert_boss_book_entry(guild_id, message_id, user_id, display_name,
                                                                        self.attack_type)
         if not insert_result.is_success:
-            interaction.response.defer(ephemeral=True)
+            await interaction.response.defer(ephemeral=True)
             self.logger.error(insert_result.error_messages)
             return
 
         message = await utils.discord_try_fetch_message(interaction.channel, message_id)
         if message is None:
-            interaction.response.defer(ephemeral=True)
+            await interaction.response.defer(ephemeral=True)
             self.logger.error("Could not fetch message")
             return
 
         embeds = await self.main_service.refresh_clan_battle_boss_embeds(guild_id, message_id)
         if not insert_result.is_success:
-            interaction.response.defer(ephemeral=True)
+            await interaction.response.defer(ephemeral=True)
             self.logger.error(embeds.error_messages)
             return
 
@@ -500,19 +500,19 @@ class BookMatkButton(Button):
         insert_result = await self.main_service.insert_boss_book_entry(guild_id, message_id, user_id, display_name,
                                                                        self.attack_type)
         if not insert_result.is_success:
-            interaction.response.defer(ephemeral=True)
+            await interaction.response.defer(ephemeral=True)
             self.logger.error(insert_result.error_messages)
             return
 
         message = await utils.discord_try_fetch_message(interaction.channel, message_id)
         if message is None:
-            interaction.response.defer(ephemeral=True)
+            await interaction.response.defer(ephemeral=True)
             self.logger.error("Could not fetch message")
             return
 
         embeds = await self.main_service.refresh_clan_battle_boss_embeds(guild_id, message_id)
         if not insert_result.is_success:
-            interaction.response.defer(ephemeral=True)
+            await interaction.response.defer(ephemeral=True)
             self.logger.error(embeds.error_messages)
             return
 
@@ -552,19 +552,19 @@ class BookLeftoverButton(Button):
         insert_result = await self.main_service.insert_boss_book_entry(guild_id, message_id, user_id, display_name,
                                                                        attack_type, parent_overall_id, leftover_time)
         if not insert_result.is_success:
-            interaction.response.defer(ephemeral=True)
+            await interaction.response.defer(ephemeral=True)
             self.logger.error(insert_result.error_messages)
             return
 
         message = await utils.discord_try_fetch_message(interaction.channel, message_id)
         if message is None:
-            interaction.response.defer(ephemeral=True)
+            await interaction.response.defer(ephemeral=True)
             self.logger.error("Could not fetch message")
             return
 
         embeds = await self.main_service.refresh_clan_battle_boss_embeds(guild_id, message_id)
         if not insert_result.is_success:
-            interaction.response.defer(ephemeral=True)
+            await interaction.response.defer(ephemeral=True)
             self.logger.error(embeds.error_messages)
             return
 
