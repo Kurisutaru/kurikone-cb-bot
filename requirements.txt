@@ -1,8 +1,7 @@
 discord.py~=2.5.2
-dotenv~=0.9.9
 python-dotenv~=1.1.0
 envier~=0.6.1
 attrs~=25.3.0
 mariadb~=1.1.12
 DBUtils~=3.1.0
-pyi18n-v2==1.2.2
+pyi18n-v2~=1.2.2
