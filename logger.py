@@ -45,11 +45,11 @@ class KuriLogger:
         self.console_handler.setLevel(console_level)
 
         # Create a formatter and attach it to the handlers
-        self.file_formatter = logging.Formatter('%(asctime)s [%(threadName)s] [%(levelname)s] %(name)s: %(message)s',
+        self.file_formatter = logging.Formatter('%(asctime)s [%(levelname)s] %(name)s: %(message)s',
                                                 datefmt='%Y-%m-%d %H:%M:%S')
-        self.console_formatter = logging.Formatter(
-            '%(asctime)s [%(threadName)s] [%(levelname)s] %(name)-20s: %(message)s',
-            datefmt='%Y-%m-%d %H:%M:%S')
+        self.console_formatter = AnsiColorFormatter(
+             '%(asctime)s [%(levelname)s] %(name)-20s: %(message)s',
+             datefmt='%Y-%m-%d %H:%M:%S')
         self.file_handler.setFormatter(self.file_formatter)
         self.console_handler.setFormatter(self.console_formatter)
 
@@ -83,3 +83,28 @@ class KuriLogger:
     def critical(self, message):
         """Log a critical message."""
         self.logger.critical(message)
+
+
+class AnsiColorFormatter(logging.Formatter):
+    def __init__(self, fmt=None, datefmt='%Y-%m-%d %H:%M:%S'):
+        if fmt is None:
+            fmt = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        super().__init__(fmt=fmt, datefmt=datefmt)
+
+    def format(self, record: logging.LogRecord):
+        no_style = '\033[0m'
+        bold = '\033[91m'
+        grey = '\033[90m'
+        yellow = '\033[93m'
+        red = '\033[31m'
+        red_light = '\033[91m'
+        green = '\033[32m'
+        start_style = {
+            'DEBUG': grey,
+            'INFO': green,
+            'WARNING': yellow,
+            'ERROR': red,
+            'CRITICAL': red_light + bold,
+        }.get(record.levelname, no_style)
+        end_style = no_style
+        return f'{start_style}{super().format(record)}{end_style}'
