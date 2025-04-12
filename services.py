@@ -547,6 +547,86 @@ class MainService:
 
         except Exception as e:
             transaction_rollback()
+            logger.error(e)
+            service_result.set_error(str(e))
+
+        return service_result
+
+
+    @transactional
+    async def install_bot_command(self, guild: discord.Guild, tl_shifter_channel: dict) -> ServiceResult[None]:
+        service_result = ServiceResult[None]()
+        try:
+            guild_result = _service.guild_repo.get_by_guild_id(guild.id)
+            if guild_result:
+                service_result.set_error(l.t(guild.id, ""))
+                return service_result
+
+            setup = await self.setup_guild_channel_message(guild, tl_shifter_channel)
+            if not setup.is_success:
+                service_result.set_error(setup.error_messages)
+                return service_result
+
+            service_result.set_success(None)
+
+        except Exception as e:
+            transaction_rollback()
+            logger.error(e)
+            service_result.set_error(str(e))
+
+        return service_result
+
+    @transactional
+    async def uninstall_bot_command(self, guild: discord.Guild, tl_shifter_channel: dict) -> ServiceResult[list[int]]:
+        service_result = ServiceResult[list[int]]()
+        try:
+            guild_id = guild.id
+            guild_result = _service.guild_repo.get_by_guild_id(guild_id)
+            if guild_result is None:
+                service_result.set_error(l.t(guild_id, "message.guild_uninstalled"))
+                return service_result
+
+            # Get all related to the guild and remove all of them, including the CB Data
+
+            # Channel
+            channels = _service.channel_repo.get_all_by_guild_id(guild_id)
+            if channels is None or len(channels) == 0:
+                service_result.set_error("Channel not found")
+                return service_result
+
+            _service.channel_repo.delete_channel_by_guild_id(guild_id)
+
+            # Channel Message
+            _service.channel_message_repo.delete_by_guild_id(guild_id)
+
+            # Clan Battle Boss Entry
+            _service.clan_battle_boss_entry_repo.delete_by_guild_id(guild_id)
+
+            # Clan Battle Boss Book
+            _service.clan_battle_boss_book_repo.delete_by_guild_id(guild_id)
+
+            # Clan Battle Overall Entry
+            _service.clan_battle_overall_entry_repo.delete_by_guild_id(guild_id)
+
+            # Clan Battle Report Message
+            _service.clan_battle_report_message_repo.delete_by_guild_id(guild_id)
+
+            # Guild Player
+            _service.guild_player_repo.delete_by_guild_id(guild_id)
+
+            # Guild
+            _service.guild_repo.delete_by_guild_id(guild_id)
+
+            # Remove TL-Shifter listener from global dictionary
+            tl_shifter_channel.pop(guild.id, None)
+
+            channels = [item.channel_id for item in channels]
+
+            service_result.set_success(channels)
+
+        except Exception as e:
+            transaction_rollback()
+            logger.error(e)
             service_result.set_error(str(e))
 
         return service_result

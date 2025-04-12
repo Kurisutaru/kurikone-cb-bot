@@ -3,16 +3,14 @@ import re
 from discord.ext import commands
 
 import utils
-from locales import Locale, guild_locale
+from locales import guild_locale, Locale
 from logger import KuriLogger
 from repository import *
-from services import GuildService, ChannelService, ClanBattlePeriodService, MainService
+from services import GuildService, MainService
 
 # Global Service
 main_service = MainService()
 guild_service = GuildService()
-channel_service = ChannelService()
-clan_battle_period_service = ClanBattlePeriodService()
 
 # Global Variable
 NEW_LINE = "\n"
@@ -24,6 +22,7 @@ NON_DIGIT = re.compile(r'\D')
 
 intents = discord.Intents.default()
 intents.message_content = True
+intents.members = True
 
 bot = commands.Bot(command_prefix='!', intents=intents)
 
@@ -46,7 +45,7 @@ async def on_guild_join(guild):
 
 
 async def setup_channel(guild):
-    print(f'Setup for guild {guild.id} - {guild.name}')
+    logger.info(f'Setup for guild {guild.id} - {guild.name}')
     await main_service.setup_guild_channel_message(guild=guild, tl_shifter_channel=TL_SHIFTER_CHANNEL)
 
 
@@ -109,6 +108,76 @@ async def on_message(message):
     if len(result_lines) > 2:
         result_lines.append("```")
         await message.reply(NEW_LINE.join(result_lines))
+
+
+# Slash Command
+@bot.tree.command(name="install", description="This command will try to install all channel related to the bot functions")
+async def install(interaction: discord.Interaction):
+    guild_id = interaction.guild_id
+    if not interaction.user.guild_permissions.administrator:
+        return await utils.send_message_medium(interaction, l.t(guild_id, "system.not_administrator", user=interaction.user.display_name))
+
+    async def button_ok_callback(interact: discord.Interaction):
+        await interact.response.defer(thinking=True, ephemeral=True)
+
+        guild = interaction.guild
+        setup = await main_service.install_bot_command(guild, TL_SHIFTER_CHANNEL)
+        if not setup.is_success:
+            await utils.send_followup_short(interaction=interact, content=f"{setup.error_messages}",
+                                            ephemeral=True)
+            return
+
+        await utils.send_followup_short(interaction=interact, content=l.t(guild_id, "message.done_install"),
+                                        ephemeral=True)
+
+    view = utils.create_confirmation_message_view(guild_id=guild_id, yes_callback=button_ok_callback)
+
+    await utils.send_message_medium(interaction=interaction,
+                                    content=l.t(guild_id, "ui.prompts.install_confirmation"),
+                                    view=view, ephemeral=True)
+
+
+
+@bot.tree.command(name="uninstall", description="This command will try to uninstall all channel related to the bots and removing data from database")
+async def uninstall(interaction: discord.Interaction):
+    guild_id = interaction.guild_id
+    if not interaction.user.guild_permissions.administrator:
+        return await utils.send_message_medium(interaction, l.t(guild_id, "system.not_administrator", user=interaction.user.display_name))
+
+    async def button_ok_callback(interact: discord.Interaction):
+        await interact.response.defer(thinking=True, ephemeral=True)
+        guild = interaction.guild
+        action = await main_service.uninstall_bot_command(guild, TL_SHIFTER_CHANNEL)
+        if not action.is_success:
+            await utils.send_followup_short(interaction=interact, content=f"{action.error_messages}", ephemeral=True)
+            return
+
+        # Delete Channel
+        channels = action.result
+        channels.sort(reverse=True)
+        for channel_id in channels:
+            channel = interact.guild.get_channel(channel_id)
+            if channel:
+                await channel.delete()
+
+        await utils.send_followup_short(interaction=interact, content=l.t(guild_id, "message.done_uninstall"), ephemeral=True)
+
+    view = utils.create_confirmation_message_view(guild_id=guild_id, yes_callback=button_ok_callback)
+
+    await utils.send_message_medium(interaction=interaction,
+                                  content=l.t(guild_id, "ui.prompts.uninstall_confirmation"),
+                                  view=view, ephemeral=True)
+
+
+
+@bot.tree.command(name="report", description="Report generator")
+async def report(interaction: discord.Interaction):
+    guild_id = interaction.guild_id
+    if not interaction.user.guild_permissions.administrator:
+        return await utils.send_message_medium(interaction, l.t(guild_id, "system.not_administrator", user=interaction.user.display_name))
+
+    return await utils.send_message_medium(interaction, f"Hello, {interaction.user.display_name}!")
+
 
 
 bot.run(config.DISCORD_TOKEN, log_handler=None)

@@ -107,6 +107,22 @@ class GuildRepository:
                 return guild
 
 
+    def delete_by_guild_id(self, guild_id: int) -> bool:
+        with connection_context() as conn:
+            with conn.cursor(dictionary=True) as cursor:
+                cursor.execute(
+                    """
+                    DELETE FROM guild
+                    WHERE guild_id = ?
+                    """,
+                    (
+                        guild_id,
+                    )
+                )
+
+                return True
+
+
 class ChannelRepository:
 
     def get_all_by_guild_id(self, guild_id: int) -> List[Channel]:
@@ -176,6 +192,19 @@ class ChannelRepository:
                 channel.channel_id = cursor.lastrowid
 
             return channel
+
+    def delete_channel_by_guild_id(self, guild_id: int) -> bool:
+        with connection_context() as conn:
+            with conn.cursor(dictionary=True) as cursor:
+                cursor.execute(
+                    """
+                    DELETE FROM channel WHERE guild_id = ?
+                    """,
+                    (
+                        guild_id,
+                    )
+                )
+            return True
 
 
 class ChannelMessageRepository:
@@ -272,6 +301,21 @@ class ChannelMessageRepository:
                         ))
                     return entries
                 return []
+
+    def delete_by_guild_id(self, guild_id: int) -> bool:
+        with connection_context() as conn:
+            with conn.cursor(dictionary=True) as cursor:
+                cursor.execute(
+                    """
+                    DELETE FROM channel_message 
+                    WHERE channel_id IN (SELECT channel_id from channel WHERE guild_id = ?)
+                    """,
+                    (
+                        guild_id,
+                    )
+                )
+
+                return True
 
 
 class ClanBattleBossEntryRepository:
@@ -378,6 +422,22 @@ class ClanBattleBossEntryRepository:
                     (
                         message_id,
                         clan_battle_boss_entry_id
+                    )
+                )
+
+                return True
+
+
+    def delete_by_guild_id(self, guild_id: int) -> bool:
+        with connection_context() as conn:
+            with conn.cursor(dictionary=True) as cursor:
+                cursor.execute(
+                    """
+                    DELETE FROM clan_battle_boss_entry 
+                    WHERE guild_id = ?
+                    """,
+                    (
+                        guild_id,
                     )
                 )
 
@@ -566,6 +626,21 @@ class ClanBattleBossBookRepository:
 
                 return True
 
+
+    def delete_by_guild_id(self, guild_id: int) -> bool:
+        with connection_context() as conn:
+            with conn.cursor(dictionary=True) as cursor:
+                cursor.execute(
+                    """
+                    DELETE FROM clan_battle_boss_book 
+                    WHERE guild_id = ?
+                    """,
+                    (
+                        guild_id,
+                    )
+                )
+
+                return True
 
 class ClanBattlePeriodRepository:
 
@@ -849,3 +924,65 @@ class ClanBattleOverallEntryRepository:
                         entries.append(entry)
                     return entries
                 return []
+
+    def delete_by_guild_id(self, guild_id: int) -> bool:
+        with connection_context() as conn:
+            with conn.cursor(dictionary=True) as cursor:
+                cursor.execute(
+                    """
+                    DELETE FROM clan_battle_overall_entry
+                    WHERE guild_id = ?
+                    """,
+                    (
+                        guild_id,
+                    )
+                )
+
+                return True
+
+
+class ClanBattleReportMessageRepository:
+    def delete_by_guild_id(self, guild_id: int) -> bool:
+        with connection_context() as conn:
+            with conn.cursor(dictionary=True) as cursor:
+                cursor.execute(
+                    """
+                    DELETE FROM clan_battle_report_message
+                    WHERE guild_id = ?
+                    """,
+                    (
+                        guild_id,
+                    )
+                )
+
+                return True
+
+
+class GuildPlayerRepository:
+    def batch_insert(self, data: list[(int, int, str)]) -> bool:
+        with connection_context() as conn:
+            with conn.cursor(dictionary=True) as cursor:
+                cursor.executemany(
+                    """
+                    INSERT INTO guild_player (guild_id, player_id, player_name) 
+                    VALUES (?, ?, ?)
+                    """,
+                    data
+                )
+
+                return True
+
+    def delete_by_guild_id(self, guild_id: int) -> bool:
+        with connection_context() as conn:
+            with conn.cursor(dictionary=True) as cursor:
+                cursor.execute(
+                    """
+                    DELETE FROM guild_player
+                    WHERE guild_id = ?
+                    """,
+                    (
+                        guild_id,
+                    )
+                )
+
+                return True
