@@ -30,6 +30,7 @@ class ChannelMessage:
 
 @define
 class ClanBattleBossEntry:
+    guild_id: int
     clan_battle_boss_entry_id: int = field(default=None)
     message_id: int = field(default=None)
     clan_battle_period_id: int = field(default=None)
@@ -43,6 +44,7 @@ class ClanBattleBossEntry:
 
 @define
 class ClanBattleBossBook:
+    guild_id: int
     clan_battle_boss_book_id: int = field(default=None)
     clan_battle_boss_entry_id: int = field(default=None)
     player_id: int = field(default=None)

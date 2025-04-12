@@ -2,7 +2,7 @@ from typing import List
 
 from contextlib import contextmanager
 from models import *
-from database import db_pool, get_connection, connection_context_var, reset_connection_context, set_connection_context
+from database import get_connection, reset_connection_context, set_connection_context, db_connection_context
 
 
 @contextmanager
@@ -12,23 +12,63 @@ def connection_context():
     Returns a connection and manages its lifecycle automatically
     """
     conn, should_close = get_connection()
-
     try:
         # Set connection in context if not already set
-        if not connection_context_var.get():
+        if not db_connection_context.get():
             set_connection_context(conn)
+
         yield conn
     finally:
         if should_close:
             conn.close()
             reset_connection_context()
 
+class GenericRepository:
+    def get_connection_id(self) -> int:
+        with connection_context() as conn:
+            with conn.cursor(dictionary=True) as cursor:
+                cursor.execute("SELECT CONNECTION_ID() AS CONNECTION_ID")
+                result = cursor.fetchone()
+                if result is None:
+                    raise ValueError("Failed to retrieve connection ID")
+                return int(result['CONNECTION_ID'])
+
+    def set_session_read_uncommited(self):
+        with connection_context() as conn:
+            with conn.cursor(dictionary=True) as cursor:
+                cursor.execute("SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED")
+
+    def get_session_transaction_isolation(self):
+        with connection_context() as conn:
+            with conn.cursor(dictionary=True) as cursor:
+                cursor.execute("SELECT @@SESSION.transaction_isolation AS TI")
+                result = cursor.fetchone()
+                if result is None:
+                    raise ValueError("Failed to retrieve transaction Isolation")
+                return str(result['TI'])
+
+    def get_session_autocommit(self):
+        with connection_context() as conn:
+            with conn.cursor(dictionary=True) as cursor:
+                cursor.execute("SELECT @@SESSION.autocommit AS TI")
+                result = cursor.fetchone()
+                if result is None:
+                    raise ValueError("Failed to retrieve transaction Isolation")
+                return bool(result['TI'])
+
+    def get_session_transaction_id(self):
+        with connection_context() as conn:
+            with conn.cursor(dictionary=True) as cursor:
+                cursor.execute("SELECT trx_id FROM information_schema.innodb_trx WHERE trx_mysql_thread_id = CONNECTION_ID()")
+                result = cursor.fetchone()
+                if result is None:
+                    return "None"
+                return result['trx_id']
+
+
 
 class GuildRepository:
-    def __init__(self):
-        self.pool = db_pool
-
-    def get_by_guild_id(self, guild_id: int):
+    def get_by_guild_id(self, guild_id: int) -> Optional[Guild]:
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
                 cursor.execute(
@@ -46,9 +86,8 @@ class GuildRepository:
                         guild_id=result['guild_id'],
                         guild_name=result['guild_name']
                     )
-                return None
 
-    def insert_guild(self, guild: Guild):
+    def insert_guild(self, guild: Guild) -> Guild:
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
                 cursor.execute(
@@ -69,10 +108,8 @@ class GuildRepository:
 
 
 class ChannelRepository:
-    def __init__(self):
-        self.pool = db_pool
 
-    def get_all_by_guild_id(self, guild_id: int):
+    def get_all_by_guild_id(self, guild_id: int) -> List[Channel]:
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
                 cursor.execute(
@@ -99,7 +136,7 @@ class ChannelRepository:
                     return entries
                 return []
 
-    def insert_channel(self, channel: Channel):
+    def insert_channel(self, channel: Channel) -> Channel:
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
                 cursor.execute(
@@ -121,7 +158,7 @@ class ChannelRepository:
 
             return channel
 
-    def update_channel(self, channel: Channel):
+    def update_channel(self, channel: Channel) -> Channel:
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
                 cursor.execute(
@@ -142,10 +179,8 @@ class ChannelRepository:
 
 
 class ChannelMessageRepository:
-    def __init__(self):
-        self.pool = db_pool
 
-    def insert_channel_message(self, channel_message: ChannelMessage):
+    def insert_channel_message(self, channel_message: ChannelMessage) -> ChannelMessage:
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
                 cursor.execute(
@@ -159,7 +194,7 @@ class ChannelMessageRepository:
 
                 return channel_message
 
-    def update_channel_message(self, channel_message: ChannelMessage):
+    def update_channel_message(self, channel_message: ChannelMessage) -> ChannelMessage:
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
                 cursor.execute(
@@ -176,7 +211,7 @@ class ChannelMessageRepository:
 
                 return channel_message
 
-    def update_self_channel_message(self, old_channel_id: int, new_channel_id: int):
+    def update_self_channel_message(self, old_channel_id: int, new_channel_id: int) -> bool:
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
                 cursor.execute(
@@ -193,7 +228,7 @@ class ChannelMessageRepository:
 
                 return True
 
-    def get_channel_message_by_channel_id(self, channel_id: int):
+    def get_channel_message_by_channel_id(self, channel_id: int) -> Optional[ChannelMessage]:
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
                 cursor.execute(
@@ -213,7 +248,7 @@ class ChannelMessageRepository:
                     )
                 return None
 
-    def get_all_by_guild_id(self, guild_id: int):
+    def get_all_by_guild_id(self, guild_id: int) -> list[ChannelMessage]:
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
                 cursor.execute(
@@ -240,15 +275,15 @@ class ChannelMessageRepository:
 
 
 class ClanBattleBossEntryRepository:
-    def __init__(self):
-        self.pool = db_pool
 
-    def insert_clan_battle_boss_entry(self, clan_battle_boss_entry: ClanBattleBossEntry):
+    def insert_clan_battle_boss_entry(self, clan_battle_boss_entry: ClanBattleBossEntry) -> ClanBattleBossEntry:
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
                 cursor.execute(
                     """
-                    INSERT INTO clan_battle_boss_entry (message_id, 
+                    INSERT INTO clan_battle_boss_entry (
+                        guild_id,
+                        message_id, 
                         clan_battle_period_id, 
                         clan_battle_boss_id, 
                         name, 
@@ -257,28 +292,32 @@ class ClanBattleBossEntryRepository:
                         current_health, 
                         max_health
                     ) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
-                    (clan_battle_boss_entry.message_id,
-                     clan_battle_boss_entry.clan_battle_period_id,
-                     clan_battle_boss_entry.clan_battle_boss_id,
-                     clan_battle_boss_entry.name,
-                     clan_battle_boss_entry.image_path,
-                     clan_battle_boss_entry.boss_round,
-                     clan_battle_boss_entry.current_health,
-                     clan_battle_boss_entry.max_health)
+                    (
+                        clan_battle_boss_entry.guild_id,
+                        clan_battle_boss_entry.message_id,
+                        clan_battle_boss_entry.clan_battle_period_id,
+                        clan_battle_boss_entry.clan_battle_boss_id,
+                        clan_battle_boss_entry.name,
+                        clan_battle_boss_entry.image_path,
+                        clan_battle_boss_entry.boss_round,
+                        clan_battle_boss_entry.current_health,
+                        clan_battle_boss_entry.max_health
+                    )
                 )
                 clan_battle_boss_entry.clan_battle_boss_entry_id = cursor.lastrowid
 
             return clan_battle_boss_entry
 
-    def get_last_by_message_id(self, message_id: int):
+    def get_last_by_message_id(self, message_id: int) -> Optional[ClanBattleBossEntry]:
         with connection_context() as conn:
 
             with conn.cursor(dictionary=True) as cursor:
                 cursor.execute(
                     """
                     SELECT clan_battle_boss_entry_id,
+                           guild_id,
                            message_id,
                            clan_battle_period_id,
                            clan_battle_boss_id,
@@ -298,6 +337,7 @@ class ClanBattleBossEntryRepository:
                 if result:
                     return ClanBattleBossEntry(
                         clan_battle_boss_entry_id=result['clan_battle_boss_entry_id'],
+                        guild_id=result['guild_id'],
                         message_id=result['message_id'],
                         clan_battle_period_id=result['clan_battle_period_id'],
                         clan_battle_boss_id=result['clan_battle_boss_id'],
@@ -309,7 +349,7 @@ class ClanBattleBossEntryRepository:
                     )
                 return None
 
-    def update_on_attack(self, clan_battle_boss_entry_id: int, current_health: int):
+    def update_on_attack(self, clan_battle_boss_entry_id: int, current_health: int) -> bool:
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
                 cursor.execute(
@@ -326,7 +366,7 @@ class ClanBattleBossEntryRepository:
 
                 return True
 
-    def update_message_id(self, clan_battle_boss_entry_id: int, message_id: int):
+    def update_message_id(self, clan_battle_boss_entry_id: int, message_id: int) -> bool:
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
                 cursor.execute(
@@ -345,16 +385,15 @@ class ClanBattleBossEntryRepository:
 
 
 class ClanBattleBossBookRepository:
-    def __init__(self):
-        self.pool = db_pool
 
-    def get_all_by_message_id(self, message_id: int):
+    def get_all_by_message_id(self, message_id: int) -> list[ClanBattleBossBook]:
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
                 cursor.execute(
                     """
                     SELECT CBBB.clan_battle_boss_book_id,
                            CBBB.clan_battle_boss_entry_id,
+                           CBBB.guild_id,
                            CBBB.player_id,
                            CBBB.player_name,
                            CBBB.attack_type,
@@ -375,6 +414,7 @@ class ClanBattleBossBookRepository:
                         entries.append(ClanBattleBossBook(
                             clan_battle_boss_book_id=row['clan_battle_boss_book_id'],
                             clan_battle_boss_entry_id=row['clan_battle_boss_entry_id'],
+                            guild_id=row['guild_id'],
                             player_id=row['player_id'],
                             player_name=row['player_name'],
                             attack_type=row['attack_type'],
@@ -387,13 +427,14 @@ class ClanBattleBossBookRepository:
                     return entries
                 return []
 
-    def get_player_book_entry(self, message_id: int, player_id: int):
+    def get_player_book_entry(self, message_id: int, player_id: int) -> Optional[ClanBattleBossBook]:
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
                 cursor.execute(
                     """
                     SELECT CBBB.clan_battle_boss_book_id,
                            CBBB.clan_battle_boss_entry_id,
+                           CBBB.guild_id,
                            CBBB.player_id,
                            CBBB.player_name,
                            CBBB.attack_type,
@@ -416,6 +457,7 @@ class ClanBattleBossBookRepository:
                     return ClanBattleBossBook(
                         clan_battle_boss_book_id=result['clan_battle_boss_book_id'],
                         clan_battle_boss_entry_id=result['clan_battle_boss_entry_id'],
+                        guild_id=result['guild_id'],
                         player_id=result['player_id'],
                         player_name=result['player_name'],
                         attack_type=result['attack_type'],
@@ -426,7 +468,7 @@ class ClanBattleBossBookRepository:
                     )
                 return None
 
-    def get_player_book_count(self, guild_id: int, player_id: int):
+    def get_player_book_count(self, guild_id: int, player_id: int) -> int:
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
                 cursor.execute(
@@ -439,11 +481,11 @@ class ClanBattleBossBookRepository:
                                  INNER JOIN guild AS G ON C.guild_id = G.guild_id
                         WHERE G.guild_id = ?
                             AND CBBB.player_id = ?
-                            AND CONVERT_TZ(CBBB.entry_date, @@session.time_zone, 'Asia/Tokyo') >= IF(CURRENT_TIME() < '05:00:00',
-                                        CONCAT(DATE_SUB(DATE(CONVERT_TZ(CURDATE(), @@session.time_zone, 'Asia/Tokyo')), INTERVAL 1 DAY), ' 05:00:00'),
+                            AND CBBB.entry_date >= IF(CURRENT_TIME() < '05:00:00',
+                                        CONCAT(DATE_SUB(CURDATE(), INTERVAL 1 DAY), ' 05:00:00'),
                                         CONCAT(CURDATE(), ' 05:00:00'))
-                            AND CONVERT_TZ(CBBB.entry_date, @@session.time_zone, 'Asia/Tokyo') < IF(CURRENT_TIME() < '05:00:00',
-                                       CONCAT(DATE(CONVERT_TZ(SYSDATE(), @@session.time_zone, 'Asia/Tokyo')), ' 05:00:00'),
+                            AND CBBB.entry_date < IF(CURRENT_TIME() < '05:00:00',
+                                       CONCAT(CURDATE(), ' 05:00:00'),
                                        CONCAT(DATE_ADD(CURDATE(), INTERVAL 1 DAY), ' 05:00:00'))
                     """,
                     (
@@ -456,7 +498,7 @@ class ClanBattleBossBookRepository:
                     return int(result['Book_Count'])
                 return 0
 
-    def delete_book_by_id(self, clan_battle_boss_book_id: int):
+    def delete_book_by_id(self, clan_battle_boss_book_id: int) -> bool:
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
                 cursor.execute(
@@ -472,14 +514,15 @@ class ClanBattleBossBookRepository:
 
                 return True
 
-    def insert_boss_book_entry(self, clan_battle_boss_book: ClanBattleBossBook):
+    def insert_boss_book_entry(self, clan_battle_boss_book: ClanBattleBossBook) -> ClanBattleBossBook:
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
                 cursor.execute(
                     """
-                    INSERT INTO KurikoneCbBot.clan_battle_boss_book (
+                    INSERT INTO clan_battle_boss_book (
                         clan_battle_boss_book_id, 
-                        clan_battle_boss_entry_id, 
+                        clan_battle_boss_entry_id,
+                        guild_id,
                         player_id, 
                         player_name, 
                         attack_type, 
@@ -488,11 +531,12 @@ class ClanBattleBossBookRepository:
                         leftover_time,
                         entry_date
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, SYSDATE())
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, SYSDATE())
                     """,
                     (
                         clan_battle_boss_book.clan_battle_boss_entry_id,
                         clan_battle_boss_book.clan_battle_boss_entry_id,
+                        clan_battle_boss_book.guild_id,
                         clan_battle_boss_book.player_id,
                         clan_battle_boss_book.player_name,
                         clan_battle_boss_book.attack_type.name,
@@ -505,7 +549,7 @@ class ClanBattleBossBookRepository:
 
             return clan_battle_boss_book
 
-    def update_damage_boss_book_by_id(self, clan_battle_boss_book_id: int, damage: int):
+    def update_damage_boss_book_by_id(self, clan_battle_boss_book_id: int, damage: int) -> bool:
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
                 cursor.execute(
@@ -524,10 +568,8 @@ class ClanBattleBossBookRepository:
 
 
 class ClanBattlePeriodRepository:
-    def __init__(self):
-        self.pool = db_pool
 
-    def get_current_cb_period(self):
+    def get_current_cb_period(self) -> Optional[ClanBattlePeriod] :
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
                 cursor.execute(
@@ -562,10 +604,8 @@ class ClanBattlePeriodRepository:
 
 
 class ClanBattleBossRepository:
-    def __init__(self):
-        self.pool = db_pool
 
-    def fetch_clan_battle_boss_by_id(self, clan_battle_boss_id: int):
+    def fetch_clan_battle_boss_by_id(self, clan_battle_boss_id: int) -> Optional[ClanBattleBoss]:
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
                 cursor.execute(
@@ -593,10 +633,8 @@ class ClanBattleBossRepository:
 
 
 class ClanBattleBossHealthRepository:
-    def __init__(self):
-        self.pool = db_pool
 
-    def get_one_by_position_and_round(self, position: int, boss_round: int):
+    def get_one_by_position_and_round(self, position: int, boss_round: int) -> Optional[ClanBattleBossHealth]:
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
                 cursor.execute(
@@ -625,10 +663,7 @@ class ClanBattleBossHealthRepository:
 
 
 class ClanBattleOverallEntryRepository:
-    def __init__(self):
-        self.pool = db_pool
-
-    def get_all_by_guild_id_boss_id_and_round(self, guild_id: int, clan_battle_boss_id: int, boss_round: int):
+    def get_all_by_guild_id_boss_id_and_round(self, guild_id: int, clan_battle_boss_id: int, boss_round: int) -> list[ClanBattleOverallEntry]:
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
                 cursor.execute(
@@ -679,7 +714,7 @@ class ClanBattleOverallEntryRepository:
                     return entries
                 return []
 
-    def insert(self, cb_overall_entry: ClanBattleOverallEntry):
+    def insert(self, cb_overall_entry: ClanBattleOverallEntry) -> ClanBattleOverallEntry:
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
                 cursor.execute(
@@ -719,7 +754,7 @@ class ClanBattleOverallEntryRepository:
 
             return cb_overall_entry
 
-    def update_overall_link(self, cb_overall_entry_id: int, overall_leftover_entry_id: int):
+    def update_overall_link(self, cb_overall_entry_id: int, overall_leftover_entry_id: int) -> bool:
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
                 cursor.execute(
@@ -749,12 +784,12 @@ class ClanBattleOverallEntryRepository:
                     WHERE CBOE.guild_id = ?
                       AND CBOE.player_id = ?
                       AND CBOE.attack_type <> 'CARRY'
-                      AND DATE(SYSDATE()) BETWEEN CBP.date_from AND CBP.date_to
-                      AND CONVERT_TZ(CBOE.entry_date, @@session.time_zone, 'Asia/Tokyo') >= IF(CURRENT_TIME() < '05:00:00',
-                                        CONCAT(DATE_SUB(DATE(CONVERT_TZ(CURDATE(), @@session.time_zone, 'Asia/Tokyo')), INTERVAL 1 DAY), ' 05:00:00'),
+                      AND CURDATE() BETWEEN CBP.date_from AND CBP.date_to
+                      AND CBOE.entry_date >= IF(CURRENT_TIME() < '05:00:00',
+                                        CONCAT(DATE_SUB(CURDATE(), INTERVAL 1 DAY), ' 05:00:00'),
                                         CONCAT(CURDATE(), ' 05:00:00'))
-                      AND CONVERT_TZ(CBOE.entry_date, @@session.time_zone, 'Asia/Tokyo') < IF(CURRENT_TIME() < '05:00:00',
-                                       CONCAT(DATE(CONVERT_TZ(SYSDATE(), @@session.time_zone, 'Asia/Tokyo')), ' 05:00:00'),
+                      AND CBOE.entry_date < IF(CURRENT_TIME() < '05:00:00',
+                                       CONCAT(CURDATE(), ' 05:00:00'),
                                        CONCAT(DATE_ADD(CURDATE(), INTERVAL 1 DAY), ' 05:00:00'))
 
                     """,
@@ -786,12 +821,12 @@ class ClanBattleOverallEntryRepository:
                         AND CBOE.player_id = ?
                         AND CBOE.leftover_time IS NOT NULL
                         AND CBOE.overall_leftover_entry_id IS NULL
-                        AND DATE(SYSDATE()) BETWEEN CBP.date_from AND CBP.date_to
+                        AND CURDATE() BETWEEN CBP.date_from AND CBP.date_to
                         AND CONVERT_TZ(CBOE.entry_date, @@session.time_zone, 'Asia/Tokyo') >= IF(CURRENT_TIME() < '05:00:00',
-                                        CONCAT(DATE_SUB(DATE(CONVERT_TZ(CURDATE(), @@session.time_zone, 'Asia/Tokyo')), INTERVAL 1 DAY), ' 05:00:00'),
+                                        CONCAT(DATE_SUB(CURDATE(), INTERVAL 1 DAY), ' 05:00:00'),
                                         CONCAT(CURDATE(), ' 05:00:00'))
                         AND CONVERT_TZ(CBOE.entry_date, @@session.time_zone, 'Asia/Tokyo') < IF(CURRENT_TIME() < '05:00:00',
-                                       CONCAT(DATE(CONVERT_TZ(SYSDATE(), @@session.time_zone, 'Asia/Tokyo')), ' 05:00:00'),
+                                       CONCAT(CURDATE(), ' 05:00:00'),
                                        CONCAT(DATE_ADD(CURDATE(), INTERVAL 1 DAY), ' 05:00:00'));
                     """,
                     (

@@ -9,6 +9,7 @@ class DatabasePool:
     _instance = None
     _pool = None
 
+
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super(DatabasePool, cls).__new__(cls)
@@ -24,7 +25,7 @@ class DatabasePool:
                     password=config.DB_PASSWORD,
                     database=config.DB_NAME,
                     port=config.DB_PORT,
-                    autocommit=True
+                    setsession=["SET SESSION time_zone = 'Asia/Tokyo'"]
                 )
                 print(f"Connection pool initialized with size: {config.MAX_POOL_SIZE}")
             except Exception as e:
@@ -51,7 +52,8 @@ db_pool = DatabasePool()
 # Context Management
 # --------------------------------------------
 # Context var for async-safe connection tracking
-connection_context_var = contextvars.ContextVar('db_connection', default=None)
+db_connection_context  = contextvars.ContextVar('db_connection', default=None)
+rollback_flag_context = contextvars.ContextVar('rollback_flag', default=False)
 
 
 def get_connection():
@@ -61,7 +63,7 @@ def get_connection():
         - connection: Existing or new connection
         - should_close: Whether the connection should be closed after use
     """
-    existing_conn = connection_context_var.get()
+    existing_conn = db_connection_context.get()
     if existing_conn is not None:
         return existing_conn, False
     else:
@@ -71,9 +73,9 @@ def get_connection():
 
 def set_connection_context(conn: mariadb.Connection):
     """Set connection for the current context"""
-    connection_context_var.set(conn)
+    db_connection_context.set(conn)
 
 
 def reset_connection_context():
     """Clear connection from current context"""
-    connection_context_var.set(None)
+    db_connection_context.set(None)
