@@ -32,6 +32,7 @@ create or replace table clan_battle_boss_book
     clan_battle_boss_book_id     bigint unsigned auto_increment
         primary key,
     clan_battle_boss_entry_id    bigint unsigned not null,
+    guild_id                     bigint unsigned not null,
     player_id                    bigint unsigned not null,
     player_name                  varchar(2000)   not null,
     attack_type                  varchar(20)     not null,
@@ -41,21 +42,11 @@ create or replace table clan_battle_boss_book
     entry_date                   datetime        not null
 );
 
-create or replace table clan_battle_boss_data
-(
-    clan_battle_boss_data int auto_increment
-        primary key,
-    clan_battle_period_id int             not null,
-    clan_battle_boss_id   int             not null,
-    health1               bigint unsigned not null,
-    health2               bigint unsigned not null,
-    health3               bigint unsigned not null
-);
-
 create or replace table clan_battle_boss_entry
 (
     clan_battle_boss_entry_id int auto_increment
         primary key,
+    guild_id                  bigint unsigned not null,
     message_id                bigint unsigned not null,
     clan_battle_period_id     int             not null,
     clan_battle_boss_id       int             not null,
@@ -89,7 +80,7 @@ create or replace table clan_battle_overall_entry
     damage                       int             not null,
     attack_type                  varchar(20)     not null,
     leftover_time                int             null,
-    overall_parent_entry_id      int             null,
+    overall_leftover_entry_id    int             null,
     entry_date                   datetime        not null
 );
 
@@ -107,6 +98,16 @@ create or replace table clan_battle_period
     boss5_id                int           not null
 );
 
+create or replace table clan_battle_report_message
+(
+    clan_battle_report_message_id int auto_increment
+        primary key,
+    guild_id                      bigint unsigned not null,
+    clan_battle_period_id         int             not null,
+    message_id                    bigint unsigned not null,
+    day                           int             not null
+);
+
 create or replace table guild
 (
     guild_id   bigint unsigned not null,
@@ -115,5 +116,14 @@ create or replace table guild
         primary key (guild_id),
     constraint `UNIQUE`
         unique (guild_id)
+);
+
+create or replace table guild_player
+(
+    guild_id    bigint unsigned not null,
+    player_id   bigint unsigned not null,
+    player_name varchar(200)    not null,
+    constraint `PRIMARY`
+        primary key (guild_id, player_id)
 );
 
