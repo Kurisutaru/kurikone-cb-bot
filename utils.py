@@ -3,19 +3,21 @@ import traceback
 from typing import List, Optional
 
 import discord
-from discord import TextChannel, Colour, Message
+from discord import TextChannel, Colour, Message, Embed
+from discord.ui import View
 
 from config import config
 from enums import EmojiEnum
 from locales import Locale
 from logger import KuriLogger
 from models import ClanBattleBossEntry, ClanBattleOverallEntry, ClanBattleBossBook
-from ui import ButtonView
+from ui import ButtonView, ConfirmationOkDoneButton, ConfirmationNoCancelButton
 
 NEW_LINE = "\n"
 
 logger = KuriLogger()
 l = Locale()
+
 
 ### DISCORD STUFF UTILS
 
@@ -35,13 +37,88 @@ async def discord_close_response(interaction: discord.Interaction):
         logger.error(traceback.print_exc())
 
 
-async def discord_resp_send_msg(interaction: discord.Interaction, message: str, ephemeral: bool = True,
-                                delete_after=None):
-    if delete_after is None:
-        delete_after = config.MESSAGE_DEFAULT_DELETE_AFTER_SHORT
+async def send_message_short(interaction: discord.Interaction, content: str, embed: Embed = None,
+                             embeds: list[Embed] = None, view: View = None, ephemeral: bool = False):
+    param = create_message_param(content=content, embed=embed, embeds=embeds, view=view, ephemeral=ephemeral,
+                                 delete_after=config.MESSAGE_DEFAULT_DELETE_AFTER_SHORT)
+    await interaction.response.send_message(**param)
 
-    await interaction.response.send_message(content=message, ephemeral=ephemeral,
-                                            delete_after=delete_after)  # type: ignore
+
+async def send_message_medium(interaction: discord.Interaction, content: str, embed: Embed = None, embeds=None,
+                              view: View = None, ephemeral: bool = False):
+    param = create_message_param(content=content, embed=embed, embeds=embeds, view=view, ephemeral=ephemeral,
+                                 delete_after=config.MESSAGE_DEFAULT_DELETE_AFTER_MEDIUM)
+    await interaction.response.send_message(**param)
+
+
+async def send_message_long(interaction: discord.Interaction, content: str, embed: Embed = None, embeds=None,
+                            view: View = None, ephemeral: bool = False):
+    param = create_message_param(content=content, embed=embed, embeds=embeds, view=view, ephemeral=ephemeral,
+                                 delete_after=config.MESSAGE_DEFAULT_DELETE_AFTER_LONG)
+    await interaction.response.send_message(**param)
+
+
+async def send_channel_message_short(interaction: discord.Interaction, content: str, embed: Embed = None,
+                                     embeds: list[Embed] = None, view: View = None):
+    param = create_message_param(content=content, embed=embed, embeds=embeds, view=view,
+                                 delete_after=config.MESSAGE_DEFAULT_DELETE_AFTER_SHORT)
+    await interaction.channel.send(**param)
+
+
+async def send_channel_message_medium(interaction: discord.Interaction, content: str, embed: Embed = None,
+                                      embeds: list[Embed] = None, view: View = None):
+    param = create_message_param(content=content, embed=embed, embeds=embeds, view=view,
+                                 delete_after=config.MESSAGE_DEFAULT_DELETE_AFTER_MEDIUM)
+    await interaction.channel.send(**param)
+
+
+async def send_channel_message_long(interaction: discord.Interaction, content: str, embed: Embed = None,
+                                    embeds: list[Embed] = None, view: View = None):
+    param = create_message_param(content=content, embed=embed, embeds=embeds, view=view,
+                                 delete_after=config.MESSAGE_DEFAULT_DELETE_AFTER_LONG)
+    await interaction.channel.send(**param)
+
+
+async def send_followup_short(interaction: discord.Interaction, content: str, ephemeral: bool = None):
+    param = create_message_param(content=content, ephemeral=ephemeral)
+    msg = await interaction.followup.send(**param)
+    if msg:
+        await msg.delete(delay=config.MESSAGE_DEFAULT_DELETE_AFTER_SHORT)
+
+
+async def send_followup_medium(interaction: discord.Interaction, content: str, ephemeral: bool = None):
+    param = create_message_param(content=content, ephemeral=ephemeral)
+    msg = await interaction.followup.send(**param)
+    if msg:
+        await msg.delete(delay=config.MESSAGE_DEFAULT_DELETE_AFTER_MEDIUM)
+
+
+async def send_followup_long(interaction: discord.Interaction, content: str, ephemeral: bool = None):
+    param = create_message_param(content=content, ephemeral=ephemeral)
+    msg = await interaction.followup.send(**param)
+    if msg:
+        await msg.delete(delay=config.MESSAGE_DEFAULT_DELETE_AFTER_LONG)
+
+
+def create_message_param(content: str, embed: Embed = None, embeds: list[Embed] = None, view: View = None,
+                         ephemeral: bool = None, delete_after: int = None):
+    param = {}
+    if embeds is None:
+        embeds = []
+    if embed:
+        embeds.append(embed)
+    if content:
+        param["content"] = content
+    if embeds.__len__() > 0:
+        param["embeds"] = embeds
+    if view:
+        param["view"] = view
+    if ephemeral:
+        param["ephemeral"] = ephemeral
+    if delete_after:
+        param["delete_after"] = delete_after
+
+    return param
 
 
 def create_header_embed(guild_id: int, cb_boss_entry: ClanBattleBossEntry, include_image: bool = True,
@@ -77,8 +154,10 @@ def create_book_embed(guild_id: int, list_boss_cb_player_entries: List[ClanBattl
     )
     return embed
 
-def get_button_view(guild_id:int) -> ButtonView:
+
+def get_button_view(guild_id: int) -> ButtonView:
     return ButtonView(guild_id)
+
 
 def generate_done_attack_list(guild_id: int, datas: List[ClanBattleOverallEntry]) -> str:
     lines = [f"========== {EmojiEnum.DONE.value} {l.t(guild_id, "ui.label.done_list")} =========="]
@@ -111,6 +190,21 @@ def generate_health_bar(current_health: int, max_health: int):
         result += f"{EmojiEnum.RED_BLOCK.value}"
     result += f"`"
     return result
+
+
+def create_confirmation_message_view(guild_id: int, yes_emoji: EmojiEnum = EmojiEnum.YES,
+                                     no_emoji: EmojiEnum = EmojiEnum.NO, yes_callback=None) -> View:
+    yes_btn = ConfirmationOkDoneButton(yes_emoji, l.t(guild_id, "ui.button.yes"))
+    no_btn = ConfirmationNoCancelButton(no_emoji, l.t(guild_id, "ui.button.no"))
+
+    if yes_callback:
+        yes_btn.callback = yes_callback
+
+    view = View(timeout=None)
+    view.add_item(yes_btn)
+    view.add_item(no_btn)
+
+    return view
 
 
 def format_large_number(num):
