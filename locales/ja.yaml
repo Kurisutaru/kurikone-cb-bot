@@ -13,17 +13,19 @@ ja:
         label: "残り時間（秒）"
         placeholder: "例: 30"
     button:
+      yes: "はい"
+      no: "いいえ"
       book: "予約"
       cancel: "キャンセル"
       entry: "エントリー"
       done: "完了"
       dead: "撃破"
-      ok: "OK"
+      ok: "Ok"
     status:
       booked: "既に予約済みです！"
       not_yet_booked: "まだ予約されていません！"
       preparing_data: "データを準備中 . . ."
-      round: "ラウンド {round}"
+      round: "ラウンド %{round}"
     validation:
       enter_entry_type_first: "先にエントリータイプを入力してください！"
       only_numbers_allowed: "数字のみ入力可能です！"
@@ -31,14 +33,30 @@ ja:
       leftover_time_range_invalid: "残り時間は20〜90秒の間である必要があります"
       entry_damage_less_than_boss_hp: "あなたのダメージはボスのHPを下回っています！"
     prompts:
-      choose_entry_type: "エントリータイプを選択してください [{count_left}/3]"
+      choose_entry_type: "エントリータイプを選択してください [%{count_left}/3]"
       confirm_mark_as_done: "このエントリーを完了としてマークしますか？"
       confirm_mark_as_boss_kill: "このエントリーをボス撃破としてマークしますか？"
       boss_kill_confirmation: |
         このエントリーをボス撃破としてマークしてもよろしいですか？
-        残り時間: **{leftover_time}s**
+        残り時間: **%{leftover_time}s**
+      install_confirmation: "ボットをインストールしてよいですか？"
+      uninstall_confirmation: "ボットをアンインストールしてよいですか？この操作は取り消せません！"
     events:
-      user_added_to_booking_list: "{user} {emoji} が予約リストに追加されました"
-      boss_killed: "{user} が {attack_type} でボスを撃破しました（{leftover_time}s）"
+      user_added_to_booking_list: "%{user} %{emoji} が予約リストに追加されました"
+      removed_from_booking_list: "本のリストから削除されました"
+      boss_killed: "%{user} が %{attack_type} でボスを撃破しました（%{leftover_time}s）"
   system:
-    not_administrator: "{user} は sudoers ファイルに存在しません。この操作は報告されます。"
+    not_administrator: "%{user} は sudoers ファイルに存在しません。この操作は報告されます。"
+  commands:
+    install:
+      name: "インストール"
+      description: "このコマンドは、ボットに関連するすべてのチャンネルをアンインストールし、データベースからデータを削除します"
+    uninstall:
+      name: "アンインストール"
+      description: "このコマンドは、ボットに関連するすべてのチャンネルをアンインストールし、データベースからデータを削除します"
+  message:
+    not_found: "%{input} が見つかりません。"
+    guild_installed: "ギルドはすでにインストールされています。まずアンインストールしてください。"
+    done_install: "ボットのインストールが完了しました！"
+    guild_not_installed: "ギルドはインストールされていません。まずインストールしてください。"
+    done_uninstall: "ボットのアンインストールが完了しました！"

@@ -13,6 +13,8 @@ en-us:
         label: "Leftover Time (in seconds)"
         placeholder: "e.g. 30"
     button:
+      yes: "Yes"
+      no: "No"
       book: "Book"
       cancel: "Cancel"
       entry: "Entry"
@@ -23,7 +25,7 @@ en-us:
       booked: "Already booked!"
       not_yet_booked: "Not booked!"
       preparing_data: "Preparing data . . ."
-      round: "Round {round}"
+      round: "Round %{round}"
     validation:
       enter_entry_type_first: "Input entry first!"
       only_numbers_allowed: "Number only!"
@@ -31,16 +33,31 @@ en-us:
       leftover_time_range_invalid: "Must be between 20 and 90s"
       entry_damage_less_than_boss_hp: "Your entry damage is lower than the boss's health!"
     prompts:
-      choose_entry_type: "Choose your Entry Type [{count_left}/3]"
+      choose_entry_type: "Choose your Entry Type [%{count_left}/3]"
       confirm_mark_as_done: "Are you sure you want to mark your entry as Done?"
       confirm_mark_as_boss_kill: "Are you sure you want to mark your entry as Boss Kill?"
       boss_kill_confirmation: |
         Are you sure you want to mark your entry as Boss Kill?
-        Leftover Time: **{leftover_time}s**
+        Leftover Time: **%{leftover_time}s**
+      install_confirmation: "Are you sure want to install the bot ?"
+      uninstall_confirmation: "Are you sure want to uninstall the bot ? This action is irreversible !"
     events:
-      user_added_to_booking_list: "{user} {emoji} added to book list"
-      boss_killed: "Boss killed by {user} with {attack_type} ({leftover_time}s)"
+      user_added_to_booking_list: "%{user} %{emoji} added to book list"
+      removed_from_booking_list: "Removed from book list"
+      boss_killed: "Boss killed by %{user} with %{attack_type} (%{leftover_time}s)"
   system:
-    not_administrator: "{user} is not in the sudoers file. This incident will be reported."
-    install_command_description: "This command will try to uninstall all channel related to the bots and removing data from database"
-    uninstall_command_description: "This command will try to uninstall all channel related to the bots and removing data from database"
+    not_administrator: "%{user} is not in the sudoers file. This incident will be reported."
+  commands:
+    install:
+      name: "install"
+      description: "This command will try to uninstall all channel related to the bots and removing data from database"
+    uninstall:
+      name: "uninstall"
+      description: "This command will try to uninstall all channel related to the bots and removing data from database"
+  message:
+    not_found: "%{input} not found."
+    guild_installed: "Guild already installed, try to uninstall first."
+    done_install: "Bot done installing !"
+    guild_not_installed: "Guild not installed, try to install first."
+    done_uninstall: "Bot done uninstalling !"
+
