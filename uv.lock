@@ -147,17 +147,6 @@ wheels = [
 ]
 
 [[package]]
-name = "dotenv"
-version = "0.9.9"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "python-dotenv" },
-]
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/b2/b7/545d2c10c1fc15e48653c91efde329a790f2eecfbbf2bd16003b5db2bab0/dotenv-0.9.9-py2.py3-none-any.whl", hash = "sha256:29cf74a087b31dafdb5a446b6d7e11cbce8ed2741540e2339c69fbef92c94ce9", size = 1892 },
-]
-
-[[package]]
 name = "envier"
 version = "0.6.1"
 source = { registry = "https://pypi.org/simple" }
@@ -206,6 +195,20 @@ wheels = [
 ]
 
 [[package]]
+name = "i18nice"
+version = "0.15.5"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/e5/59/2fbe7fb5645328c77a0fa251db1ce358959538ebf582f69cfa653c983255/i18nice-0.15.5.tar.gz", hash = "sha256:28fa4563390116dd6b16f638c400595d35ce55cd35486dd743daa8a3d31b7d2c", size = 22025 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/10/c1/a0b3d912bd1f8dcc6176fccb91acc0279f54112a079505a35ef518e4d9ac/i18nice-0.15.5-py3-none-any.whl", hash = "sha256:baec8d78aa3f8cf4a928586abe5ee369f93008bea59dd69c273ef827611847a5", size = 19638 },
+]
+
+[package.optional-dependencies]
+yaml = [
+    { name = "pyyaml" },
+]
+
+[[package]]
 name = "idna"
 version = "3.10"
 source = { registry = "https://pypi.org/simple" }
@@ -222,21 +225,21 @@ dependencies = [
     { name = "attrs" },
     { name = "dbutils" },
     { name = "discord-py" },
-    { name = "dotenv" },
     { name = "envier" },
+    { name = "i18nice", extra = ["yaml"] },
     { name = "mariadb" },
-    { name = "pyi18n-v2" },
+    { name = "python-dotenv" },
 ]
 
 [package.metadata]
 requires-dist = [
-    { name = "attrs", specifier = "==25.3.0" },
-    { name = "dbutils", specifier = "==3.1.0" },
-    { name = "discord-py", specifier = "==2.5.2" },
-    { name = "dotenv", specifier = ">=0.9.9" },
-    { name = "envier", specifier = "==0.6.1" },
+    { name = "attrs", specifier = ">=25.3.0" },
+    { name = "dbutils", specifier = ">=3.1.0" },
+    { name = "discord-py", specifier = ">=2.5.2" },
+    { name = "envier", specifier = ">=0.6.1" },
+    { name = "i18nice", extras = ["yaml"], specifier = ">=0.15.5" },
     { name = "mariadb", specifier = ">=1.1.12" },
-    { name = "pyi18n-v2", specifier = "==1.2.2" },
+    { name = "python-dotenv", specifier = ">=1.1.0" },
 ]
 
 [[package]]
@@ -378,18 +381,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/3e/66/2e90547d6b60180fb29e23dc87bd8c116517d4255240ec6d3f7dc23d1926/propcache-0.3.1-cp313-cp313t-win32.whl", hash = "sha256:359e81a949a7619802eb601d66d37072b79b79c2505e6d3fd8b945538411400d", size = 42573 },
     { url = "https://files.pythonhosted.org/packages/cb/8f/50ad8599399d1861b4d2b6b45271f0ef6af1b09b0a2386a46dbaf19c9535/propcache-0.3.1-cp313-cp313t-win_amd64.whl", hash = "sha256:e7fb9a84c9abbf2b2683fa3e7b0d7da4d8ecf139a1c635732a8bda29c5214b0e", size = 46757 },
     { url = "https://files.pythonhosted.org/packages/b8/d3/c3cb8f1d6ae3b37f83e1de806713a9b3642c5895f0215a62e1a4bd6e5e34/propcache-0.3.1-py3-none-any.whl", hash = "sha256:9a8ecf38de50a7f518c21568c80f985e776397b902f1ce0b01f799aba1608b40", size = 12376 },
-]
-
-[[package]]
-name = "pyi18n-v2"
-version = "1.2.2"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "pyyaml" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/45/c9/b7da06f31595185aa01f1b2ad4d0bc187f499278cc98b5b29bc5d5f6ce61/pyi18n-v2-1.2.2.tar.gz", hash = "sha256:96919717c933f6cfa4abfd496ce9f6d0ccad0ac74361475883b2e236fc5c14e7", size = 17628 }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/70/61/62315bfda77798c049e2b7d3ea9182b93597ef7804460659d84fd131f661/pyi18n_v2-1.2.2-py3-none-any.whl", hash = "sha256:1a5f64f4d1fde0a559876288849893384ac0ef25ba8df06ff7eac25ac368e556", size = 18981 },
 ]
 
 [[package]]
