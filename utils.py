@@ -11,7 +11,7 @@ from enums import EmojiEnum
 from locales import Locale
 from logger import KuriLogger
 from models import ClanBattleBossEntry, ClanBattleOverallEntry, ClanBattleBossBook
-from ui import ButtonView, ConfirmationOkDoneButton, ConfirmationNoCancelButton
+import ui
 
 NEW_LINE = "\n"
 
@@ -36,27 +36,27 @@ async def discord_close_response(interaction: discord.Interaction):
         logger.error(e)
         logger.error(traceback.print_exc())
 
-async def send_message(interaction: discord.Interaction, content: str, embed: Embed = None,
-                             embeds: list[Embed] = None, view: View = None, ephemeral: bool = False):
+async def send_message(interaction: discord.Interaction, content: str, ephemeral: bool = False, embed: Embed = None,
+                             embeds: list[Embed] = None, view: View = None):
     param = create_message_param(content=content, embed=embed, embeds=embeds, view=view, ephemeral=ephemeral)
     await interaction.response.send_message(**param)
 
-async def send_message_short(interaction: discord.Interaction, content: str, embed: Embed = None,
-                             embeds: list[Embed] = None, view: View = None, ephemeral: bool = False):
+async def send_message_short(interaction: discord.Interaction, content: str, ephemeral: bool = False, embed: Embed = None,
+                             embeds: list[Embed] = None, view: View = None):
     param = create_message_param(content=content, embed=embed, embeds=embeds, view=view, ephemeral=ephemeral,
                                  delete_after=config.MESSAGE_DEFAULT_DELETE_AFTER_SHORT)
     await interaction.response.send_message(**param)
 
 
-async def send_message_medium(interaction: discord.Interaction, content: str, embed: Embed = None, embeds=None,
-                              view: View = None, ephemeral: bool = False):
+async def send_message_medium(interaction: discord.Interaction, content: str, ephemeral: bool = False, embed: Embed = None, embeds=None,
+                              view: View = None):
     param = create_message_param(content=content, embed=embed, embeds=embeds, view=view, ephemeral=ephemeral,
                                  delete_after=config.MESSAGE_DEFAULT_DELETE_AFTER_MEDIUM)
     await interaction.response.send_message(**param)
 
 
-async def send_message_long(interaction: discord.Interaction, content: str, embed: Embed = None, embeds=None,
-                            view: View = None, ephemeral: bool = False):
+async def send_message_long(interaction: discord.Interaction, content: str, ephemeral: bool = False, embed: Embed = None, embeds=None,
+                            view: View = None):
     param = create_message_param(content=content, embed=embed, embeds=embeds, view=view, ephemeral=ephemeral,
                                  delete_after=config.MESSAGE_DEFAULT_DELETE_AFTER_LONG)
     await interaction.response.send_message(**param)
@@ -163,10 +163,6 @@ def create_book_embed(guild_id: int, list_boss_cb_player_entries: List[ClanBattl
     return embed
 
 
-def get_button_view(guild_id: int) -> ButtonView:
-    return ButtonView(guild_id)
-
-
 def generate_done_attack_list(guild_id: int, datas: List[ClanBattleOverallEntry]) -> str:
     lines = [f"========== {EmojiEnum.DONE.value} {l.t(guild_id, "ui.label.done_list")} =========="]
     for data in datas:
@@ -202,8 +198,8 @@ def generate_health_bar(current_health: int, max_health: int):
 
 def create_confirmation_message_view(guild_id: int, yes_emoji: EmojiEnum = EmojiEnum.YES,
                                      no_emoji: EmojiEnum = EmojiEnum.NO, yes_callback=None) -> View:
-    yes_btn = ConfirmationOkDoneButton(yes_emoji, l.t(guild_id, "ui.button.yes"))
-    no_btn = ConfirmationNoCancelButton(no_emoji, l.t(guild_id, "ui.button.no"))
+    yes_btn = ui.ConfirmationOkDoneButton(yes_emoji, l.t(guild_id, "ui.button.yes"))
+    no_btn = ui.ConfirmationNoCancelButton(no_emoji, l.t(guild_id, "ui.button.no"))
 
     if yes_callback:
         yes_btn.callback = yes_callback
