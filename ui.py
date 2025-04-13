@@ -1,6 +1,7 @@
 import asyncio
 
 import discord
+from discord import Embed
 from discord.ui import View, Button, Modal, TextInput
 
 import utils
@@ -8,13 +9,15 @@ from enums import EmojiEnum, AttackTypeEnum
 from locales import Locale
 from logger import KuriLogger
 from models import ClanBattleLeftover
-from services import ClanBattleBossBookService, ClanBattleOverallEntryService, MainService, ClanBattleBossEntryService
+from services import ClanBattleBossBookService, ClanBattleOverallEntryService, MainService, ClanBattleBossEntryService, \
+    UiService
 
 NEW_LINE = "\n"
 
 l = Locale()
 
 _main_service = MainService()
+_ui_service = UiService()
 _clan_battle_boss_book_service = ClanBattleBossBookService()
 _clan_battle_overall_entry_service = ClanBattleOverallEntryService()
 _clan_battle_boss_entry_service = ClanBattleBossEntryService()
@@ -29,50 +32,25 @@ class BookButton(Button):
                          row=0)
 
     async def callback(self, interaction: discord.Interaction):
-        user_id = interaction.user.id
         guild_id = interaction.guild_id
         message_id = interaction.message.id
 
-        boss_book = await _clan_battle_boss_book_service.get_player_book_count(guild_id, user_id)
-        if not boss_book.is_success:
-            await interaction.response.defer(ephemeral=True)
-            logger.error(boss_book.error_messages)
+        service = await _ui_service.book_button_service(interaction)
+        if not service.is_success:
+            await utils.send_message_short(interaction, service.error_messages, True)
             return
 
-        if boss_book.result > 0:
-            await utils.send_message_short(interaction=interaction,
-                                           content=f"## {l.t(guild_id, "ui.status.booked")}",
-                                           ephemeral=True)
-            return
-
-        entry_count = await _clan_battle_overall_entry_service.get_player_overall_entry_count(
-            guild_id, user_id)
-        if not entry_count.is_success:
-            await interaction.response.defer(ephemeral=True)
-            logger.error(entry_count.error_messages)
-            return
-
-        count = entry_count.result
-
-        disable = count == 3
-
-        # generate Leftover ?
-        leftover = await _clan_battle_overall_entry_service.get_leftover_by_guild_id_and_player_id(
-            guild_id=guild_id, player_id=user_id)
-        if not leftover.is_success:
-            await interaction.response.defer(ephemeral=True)
-            logger.error(leftover.error_messages)
-            return
+        disable, count_left, leftover = service.result
 
         view = View(timeout=None)
-        view.add_item(BookPatkButton(message_id=message_id, disable=disable))
-        view.add_item(BookMatkButton(message_id=message_id, disable=disable))
+        view.add_item(BookPatkButton(interaction, disable))
+        view.add_item(BookMatkButton(interaction, disable))
         view.add_item(ConfirmationNoCancelButton(emoji_param=EmojiEnum.CANCEL))
-        for left_data in leftover.result:
-            view.add_item(BookLeftoverButton(leftover=left_data, message_id=message_id))
+        for left_data in leftover:
+            view.add_item(BookLeftoverButton(left_data, interaction))
 
         await utils.send_message_medium(interaction=interaction,
-                                        content=f"## {l.t(guild_id, "ui.prompts.choose_entry_type", count_left=utils.reduce_int_ab_non_zero(a=3, b=count)) }",
+                                        content=f"## {l.t(guild_id, "ui.prompts.choose_entry_type", count_left=count_left )}",
                                         view=view,
                                         ephemeral=True)
 
@@ -87,27 +65,16 @@ class CancelButton(Button):
 
     async def callback(self, interaction: discord.Interaction):
         guild_id = interaction.guild_id
-        message_id = interaction.message.id
-        user_id = interaction.user.id
-        book_result = await _clan_battle_boss_book_service.get_player_book_entry(
-            message_id=message_id,
-            player_id=user_id
-        )
 
-        if not book_result.is_success or book_result.result is None:
-            await interaction.response.defer(ephemeral=True)
+        service = await _ui_service.cancel_button_service(interaction)
+        if not service.is_success:
+            await utils.send_message_short(interaction, service.error_messages, True)
             return
 
-        await _clan_battle_boss_book_service.delete_book_by_id(book_id=book_result.result.clan_battle_boss_book_id)
-        embeds = await _main_service.refresh_clan_battle_boss_embeds(guild_id=guild_id,
-                                                                         message_id=message_id)
-        if not embeds.is_success:
-            await interaction.response.defer(ephemeral=True)
-            logger.error(embeds.error_messages)
-            return
+        embeds = service.result
 
-        await interaction.message.edit(embeds=embeds.result, view=ButtonView(guild_id))
-        await utils.send_channel_message_short(interaction=interaction, content=l.t(guild_id, "ui.events.removed_from_booking_list"))
+        await interaction.message.edit(embeds=embeds, view=ButtonView(guild_id))
+        await utils.send_message_short(interaction, l.t(guild_id, "ui.events.removed_from_booking_list"), True)
 
 
 # Entry Button
@@ -153,49 +120,18 @@ class EntryInputModal(Modal):
     async def on_submit(self, interaction: discord.Interaction):
         guild_id = interaction.guild_id
         message_id = interaction.message.id
-        # Handle the submitted input
-        if not self.user_input.value.isdigit():
-            await utils.send_message_short(interaction=interaction,
-                                           content=f"## {l.t(guild_id, "ui.validation.only_numbers_allowed")}",
-                                           ephemeral=True)
-            return
-        if int(self.user_input.value) < 1:
-            await utils.send_message_short(interaction=interaction,
-                                           content=f"## {l.t(guild_id, "ui.validation.must_be_greater_than_zero")}",
-                                           ephemeral=True)
+
+        service = await _ui_service.entry_input_service(interaction, self.user_input.value)
+        if not service.is_success:
+            await utils.send_message_short(interaction, service.error_messages, True)
             return
 
-        # Update damage
-        book_result = await _clan_battle_boss_book_service.get_player_book_entry(
-            message_id=interaction.message.id,
-            player_id=interaction.user.id)
-        book = book_result.result
-
-        if not book_result.is_success:
-            await interaction.response.defer(ephemeral=True)
-            logger.error(book_result.error_messages)
-            return
-
-        damage = int(self.user_input.value)
-        update_result = await _clan_battle_boss_book_service.update_damage_boss_book_by_id(
-            book.clan_battle_boss_book_id,
-            damage)
-
-        if not update_result.is_success:
-            await interaction.response.defer(ephemeral=True)
-            logger.error(book_result.error_messages)
-            return
+        embeds = service.result
 
         # Refresh Messages
         message = await utils.discord_try_fetch_message(interaction.channel, message_id)
         if message:
-            embeds = await _main_service.refresh_clan_battle_boss_embeds(guild_id, message_id)
-            if not embeds.is_success:
-                await interaction.response.defer(ephemeral=True)
-                logger.error(embeds.error_messages)
-                return
-
-            await interaction.message.edit(embeds=embeds.result, view=ButtonView(guild_id))
+            await interaction.message.edit(embeds=embeds, view=ButtonView(guild_id))
 
         await interaction.response.defer(ephemeral=True)
 
@@ -211,25 +147,13 @@ class DoneButton(Button):
 
     async def callback(self, interaction: discord.Interaction):
         guild_id = interaction.guild_id
-        user_id = interaction.user.id
         message_id = interaction.message.id
-        book_result = await self.clan_battle_book_service.get_player_book_entry(message_id=message_id,
-                                                                                player_id=user_id)
-        book = book_result.result
 
-        if book_result.is_success and book_result.result is None:
-            await utils.send_message_short(interaction=interaction,
-                                           content=f"## {l.t(guild_id, "ui.status.not_yet_booked")}",
-                                           ephemeral=True)
+        service = await _ui_service.done_button_service(interaction)
+        if not service.is_success:
+            await utils.send_message_short(interaction, service.error_messages, True)
             return
 
-        if book.damage is None:
-            await utils.send_message_short(interaction=interaction,
-                                           content=f"## {l.t(guild_id, "ui.validation.enter_entry_type_first")}",
-                                           ephemeral=True)
-            return
-
-        message_id = interaction.message.id
         view = View(timeout=None)
         view.add_item(DoneOkButton(message_id=message_id))
         view.add_item(ConfirmationNoCancelButton(emoji_param=EmojiEnum.NO))
@@ -287,39 +211,14 @@ class DeadButton(Button):
 
     async def callback(self, interaction: discord.Interaction):
         guild_id = interaction.guild_id
-        user_id = interaction.user.id
         message_id = interaction.message.id
-        book_result = await _clan_battle_boss_book_service.get_player_book_entry(message_id=message_id,
-                                                                                     player_id=user_id)
-        if not book_result.is_success:
-            await interaction.response.defer(ephemeral=True)
-            logger.error(book_result.error_messages)
+
+        service = await _ui_service.dead_button_service(interaction)
+        if not service.is_success:
+            await utils.send_message_short(interaction, service.error_messages, True)
             return
 
-        book = book_result.result
-        if book_result.is_success and book_result.result is None:
-            await utils.send_message_short(interaction=interaction,
-                                           content=f"## {l.t(guild_id, "ui.status.not_yet_booked")}",
-                                           ephemeral=True)
-            return
-
-        if book.damage is None:
-            await utils.send_message_short(interaction=interaction,
-                                           content=f"## {l.t(guild_id, "ui.validation.enter_entry_type_first")}",
-                                           ephemeral=True)
-            return
-
-        boss_entry = await _clan_battle_boss_entry_service.get_last_by_message_id(message_id)
-        if not book_result.is_success:
-            await interaction.response.defer(ephemeral=True)
-            logger.error(boss_entry.error_messages)
-            return
-
-        if book.damage < boss_entry.result.current_health:
-            await utils.send_message_short(interaction=interaction,
-                                           content=f"## {l.t(guild_id, "ui.validation.entry_damage_less_than_boss_hp")}",
-                                           ephemeral=True)
-            return
+        book = service.result
 
         # Fresh Entry
         if book.leftover_time is None:
@@ -435,23 +334,22 @@ class DeadOkButton(Button):
 
 # PATK Button
 class BookPatkButton(Button):
-    def __init__(self, message_id: int, disable: bool):
+    def __init__(self, interaction: discord.Interaction, disable: bool):
         self.local_emoji = EmojiEnum.PATK
         self.attack_type = AttackTypeEnum.PATK
-        self.message_id = message_id
+        self.parent_interaction = interaction
 
         super().__init__(label=self.local_emoji.name,
                          style=discord.ButtonStyle.success,
                          emoji=self.local_emoji.value,
                          disabled=disable,
                          row=0)
-        self.message_id = message_id
 
     async def callback(self, interaction: discord.Interaction):
         user_id = interaction.user.id
         display_name = interaction.user.display_name
         guild_id = interaction.guild_id
-        message_id = self.message_id
+        message_id = self.parent_interaction.message.id
 
         insert_result = await _main_service.insert_boss_book_entry(guild_id, message_id, user_id, display_name,
                                                                        self.attack_type)
@@ -460,19 +358,13 @@ class BookPatkButton(Button):
             logger.error(insert_result.error_messages)
             return
 
-        message = await utils.discord_try_fetch_message(interaction.channel, message_id)
-        if message is None:
-            await interaction.response.defer(ephemeral=True)
-            logger.error("Could not fetch message")
-            return
-
         embeds = await _main_service.refresh_clan_battle_boss_embeds(guild_id, message_id)
         if not insert_result.is_success:
             await interaction.response.defer(ephemeral=True)
             logger.error(embeds.error_messages)
             return
 
-        await message.edit(embeds=embeds.result, view=ButtonView(guild_id))
+        await self.parent_interaction.message.edit(embeds=embeds.result, view=ButtonView(guild_id))
         await utils.discord_close_response(interaction=interaction)
         await utils.send_channel_message_short(interaction=interaction,
                                        content=f"{l.t(guild_id, "ui.events.user_added_to_booking_list", user=display_name, emoji=self.local_emoji.value)}")
@@ -480,23 +372,22 @@ class BookPatkButton(Button):
 
 # MATK Button
 class BookMatkButton(Button):
-    def __init__(self, message_id: int, disable: bool):
+    def __init__(self, interaction: discord.Interaction, disable: bool):
         self.local_emoji = EmojiEnum.MATK
         self.attack_type = AttackTypeEnum.MATK
-        self.message_id = message_id
+        self.parent_interaction = interaction
 
         super().__init__(label=self.local_emoji.name,
                          style=discord.ButtonStyle.blurple,
                          emoji=self.local_emoji.value,
                          disabled=disable,
                          row=0)
-        self.message_id = message_id
 
     async def callback(self, interaction: discord.Interaction):
         user_id = interaction.user.id
         display_name = interaction.user.display_name
         guild_id = interaction.guild_id
-        message_id = self.message_id
+        message_id = self.parent_interaction.message.id
 
         insert_result = await _main_service.insert_boss_book_entry(guild_id, message_id, user_id, display_name,
                                                                        self.attack_type)
@@ -505,19 +396,13 @@ class BookMatkButton(Button):
             logger.error(insert_result.error_messages)
             return
 
-        message = await utils.discord_try_fetch_message(interaction.channel, message_id)
-        if message is None:
-            await interaction.response.defer(ephemeral=True)
-            logger.error("Could not fetch message")
-            return
-
         embeds = await _main_service.refresh_clan_battle_boss_embeds(guild_id, message_id)
         if not insert_result.is_success:
             await interaction.response.defer(ephemeral=True)
             logger.error(embeds.error_messages)
             return
 
-        await message.edit(embeds=embeds.result, view=ButtonView(guild_id))
+        await self.parent_interaction.message.edit(embeds=embeds.result, view=ButtonView(guild_id))
         await utils.discord_close_response(interaction=interaction)
         await utils.send_channel_message_short(interaction=interaction,
                                        content=f"{l.t(guild_id, "ui.events.user_added_to_booking_list", user=display_name, emoji=self.local_emoji.value)}")
@@ -525,10 +410,10 @@ class BookMatkButton(Button):
 
 # Leftover Button
 class BookLeftoverButton(Button):
-    def __init__(self, leftover: ClanBattleLeftover, message_id: int):
+    def __init__(self, leftover: ClanBattleLeftover, interaction: discord.Interaction):
         self.local_emoji = EmojiEnum.CARRY
         self.attack_type = AttackTypeEnum.CARRY
-        self.message_id = message_id
+        self.parent_interaction = interaction
         self.parent_overall_id = leftover.clan_battle_overall_entry_id
         self.label_string = f"{leftover.attack_type.value} {leftover.leftover_time}s ({leftover.clan_battle_boss_name})"
         self.leftover_time = leftover.leftover_time
@@ -542,7 +427,7 @@ class BookLeftoverButton(Button):
         user_id = interaction.user.id
         display_name = interaction.user.display_name
         guild_id = interaction.guild_id
-        message_id = self.message_id
+        message_id = self.parent_interaction.message.id
         leftover_time = self.leftover_time
         attack_type = self.attack_type
         parent_overall_id = self.parent_overall_id
@@ -566,7 +451,7 @@ class BookLeftoverButton(Button):
             logger.error(embeds.error_messages)
             return
 
-        await message.edit(embeds=embeds.result, view=ButtonView(guild_id))
+        await self.parent_interaction.message.edit(embeds=embeds.result, view=ButtonView(guild_id))
         await utils.discord_close_response(interaction=interaction)
         await utils.send_channel_message_short(interaction=interaction,
                                        content=f"{l.t(guild_id, "ui.events.user_added_to_booking_list", user=display_name, emoji=self.local_emoji.value)}")

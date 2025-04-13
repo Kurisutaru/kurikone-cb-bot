@@ -37,6 +37,10 @@ class Locale:
     def text(self, text: str, lang: str, **kwargs) -> str:
         return self._locale.t(key=text, locale=lang, **kwargs)
 
+    def nf(self, guild_id: int, text: str):
+        lang = guild_locale.get(guild_id, default_locale)
+        return self._locale.t(key="message.not_found", locale=lang, input=text)
+
 
 class DiscordTranslator(app_commands.Translator):
     def __init__(self):

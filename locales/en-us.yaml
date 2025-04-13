@@ -33,6 +33,7 @@ en-us:
       must_be_greater_than_zero: "Must be higher than 0!"
       leftover_time_range_invalid: "Must be between 20 and 90s"
       entry_damage_less_than_boss_hp: "Your entry damage is lower than the boss's health!"
+      book_entry_not_found: "Book Entry not found"
     prompts:
       choose_entry_type: "Choose your Entry Type [%{count_left}/3]"
       confirm_mark_as_done: "Are you sure you want to mark your entry as Done?"
@@ -62,4 +63,7 @@ en-us:
     guild_not_installed: "Guild not installed, try to install first."
     done_uninstall: "Bot done uninstalling !"
     done_sync: "Bot done syncing user from selected role !"
+    unhandled_exception: |
+      Unhandled exception.
+      UUID Reference : %{uuid}
 

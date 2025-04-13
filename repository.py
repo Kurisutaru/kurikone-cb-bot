@@ -1354,3 +1354,22 @@ class GuildPlayerRepository:
                     return entry
 
                 return []
+
+
+class ErrorLogRepository:
+    def insert(self, guild_id: int, identifier: str, stacktrace: str) -> bool:
+        with connection_context() as conn:
+            with conn.cursor(dictionary=True) as cursor:
+                cursor.execute(
+                """
+                    INSERT INTO error_log
+                    (guild_id, identifier, stacktrace) VALUES 
+                    (%(guild_id)s, %(identifier)s, %(stacktrace)s)
+                """,
+                    {
+                        'guild_id': guild_id,
+                        'identifier': identifier,
+                        'stacktrace': stacktrace,
+                    }
+                )
+                return True

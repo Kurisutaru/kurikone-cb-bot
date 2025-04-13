@@ -33,6 +33,7 @@ ja:
       must_be_greater_than_zero: "0より大きい数値を入力してください！"
       leftover_time_range_invalid: "残り時間は20〜90秒の間である必要があります"
       entry_damage_less_than_boss_hp: "あなたのダメージはボスのHPを下回っています！"
+      book_entry_not_found: "予約エントリが見つかりません"
     prompts:
       choose_entry_type: "エントリータイプを選択してください [%{count_left}/3]"
       confirm_mark_as_done: "このエントリーを完了としてマークしますか？"
@@ -62,3 +63,6 @@ ja:
     guild_not_installed: "ギルドはインストールされていません。まずインストールしてください。"
     done_uninstall: "ボットのアンインストールが完了しました！"
     done_sync: "ロールからユーザーを同期しました！"
+    unhandled_exception: |
+      処理されていない例外。
+      UUID参照: {uuid}

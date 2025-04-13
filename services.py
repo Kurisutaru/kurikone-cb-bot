@@ -1,8 +1,13 @@
-from typing import Optional
+import asyncio
+import traceback
+import uuid
+from typing import Tuple
 
 from discord import Embed, Message, TextChannel
 from discord.abc import GuildChannel
+from pyexpat.errors import messages
 
+import ui
 import utils
 from locales import Locale
 from logger import KuriLogger
@@ -31,7 +36,15 @@ class Services:
             cls._instance.guild_player_repo = GuildPlayerRepository()
             cls._instance.clan_battle_report_message_repo = ClanBattleReportMessageRepository()
             cls._instance.generic_repo = GenericRepository()
+            cls._instance.error_log_repo = ErrorLogRepository()
         return cls._instance
+
+    async def error_log_db(self, guild_id: int, traceback: str):
+        identifier = str(uuid.uuid4())
+        self.error_log_repo.insert(guild_id, identifier, traceback)
+        return identifier
+
+
 
 _service = Services()
 
@@ -253,7 +266,7 @@ class MainService:
             #Refresh the bosses
             embeds = await self.refresh_clan_battle_boss_embeds(guild_id, message.id)
             if embeds.is_success:
-                await message.edit(content="", embeds=embeds.result, view=utils.get_button_view(guild_id))
+                await message.edit(content="", embeds=embeds.result, view=ui.ButtonView(guild_id))
 
             service_result.set_success(message)
 
@@ -720,12 +733,12 @@ class MainService:
         return service_result
 
 
+    @transactional
     async def refresh_report_channel_message(self, guild: discord.Guild, day: int = None) -> ServiceResult[Optional[Message]]:
         service_result = ServiceResult[Optional[Message]]()
 
         try:
-            logger.warning(f"Running Refresh report Channel from Guild : {guild.name} - {guild.id}")
-
+            # logger.warning(f"Refresh Report Channel Message {guild.id} - {guild.name}")
             guild_id = guild.id
             channel_type = ChannelEnum.REPORT
             # Current CB Period with Days
@@ -784,12 +797,17 @@ class MainService:
             year = current_date.year
             month = current_date.month
 
+            # logger.warning(f"Refresh Report Channel Message : Current Day - {cur_period.current_day}")
+
+
             report_gen = await self.generate_report_text(guild_id, year, month, cur_period.current_day)
             if not report_gen.is_success:
                 service_result.set_error(report_gen.error_messages)
                 return service_result
 
             await report_message.edit(content=report_gen.result)
+
+            # logger.warning(f"Refresh Report Channel Message : Report - {report_gen.result}")
 
             service_result.set_success(report_message)
             return service_result
@@ -800,7 +818,163 @@ class MainService:
 
         return service_result
 
+class UiService:
+    async def book_button_service(self, interaction: discord.Interaction) -> ServiceResult[Tuple[bool, int, list[ClanBattleLeftover]]]:
+        service_result = ServiceResult[Tuple[bool, int, list[ClanBattleLeftover]]]()
+        try:
+            guild_id = interaction.guild_id
+            user_id = interaction.user.id
 
+            boss_book = _service.clan_battle_boss_book_repo.get_player_book_count(guild_id, user_id)
+            if boss_book > 0:
+                service_result.set_error(l.t(guild_id, "ui.status.booked"))
+                return service_result
+
+            entry_count = _service.clan_battle_overall_entry_repo.get_player_overall_entry_count(
+                guild_id, user_id)
+
+            count = entry_count
+
+            disable = count == 3
+
+            # generate Leftover ?
+            leftover = _service.clan_battle_overall_entry_repo.get_leftover_by_guild_id_and_player_id(
+                guild_id=guild_id, player_id=user_id)
+
+            service_result.set_success((disable, utils.reduce_int_ab_non_zero(a=3, b=count), leftover))
+
+        except Exception as e:
+            logger.error(e)
+            err_id = asyncio.create_task(_service.error_log_db(interaction.guild.id, traceback.format_exc()))
+            service_result.set_error(l.t(interaction.guild.id, "message.unhandled_exception", uuid=err_id))
+
+        return service_result
+
+    @transactional
+    async def cancel_button_service(self, interaction: discord.Interaction) -> ServiceResult[list[Embed]]:
+        service_result = ServiceResult[list[Embed]]()
+        try:
+            guild_id = interaction.guild_id
+            user_id = interaction.user.id
+            message_id = interaction.message.id
+
+            book_result = _service.clan_battle_boss_book_repo.get_player_book_entry(
+                message_id=message_id,
+                player_id=user_id
+            )
+
+            if book_result is None:
+                service_result.set_error(l.nf(guild_id, "Book Entry"))
+                return service_result
+
+            _service.clan_battle_boss_book_repo.delete_book_by_id(book_result.clan_battle_boss_book_id)
+            embeds = await MainService().refresh_clan_battle_boss_embeds(guild_id, message_id)
+
+            service_result.set_success(embeds.result)
+
+        except Exception as e:
+            transaction_rollback()
+            logger.error(e)
+            err_id = asyncio.create_task(_service.error_log_db(interaction.guild.id, traceback.format_exc()))
+            service_result.set_error(l.t(interaction.guild.id, "message.unhandled_exception", uuid=err_id))
+
+        return service_result
+
+    @transactional
+    async def entry_input_service(self, interaction: discord.Interaction, user_input: str) -> ServiceResult[list[Embed]]:
+        service_result = ServiceResult[list[Embed]]()
+        try:
+            guild_id = interaction.guild_id
+            message_id = interaction.message.id
+
+            if not user_input.isdigit():
+                service_result.set_error(f"## {l.t(guild_id, "ui.validation.only_numbers_allowed")}")
+                return service_result
+
+            damage = int(user_input)
+
+            if damage < 1:
+                service_result.set_error(f"## {l.t(guild_id, "ui.validation.must_be_greater_than_zero")}")
+                return service_result
+
+            # Update damage
+            book = _service.clan_battle_boss_book_repo.get_player_book_entry(
+                message_id=interaction.message.id,
+                player_id=interaction.user.id)
+
+            if book is None:
+                raise l.t(guild_id, "ui.validation.book_entry_not_found")
+
+
+            _service.clan_battle_boss_book_repo.update_damage_boss_book_by_id(
+                book.clan_battle_boss_book_id,
+                damage)
+
+            embeds = await MainService().refresh_clan_battle_boss_embeds(guild_id, message_id)
+            service_result.set_success(embeds.result)
+
+        except Exception as e:
+            transaction_rollback()
+            logger.error(e)
+            err_id = asyncio.create_task(_service.error_log_db(interaction.guild.id, traceback.format_exc()))
+            service_result.set_error(l.t(interaction.guild.id, "message.unhandled_exception", uuid=err_id))
+
+        return service_result
+
+    async def done_button_service(self, interaction: discord.Interaction) -> ServiceResult[None]:
+        service_result = ServiceResult[None]()
+        try:
+            guild_id = interaction.guild_id
+            message_id = interaction.message.id
+            user_id = interaction.user.id
+            book_result = _service.clan_battle_boss_book_repo.get_player_book_entry(message_id, user_id)
+
+            if book_result is None:
+                service_result.set_error(f"## {l.t(guild_id, "ui.status.not_yet_booked")}")
+                return service_result
+
+            if book_result.damage is None:
+                service_result.set_error(f"## {l.t(guild_id, "ui.validation.enter_entry_type_first")}")
+                return service_result
+
+            return service_result
+        except Exception as e:
+            logger.error(e)
+            err_id = asyncio.create_task(_service.error_log_db(interaction.guild.id, traceback.format_exc()))
+            service_result.set_error(l.t(interaction.guild.id, "message.unhandled_exception", uuid=err_id))
+
+        return service_result
+
+    async def dead_button_service(self, interaction: discord.Interaction) -> ServiceResult[ClanBattleBossBook]:
+        service_result = ServiceResult[ClanBattleBossBook]()
+
+        try:
+            guild_id = interaction.guild_id
+            message_id = interaction.message.id
+            user_id = interaction.user.id
+
+            book = _service.clan_battle_boss_book_repo.get_player_book_entry(message_id, user_id)
+
+            if book is None:
+                service_result.set_error(f"## {l.t(guild_id, "ui.status.not_yet_booked")}")
+                return service_result
+
+            if book.damage is None:
+                service_result.set_error(f"## {l.t(guild_id, "ui.validation.enter_entry_type_first")}")
+                return service_result
+
+            boss_entry = _service.clan_battle_boss_entry_repo.get_last_by_message_id(message_id)
+            if book.damage < boss_entry.current_health:
+                service_result.set_error(f"## {l.t(guild_id, "ui.validation.entry_damage_less_than_boss_hp")}")
+                return service_result
+
+            service_result.set_success(book)
+        except Exception as e:
+            logger.error(e)
+            err_id = asyncio.create_task(_service.error_log_db(interaction.guild.id, traceback.format_exc()))
+            service_result.set_error(l.t(interaction.guild.id, "message.unhandled_exception", uuid=err_id))
+
+        return service_result
 
 class GuildService:
     async def get_guild_by_id(self, guild_id: int) -> ServiceResult[Guild]:
