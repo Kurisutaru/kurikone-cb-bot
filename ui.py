@@ -1,10 +1,8 @@
 import asyncio
-from concurrent.futures import ThreadPoolExecutor
 
 import discord
 from discord.ui import View, Button, Modal, TextInput
 
-import enums
 import utils
 from enums import EmojiEnum, AttackTypeEnum
 from locales import Locale
@@ -16,12 +14,15 @@ NEW_LINE = "\n"
 
 l = Locale()
 
+_main_service = MainService()
+_clan_battle_boss_book_service = ClanBattleBossBookService()
+_clan_battle_overall_entry_service = ClanBattleOverallEntryService()
+_clan_battle_boss_entry_service = ClanBattleBossEntryService()
+logger = KuriLogger()
+
 # Book Button
 class BookButton(Button):
     def __init__(self, text : str = EmojiEnum.BOOK.name.capitalize()):
-        self.clan_battle_boss_book_service = ClanBattleBossBookService()
-        self.clan_battle_overall_entry_service = ClanBattleOverallEntryService()
-        self.logger = KuriLogger()
         super().__init__(label= text,
                          style=discord.ButtonStyle.primary,
                          emoji=EmojiEnum.BOOK.value,
@@ -32,10 +33,10 @@ class BookButton(Button):
         guild_id = interaction.guild_id
         message_id = interaction.message.id
 
-        boss_book = await self.clan_battle_boss_book_service.get_player_book_count(guild_id, user_id)
+        boss_book = await _clan_battle_boss_book_service.get_player_book_count(guild_id, user_id)
         if not boss_book.is_success:
             await interaction.response.defer(ephemeral=True)
-            self.logger.error(boss_book.error_messages)
+            logger.error(boss_book.error_messages)
             return
 
         if boss_book.result > 0:
@@ -44,11 +45,11 @@ class BookButton(Button):
                                            ephemeral=True)
             return
 
-        entry_count = await self.clan_battle_overall_entry_service.get_player_overall_entry_count(
+        entry_count = await _clan_battle_overall_entry_service.get_player_overall_entry_count(
             guild_id, user_id)
         if not entry_count.is_success:
             await interaction.response.defer(ephemeral=True)
-            self.logger.error(entry_count.error_messages)
+            logger.error(entry_count.error_messages)
             return
 
         count = entry_count.result
@@ -56,16 +57,12 @@ class BookButton(Button):
         disable = count == 3
 
         # generate Leftover ?
-        leftover = await self.clan_battle_overall_entry_service.get_leftover_by_guild_id_and_player_id(
+        leftover = await _clan_battle_overall_entry_service.get_leftover_by_guild_id_and_player_id(
             guild_id=guild_id, player_id=user_id)
         if not leftover.is_success:
             await interaction.response.defer(ephemeral=True)
-            self.logger.error(leftover.error_messages)
+            logger.error(leftover.error_messages)
             return
-
-        # if disable and len(leftover.result) == 0:
-        #     await utils.discord_resp_send_msg(interaction=interaction, message="## No more entry for today !")
-        #     return
 
         view = View(timeout=None)
         view.add_item(BookPatkButton(message_id=message_id, disable=disable))
@@ -83,9 +80,6 @@ class BookButton(Button):
 # Cancel Button
 class CancelButton(Button):
     def __init__(self, text = EmojiEnum.CANCEL.name.capitalize()):
-        self.main_service = MainService()
-        self.clan_battle_boss_book_service = ClanBattleBossBookService()
-        self.logger = KuriLogger()
         super().__init__(label=text,
                          style=discord.ButtonStyle.danger,
                          emoji=EmojiEnum.CANCEL.value,
@@ -95,7 +89,7 @@ class CancelButton(Button):
         guild_id = interaction.guild_id
         message_id = interaction.message.id
         user_id = interaction.user.id
-        book_result = await self.clan_battle_boss_book_service.get_player_book_entry(
+        book_result = await _clan_battle_boss_book_service.get_player_book_entry(
             message_id=message_id,
             player_id=user_id
         )
@@ -104,12 +98,12 @@ class CancelButton(Button):
             await interaction.response.defer(ephemeral=True)
             return
 
-        await self.clan_battle_boss_book_service.delete_book_by_id(book_id=book_result.result.clan_battle_boss_book_id)
-        embeds = await self.main_service.refresh_clan_battle_boss_embeds(guild_id=guild_id,
+        await _clan_battle_boss_book_service.delete_book_by_id(book_id=book_result.result.clan_battle_boss_book_id)
+        embeds = await _main_service.refresh_clan_battle_boss_embeds(guild_id=guild_id,
                                                                          message_id=message_id)
         if not embeds.is_success:
             await interaction.response.defer(ephemeral=True)
-            self.logger.error(embeds.error_messages)
+            logger.error(embeds.error_messages)
             return
 
         await interaction.message.edit(embeds=embeds.result, view=ButtonView(guild_id))
@@ -119,25 +113,21 @@ class CancelButton(Button):
 # Entry Button
 class EntryButton(Button):
     def __init__(self, text: str = EmojiEnum.ENTRY.name.capitalize()):
-        self.clan_battle_book_service = ClanBattleBossBookService()
         super().__init__(label=text,
                          style=discord.ButtonStyle.primary,
                          emoji=EmojiEnum.ENTRY.value,
                          row=1)
 
     async def callback(self, interaction: discord.Interaction):
-        guild_id = interaction.guild_id
-        user_id = interaction.user.id
-        message_id = interaction.message.id
-        book = await self.clan_battle_book_service.get_player_book_entry(message_id=message_id,
-                                                                         player_id=user_id)
+        book = await _clan_battle_boss_book_service.get_player_book_entry(message_id=interaction.message.id,
+                                                                         player_id=interaction.user.id)
         if book.is_success and book.result is None:
             await utils.send_message_short(interaction=interaction,
-                                           content=f"## {l.t(guild_id, "ui.status.not_yet_booked")}",
+                                           content=f"## {l.t(interaction.guild_id, "ui.status.not_yet_booked")}",
                                            ephemeral=True)
             return
 
-        modal = EntryInputModal(guild_id)
+        modal = EntryInputModal(interaction.guild_id)
         await interaction.response.send_modal(modal)
 
 
@@ -147,9 +137,6 @@ class EntryInputModal(Modal):
         super().__init__(
             title=l.t(guild_id, "ui.popup.entry_input.title")
         )
-        self.main_service = MainService()
-        self.logger = KuriLogger()
-        self.clan_battle_boss_book_service = ClanBattleBossBookService()
         self.user_input.label = l.t(guild_id, "ui.popup.entry_input.label")
         self.user_input.placeholder = l.t(guild_id, "ui.popup.entry_input.placeholder")
 
@@ -179,34 +166,33 @@ class EntryInputModal(Modal):
             return
 
         # Update damage
-        book_result = await self.clan_battle_boss_book_service.get_player_book_entry(
+        book_result = await _clan_battle_boss_book_service.get_player_book_entry(
             message_id=interaction.message.id,
             player_id=interaction.user.id)
         book = book_result.result
 
         if not book_result.is_success:
             await interaction.response.defer(ephemeral=True)
-            self.logger.error(book_result.error_messages)
+            logger.error(book_result.error_messages)
             return
 
         damage = int(self.user_input.value)
-        update_result = await self.clan_battle_boss_book_service.update_damage_boss_book_by_id(
+        update_result = await _clan_battle_boss_book_service.update_damage_boss_book_by_id(
             book.clan_battle_boss_book_id,
             damage)
 
         if not update_result.is_success:
             await interaction.response.defer(ephemeral=True)
-            self.logger.error(book_result.error_messages)
+            logger.error(book_result.error_messages)
             return
 
         # Refresh Messages
-        message = await utils.discord_try_fetch_message(channel=interaction.channel, message_id=message_id)
+        message = await utils.discord_try_fetch_message(interaction.channel, message_id)
         if message:
-            embeds = await self.main_service.refresh_clan_battle_boss_embeds(guild_id=interaction.guild_id,
-                                                                             message_id=interaction.message.id)
+            embeds = await _main_service.refresh_clan_battle_boss_embeds(guild_id, message_id)
             if not embeds.is_success:
                 await interaction.response.defer(ephemeral=True)
-                self.logger.error(embeds.error_messages)
+                logger.error(embeds.error_messages)
                 return
 
             await interaction.message.edit(embeds=embeds.result, view=ButtonView(guild_id))
@@ -257,8 +243,6 @@ class DoneButton(Button):
 # Done Ok Confirm Button
 class DoneOkButton(Button):
     def __init__(self, message_id: int):
-        self.main_service = MainService()
-        self.logger = KuriLogger()
         super().__init__(label=EmojiEnum.DONE.name.capitalize(),
                          style=discord.ButtonStyle.green,
                          emoji=EmojiEnum.DONE.value,
@@ -271,24 +255,24 @@ class DoneOkButton(Button):
         message_id = self.message_id
         guild_id = interaction.guild_id
 
-        done_service = await self.main_service.done_entry(guild_id, message_id, user_id, display_name)
+        done_service = await _main_service.done_entry(guild_id, message_id, user_id, display_name)
         if not done_service.is_success:
             await utils.discord_close_response(interaction=interaction)
-            self.logger.error(done_service.error_messages)
+            logger.error(done_service.error_messages)
             return
 
         # Refresh Messages
         message = await utils.discord_try_fetch_message(channel=interaction.channel, message_id=message_id)
         if message:
-            embeds = await self.main_service.refresh_clan_battle_boss_embeds(guild_id, message_id)
+            embeds = await _main_service.refresh_clan_battle_boss_embeds(guild_id, message_id)
             if not embeds.is_success:
                 await interaction.response.defer(ephemeral=True)
-                self.logger.error(embeds.error_messages)
+                logger.error(embeds.error_messages)
                 return
 
             await message.edit(embeds=embeds.result, view=ButtonView(guild_id))
 
-        asyncio.create_task(self.main_service.refresh_report_channel_message(interaction.guild))
+        asyncio.create_task(_main_service.refresh_report_channel_message(interaction.guild))
 
         await utils.discord_close_response(interaction=interaction)
 
@@ -296,9 +280,6 @@ class DoneOkButton(Button):
 # Dead Button
 class DeadButton(Button):
     def __init__(self, text: str = EmojiEnum.FINISH.value):
-        self.clan_battle_boss_book_service = ClanBattleBossBookService()
-        self.clan_battle_boss_entry_service = ClanBattleBossEntryService()
-        self.logger = KuriLogger()
         super().__init__(label=text,
                          style=discord.ButtonStyle.gray,
                          emoji=EmojiEnum.FINISH.value,
@@ -308,11 +289,11 @@ class DeadButton(Button):
         guild_id = interaction.guild_id
         user_id = interaction.user.id
         message_id = interaction.message.id
-        book_result = await self.clan_battle_boss_book_service.get_player_book_entry(message_id=message_id,
+        book_result = await _clan_battle_boss_book_service.get_player_book_entry(message_id=message_id,
                                                                                      player_id=user_id)
         if not book_result.is_success:
             await interaction.response.defer(ephemeral=True)
-            self.logger.error(book_result.error_messages)
+            logger.error(book_result.error_messages)
             return
 
         book = book_result.result
@@ -328,10 +309,10 @@ class DeadButton(Button):
                                            ephemeral=True)
             return
 
-        boss_entry = await self.clan_battle_boss_entry_service.get_last_by_message_id(message_id)
+        boss_entry = await _clan_battle_boss_entry_service.get_last_by_message_id(message_id)
         if not book_result.is_success:
             await interaction.response.defer(ephemeral=True)
-            self.logger.error(boss_entry.error_messages)
+            logger.error(boss_entry.error_messages)
             return
 
         if book.damage < boss_entry.result.current_health:
@@ -412,8 +393,6 @@ class DeadOkButton(Button):
                          style=discord.ButtonStyle.green,
                          emoji=EmojiEnum.DONE.value,
                          row=0)
-        self.main_service = MainService()
-        self.logger = KuriLogger()
         self.message_id = message_id
         self.leftover_time = leftover_time
 
@@ -426,30 +405,30 @@ class DeadOkButton(Button):
 
         await utils.discord_close_response(interaction=interaction)
 
-        dead_result = await self.main_service.dead_ok(guild_id, message_id, user_id, display_name, leftover_time)
+        dead_result = await _main_service.dead_ok(guild_id, message_id, user_id, display_name, leftover_time)
         if not dead_result.is_success:
-            self.logger.error(dead_result.error_messages)
+            logger.error(dead_result.error_messages)
             await interaction.response.defer(ephemeral=True)
 
         boss_id = dead_result.result.clan_battle_boss_id
-        generate = await self.main_service.generate_next_boss(interaction, boss_id, message_id,
+        generate = await _main_service.generate_next_boss(interaction, boss_id, message_id,
                                                               dead_result.result.attack_type, leftover_time)
         if not generate.is_success:
-            self.logger.error(generate.error_messages)
+            logger.error(generate.error_messages)
             await interaction.response.defer(ephemeral=True)
 
         message = await utils.discord_try_fetch_message(interaction.channel, generate.result.message_id)
         if message is None:
-            self.logger.error("Failed to fetch message")
+            logger.error("Failed to fetch message")
             await interaction.response.defer(ephemeral=True)
 
-        embeds = await self.main_service.refresh_clan_battle_boss_embeds(guild_id, message.id)
+        embeds = await _main_service.refresh_clan_battle_boss_embeds(guild_id, message.id)
         if not embeds.is_success:
             await interaction.response.defer(ephemeral=True)
-            self.logger.error(embeds.error_messages)
+            logger.error(embeds.error_messages)
             return
 
-        asyncio.create_task(self.main_service.refresh_report_channel_message(interaction.guild))
+        asyncio.create_task(_main_service.refresh_report_channel_message(interaction.guild))
 
         await message.edit(content="", embeds=embeds.result, view=ButtonView(guild_id))
 
@@ -457,8 +436,6 @@ class DeadOkButton(Button):
 # PATK Button
 class BookPatkButton(Button):
     def __init__(self, message_id: int, disable: bool):
-        self.main_service = MainService()
-        self.logger = KuriLogger()
         self.local_emoji = EmojiEnum.PATK
         self.attack_type = AttackTypeEnum.PATK
         self.message_id = message_id
@@ -476,23 +453,23 @@ class BookPatkButton(Button):
         guild_id = interaction.guild_id
         message_id = self.message_id
 
-        insert_result = await self.main_service.insert_boss_book_entry(guild_id, message_id, user_id, display_name,
+        insert_result = await _main_service.insert_boss_book_entry(guild_id, message_id, user_id, display_name,
                                                                        self.attack_type)
         if not insert_result.is_success:
             await interaction.response.defer(ephemeral=True)
-            self.logger.error(insert_result.error_messages)
+            logger.error(insert_result.error_messages)
             return
 
         message = await utils.discord_try_fetch_message(interaction.channel, message_id)
         if message is None:
             await interaction.response.defer(ephemeral=True)
-            self.logger.error("Could not fetch message")
+            logger.error("Could not fetch message")
             return
 
-        embeds = await self.main_service.refresh_clan_battle_boss_embeds(guild_id, message_id)
+        embeds = await _main_service.refresh_clan_battle_boss_embeds(guild_id, message_id)
         if not insert_result.is_success:
             await interaction.response.defer(ephemeral=True)
-            self.logger.error(embeds.error_messages)
+            logger.error(embeds.error_messages)
             return
 
         await message.edit(embeds=embeds.result, view=ButtonView(guild_id))
@@ -504,8 +481,6 @@ class BookPatkButton(Button):
 # MATK Button
 class BookMatkButton(Button):
     def __init__(self, message_id: int, disable: bool):
-        self.main_service = MainService()
-        self.logger = KuriLogger()
         self.local_emoji = EmojiEnum.MATK
         self.attack_type = AttackTypeEnum.MATK
         self.message_id = message_id
@@ -523,23 +498,23 @@ class BookMatkButton(Button):
         guild_id = interaction.guild_id
         message_id = self.message_id
 
-        insert_result = await self.main_service.insert_boss_book_entry(guild_id, message_id, user_id, display_name,
+        insert_result = await _main_service.insert_boss_book_entry(guild_id, message_id, user_id, display_name,
                                                                        self.attack_type)
         if not insert_result.is_success:
             await interaction.response.defer(ephemeral=True)
-            self.logger.error(insert_result.error_messages)
+            logger.error(insert_result.error_messages)
             return
 
         message = await utils.discord_try_fetch_message(interaction.channel, message_id)
         if message is None:
             await interaction.response.defer(ephemeral=True)
-            self.logger.error("Could not fetch message")
+            logger.error("Could not fetch message")
             return
 
-        embeds = await self.main_service.refresh_clan_battle_boss_embeds(guild_id, message_id)
+        embeds = await _main_service.refresh_clan_battle_boss_embeds(guild_id, message_id)
         if not insert_result.is_success:
             await interaction.response.defer(ephemeral=True)
-            self.logger.error(embeds.error_messages)
+            logger.error(embeds.error_messages)
             return
 
         await message.edit(embeds=embeds.result, view=ButtonView(guild_id))
@@ -551,8 +526,6 @@ class BookMatkButton(Button):
 # Leftover Button
 class BookLeftoverButton(Button):
     def __init__(self, leftover: ClanBattleLeftover, message_id: int):
-        self.main_service = MainService()
-        self.logger = KuriLogger()
         self.local_emoji = EmojiEnum.CARRY
         self.attack_type = AttackTypeEnum.CARRY
         self.message_id = message_id
@@ -574,23 +547,23 @@ class BookLeftoverButton(Button):
         attack_type = self.attack_type
         parent_overall_id = self.parent_overall_id
 
-        insert_result = await self.main_service.insert_boss_book_entry(guild_id, message_id, user_id, display_name,
+        insert_result = await _main_service.insert_boss_book_entry(guild_id, message_id, user_id, display_name,
                                                                        attack_type, parent_overall_id, leftover_time)
         if not insert_result.is_success:
             await interaction.response.defer(ephemeral=True)
-            self.logger.error(insert_result.error_messages)
+            logger.error(insert_result.error_messages)
             return
 
         message = await utils.discord_try_fetch_message(interaction.channel, message_id)
         if message is None:
             await interaction.response.defer(ephemeral=True)
-            self.logger.error("Could not fetch message")
+            logger.error("Could not fetch message")
             return
 
-        embeds = await self.main_service.refresh_clan_battle_boss_embeds(guild_id, message_id)
+        embeds = await _main_service.refresh_clan_battle_boss_embeds(guild_id, message_id)
         if not insert_result.is_success:
             await interaction.response.defer(ephemeral=True)
-            self.logger.error(embeds.error_messages)
+            logger.error(embeds.error_messages)
             return
 
         await message.edit(embeds=embeds.result, view=ButtonView(guild_id))

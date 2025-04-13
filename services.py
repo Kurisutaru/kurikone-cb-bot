@@ -1,14 +1,13 @@
-from concurrent.futures import ThreadPoolExecutor
+from typing import Optional
 
 from discord import Embed, Message, TextChannel
 from discord.abc import GuildChannel
 
 import utils
+from locales import Locale
 from logger import KuriLogger
 from repository import *
 from transactional import transactional, transaction_rollback
-from locales import Locale
-
 
 l = Locale()
 logger = KuriLogger()
@@ -800,6 +799,8 @@ class MainService:
             service_result.set_error(str(e))
 
         return service_result
+
+
 
 class GuildService:
     async def get_guild_by_id(self, guild_id: int) -> ServiceResult[Guild]:

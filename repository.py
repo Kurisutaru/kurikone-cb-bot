@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 
 from contextlib import contextmanager
 from models import *

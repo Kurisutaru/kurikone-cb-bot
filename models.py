@@ -1,10 +1,9 @@
 from datetime import datetime
+from typing import TypeVar, Generic
 
-from attr import Factory
 from attrs import field, define
 
 from enums import *
-from typing import TypeVar, Optional, Generic
 
 T = TypeVar('T')
 
