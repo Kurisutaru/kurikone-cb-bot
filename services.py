@@ -7,9 +7,10 @@ from repository import *
 from transactional import transactional, transaction_rollback
 from locales import Locale
 
+
 l = Locale()
 logger = KuriLogger()
-
+NEW_LINE = "\n"
 
 class Services:
     _instance = None
@@ -345,7 +346,7 @@ class MainService:
                                                        clan_battle_boss_id=boss_entry.clan_battle_boss_id,
                                                        player_id=user_id,
                                                        player_name=display_name,
-                                                       round=boss_entry.boss_round,
+                                                       boss_round=boss_entry.boss_round,
                                                        attack_type=book.attack_type,
                                                        damage=book.damage
                                                    )
@@ -401,7 +402,7 @@ class MainService:
                                                                               clan_battle_boss_id=boss_entry.clan_battle_boss_id,
                                                                               player_id=user_id,
                                                                               player_name=display_name,
-                                                                              round=boss_entry.boss_round,
+                                                                              boss_round=boss_entry.boss_round,
                                                                               attack_type=book.attack_type,
                                                                               damage=book.damage,
                                                                               leftover_time=None if book.attack_type == AttackTypeEnum.CARRY else leftover_time

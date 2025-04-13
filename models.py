@@ -95,7 +95,7 @@ class ClanBattleOverallEntry:
     clan_battle_boss_id: int = field(default=None)
     player_id: int = field(default=None)
     player_name: str = field(default=None)
-    round: int = field(default=None)
+    boss_round: int = field(default=None)
     attack_type: AttackTypeEnum = field(converter=lambda x: AttackTypeEnum[x] if isinstance(x, str) else x, default=None)
     damage: int = field(default=None)
     leftover_time: int = field(default=None)

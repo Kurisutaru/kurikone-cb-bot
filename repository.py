@@ -76,9 +76,11 @@ class GuildRepository:
                     SELECT guild_id,
                            guild_name
                     FROM guild
-                    WHERE guild_id = ?
+                    WHERE guild_id = %(guild_id)s
                     """,
-                    (guild_id,)
+                    {
+                        "guild_id" : guild_id,
+                    }
                 )
                 result = cursor.fetchone()
                 if result:
@@ -96,12 +98,12 @@ class GuildRepository:
                         guild_id, 
                         guild_name
                         )
-                    VALUES (?, ?)
+                    VALUES (%(guild_id)s, %(guild_name)s)
                     """,
-                    (
-                        guild.guild_id,
-                        guild.guild_name,
-                    )
+                    {
+                        'guild_id' : guild.guild_id,
+                        'guild_name' : guild.guild_name,
+                    }
                 )
 
                 return guild
@@ -113,11 +115,11 @@ class GuildRepository:
                 cursor.execute(
                     """
                     DELETE FROM guild
-                    WHERE guild_id = ?
+                    WHERE guild_id = %(guild_id)s
                     """,
-                    (
-                        guild_id,
-                    )
+                    {
+                        'guild_id': guild_id,
+                    }
                 )
 
                 return True
@@ -134,9 +136,11 @@ class ChannelRepository:
                            guild_id,
                            channel_type
                     FROM channel
-                    WHERE guild_id = ?
+                    WHERE guild_id = %(guild_id)s
                     """,
-                    (guild_id,)
+                    {
+                        'guild_id' : guild_id,
+                    }
                 )
                 result = cursor.fetchall()
                 if result:
@@ -162,13 +166,13 @@ class ChannelRepository:
                         guild_id, 
                         channel_type
                         )
-                    VALUES (?, ?, ?)
+                    VALUES (%(channel_id)s, %(guild_id)s, %(channel_type)s)
                     """,
-                    (
-                        channel.channel_id,
-                        channel.guild_id,
-                        channel.channel_type.name
-                    )
+                    {
+                        'channel_id' : channel.channel_id,
+                        'guild_id' : channel.guild_id,
+                        'channel_type' : channel.channel_type,
+                    }
                 )
                 channel.channel_id = cursor.lastrowid
 
@@ -180,14 +184,14 @@ class ChannelRepository:
                 cursor.execute(
                     """
                     UPDATE channel
-                        SET channel_id = ?
-                    WHERE guild_id = ? and channel_type = ?
+                        SET channel_id = %(channel_id)s
+                    WHERE guild_id = %(guild_id)s and channel_type = %(channel_type)s
                     """,
-                    (
-                        channel.channel_id,
-                        channel.guild_id,
-                        channel.channel_type.name
-                    )
+                    {
+                        'channel_id' : channel.channel_id,
+                        'guild_id' : channel.guild_id,
+                        'channel_type' : channel.channel_type,
+                    }
                 )
                 channel.channel_id = cursor.lastrowid
 
@@ -198,11 +202,11 @@ class ChannelRepository:
             with conn.cursor(dictionary=True) as cursor:
                 cursor.execute(
                     """
-                    DELETE FROM channel WHERE guild_id = ?
+                    DELETE FROM channel WHERE guild_id = %(guild_id)s
                     """,
-                    (
-                        guild_id,
-                    )
+                    {
+                        'guild_id' : guild_id,
+                    }
                 )
             return True
 
@@ -215,10 +219,12 @@ class ChannelMessageRepository:
                 cursor.execute(
                     """
                     INSERT INTO channel_message (channel_id, message_id) 
-                    VALUES (?, ?)
+                    VALUES (%(channel_id)s, %(message_id)s)
                     """,
-                    (channel_message.channel_id,
-                     channel_message.message_id)
+                    {
+                        'channel_id' : channel_message.channel_id,
+                        'message_id' : channel_message.message_id,
+                    }
                 )
 
                 return channel_message
@@ -229,13 +235,13 @@ class ChannelMessageRepository:
                 cursor.execute(
                     """
                     UPDATE channel_message 
-                        SET message_id = ?
-                    WHERE channel_id = ?
+                        SET message_id = %(message_id)s
+                    WHERE channel_id = %(channel_id)s
                     """,
-                    (
-                        channel_message.message_id,
-                        channel_message.channel_id,
-                    )
+                    {
+                        'channel_id' : channel_message.channel_id,
+                        'message_id' : channel_message.message_id,
+                    }
                 )
 
                 return channel_message
@@ -246,13 +252,13 @@ class ChannelMessageRepository:
                 cursor.execute(
                     """
                     UPDATE channel_message 
-                        SET channel_id = ?
-                    WHERE channel_id = ?
+                        SET channel_id = %(new_channel_id)s
+                    WHERE channel_id = %(old_channel_id)s
                     """,
-                    (
-                        new_channel_id,
-                        old_channel_id,
-                    )
+                    {
+                        'new_channel_id' : new_channel_id,
+                        'old_channel_id' : old_channel_id,
+                    }
                 )
 
                 return True
@@ -265,9 +271,11 @@ class ChannelMessageRepository:
                     SELECT channel_id,
                            message_id
                     FROM channel_message
-                    WHERE channel_id = ?
+                    WHERE channel_id = %(channel_id)s
                     """,
-                    (channel_id,)
+                    {
+                        'channel_id' : channel_id,
+                    }
                 )
                 result = cursor.fetchone()
                 if result:
@@ -287,9 +295,11 @@ class ChannelMessageRepository:
                     FROM channel_message CM 
                         JOIN channel C ON C.channel_id = CM.channel_id
                         JOIN guild G ON G.guild_id = C.guild_id
-                    WHERE G.guild_id = ?
+                    WHERE G.guild_id = %(guild_id)s
                     """,
-                    (guild_id,)
+                    {
+                        'guild_id' : guild_id,
+                    }
                 )
                 result = cursor.fetchall()
                 if result:
@@ -336,19 +346,28 @@ class ClanBattleBossEntryRepository:
                         current_health, 
                         max_health
                     ) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (
+                         %(guild_id)s, 
+                         %(message_id)s, 
+                         %(clan_battle_period_id)s, 
+                         %(clan_battle_boss_id)s,
+                         %(name)s,
+                         %(image_path)s,
+                         %(boss_round)s,
+                         %(current_health)s,
+                         %(max_health)s)
                     """,
-                    (
-                        clan_battle_boss_entry.guild_id,
-                        clan_battle_boss_entry.message_id,
-                        clan_battle_boss_entry.clan_battle_period_id,
-                        clan_battle_boss_entry.clan_battle_boss_id,
-                        clan_battle_boss_entry.name,
-                        clan_battle_boss_entry.image_path,
-                        clan_battle_boss_entry.boss_round,
-                        clan_battle_boss_entry.current_health,
-                        clan_battle_boss_entry.max_health
-                    )
+                    {
+                        'guild_id' : clan_battle_boss_entry.guild_id,
+                        'message_id' : clan_battle_boss_entry.message_id,
+                        'clan_battle_period_id' : clan_battle_boss_entry.clan_battle_period_id,
+                        'clan_battle_boss_id': clan_battle_boss_entry.clan_battle_boss_id,
+                        'name' : clan_battle_boss_entry.name,
+                        'image_path' : clan_battle_boss_entry.image_path,
+                        'boss_round' : clan_battle_boss_entry.boss_round,
+                        'current_health' : clan_battle_boss_entry.current_health,
+                        'max_health' : clan_battle_boss_entry.max_health,
+                    }
                 )
                 clan_battle_boss_entry.clan_battle_boss_entry_id = cursor.lastrowid
 
@@ -371,11 +390,13 @@ class ClanBattleBossEntryRepository:
                            current_health,
                            max_health
                     FROM clan_battle_boss_entry
-                    WHERE message_id = ?
+                    WHERE message_id = %(message_id)s
                     ORDER BY boss_round, clan_battle_boss_entry_id DESC
                     LIMIT 1
                     """,
-                    (message_id,)
+                    {
+                        'message_id' : message_id,
+                    }
                 )
                 result = cursor.fetchone()
                 if result:
@@ -399,13 +420,13 @@ class ClanBattleBossEntryRepository:
                 cursor.execute(
                     """
                     UPDATE clan_battle_boss_entry 
-                    SET current_health = ?
-                    WHERE clan_battle_boss_entry_id = ?
+                    SET current_health = %(current_health)s
+                    WHERE clan_battle_boss_entry_id = %(clan_battle_boss_entry_id)s
                     """,
-                    (
-                        current_health,
-                        clan_battle_boss_entry_id
-                    )
+                    {
+                        'clan_battle_boss_entry_id': clan_battle_boss_entry_id,
+                        'current_health' : current_health,
+                    }
                 )
 
                 return True
@@ -416,13 +437,13 @@ class ClanBattleBossEntryRepository:
                 cursor.execute(
                     """
                     UPDATE clan_battle_boss_entry 
-                    SET message_id = ?
-                    WHERE clan_battle_boss_entry_id = ?
+                    SET message_id = %(message_id)s
+                    WHERE clan_battle_boss_entry_id = %(clan_battle_boss_entry_id)s
                     """,
-                    (
-                        message_id,
-                        clan_battle_boss_entry_id
-                    )
+                    {
+                        'clan_battle_boss_entry_id': clan_battle_boss_entry_id,
+                        'message_id' : message_id,
+                    }
                 )
 
                 return True
@@ -434,11 +455,11 @@ class ClanBattleBossEntryRepository:
                 cursor.execute(
                     """
                     DELETE FROM clan_battle_boss_entry 
-                    WHERE guild_id = ?
+                    WHERE guild_id = %(guild_id)s
                     """,
-                    (
-                        guild_id,
-                    )
+                    {
+                        'guild_id' : guild_id,
+                    }
                 )
 
                 return True
@@ -463,9 +484,11 @@ class ClanBattleBossBookRepository:
                            CBBB.entry_date
                     FROM clan_battle_boss_book CBBB
                              JOIN clan_battle_boss_entry CBE ON CBBB.clan_battle_boss_entry_id = CBE.clan_battle_boss_entry_id
-                    WHERE CBE.message_id = ?
+                    WHERE CBE.message_id = %(message_id)s
                     """,
-                    (message_id,)
+                    {
+                        'message_id' : message_id,
+                    }
                 )
                 result = cursor.fetchall()
                 if result:
@@ -504,13 +527,13 @@ class ClanBattleBossBookRepository:
                            CBBB.entry_date
                         FROM clan_battle_boss_book AS CBBB
                                  INNER JOIN clan_battle_boss_entry AS CBBE ON CBBB.clan_battle_boss_entry_id = CBBE.clan_battle_boss_entry_id
-                        WHERE CBBB.player_id = ?
-                          AND CBBE.message_id = ?
+                        WHERE CBBB.player_id = %(player_id)s
+                          AND CBBE.message_id = %(message_id)s
                     """,
-                    (
-                        player_id,
-                        message_id
-                    )
+                    {
+                        'player_id' : player_id,
+                        'message_id' : message_id,
+                    }
                 )
                 result = cursor.fetchone()
                 if result:
@@ -539,8 +562,8 @@ class ClanBattleBossBookRepository:
                                  INNER JOIN channel_message AS CM ON CBBE.message_id = CM.message_id
                                  INNER JOIN channel AS C ON CM.channel_id = C.channel_id
                                  INNER JOIN guild AS G ON C.guild_id = G.guild_id
-                        WHERE G.guild_id = ?
-                            AND CBBB.player_id = ?
+                        WHERE G.guild_id = %(guild_id)s
+                            AND CBBB.player_id = %(player_id)s
                             AND CBBB.entry_date >= IF(CURRENT_TIME() < '05:00:00',
                                         CONCAT(DATE_SUB(CURDATE(), INTERVAL 1 DAY), ' 05:00:00'),
                                         CONCAT(CURDATE(), ' 05:00:00'))
@@ -548,10 +571,10 @@ class ClanBattleBossBookRepository:
                                        CONCAT(CURDATE(), ' 05:00:00'),
                                        CONCAT(DATE_ADD(CURDATE(), INTERVAL 1 DAY), ' 05:00:00'))
                     """,
-                    (
-                        guild_id,
-                        player_id,
-                    )
+                    {
+                        'guild_id' : guild_id,
+                        'player_id' : player_id,
+                    }
                 )
                 result = cursor.fetchone()
                 if result:
@@ -565,11 +588,11 @@ class ClanBattleBossBookRepository:
                     """
                     DELETE
                     FROM clan_battle_boss_book
-                    WHERE clan_battle_boss_book_id = ?
+                    WHERE clan_battle_boss_book_id = %(clan_battle_boss_book_id)s
                     """,
-                    (
-                        clan_battle_boss_book_id,
-                    )
+                    {
+                        'clan_battle_boss_book_id': clan_battle_boss_book_id,
+                    }
                 )
 
                 return True
@@ -591,19 +614,31 @@ class ClanBattleBossBookRepository:
                         leftover_time,
                         entry_date
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, SYSDATE())
-                    """,
-                    (
-                        clan_battle_boss_book.clan_battle_boss_entry_id,
-                        clan_battle_boss_book.clan_battle_boss_entry_id,
-                        clan_battle_boss_book.guild_id,
-                        clan_battle_boss_book.player_id,
-                        clan_battle_boss_book.player_name,
-                        clan_battle_boss_book.attack_type.name,
-                        clan_battle_boss_book.damage,
-                        clan_battle_boss_book.clan_battle_overall_entry_id,
-                        clan_battle_boss_book.leftover_time
+                    VALUES (
+                        %(clan_battle_boss_book_id)s,
+                        %(clan_battle_boss_entry_id)s,
+                        %(guild_id)s,
+                        %(player_id)s,
+                        %(player_name)s,
+                        %(attack_type)s,
+                        %(damage)s,
+                        %(clan_battle_overall_entry_id)s,
+                        %(leftover_time)s,
+                        %(entry_date)s
                     )
+                    """,
+                    {
+                        'clan_battle_boss_book_id': clan_battle_boss_book.clan_battle_boss_book_id,
+                        'clan_battle_boss_entry_id': clan_battle_boss_book.clan_battle_boss_entry_id,
+                        'guild_id' : clan_battle_boss_book.guild_id,
+                        'player_id' : clan_battle_boss_book.player_id,
+                        'player_name' : clan_battle_boss_book.player_name,
+                        'attack_type' : clan_battle_boss_book.attack_type,
+                        'damage' : clan_battle_boss_book.damage,
+                        'clan_battle_overall_entry_id': clan_battle_boss_book.clan_battle_overall_entry_id,
+                        'leftover_time' : clan_battle_boss_book.entry_date,
+                        'entry_date' : clan_battle_boss_book.entry_date,
+                    }
                 )
                 clan_battle_boss_book.clan_battle_boss_book_id = cursor.lastrowid
 
@@ -615,13 +650,13 @@ class ClanBattleBossBookRepository:
                 cursor.execute(
                     """
                     UPDATE clan_battle_boss_book 
-                        SET damage = ? 
-                    WHERE clan_battle_boss_book_id = ?
+                        SET damage = %(damage)s
+                    WHERE clan_battle_boss_book_id = %(clan_battle_boss_book_id)s
                     """,
-                    (
-                        damage,
-                        clan_battle_boss_book_id,
-                    )
+                    {
+                        'damage' : damage,
+                        'clan_battle_boss_book_id': clan_battle_boss_book_id,
+                    }
                 )
 
                 return True
@@ -633,11 +668,11 @@ class ClanBattleBossBookRepository:
                 cursor.execute(
                     """
                     DELETE FROM clan_battle_boss_book 
-                    WHERE guild_id = ?
+                    WHERE guild_id = %(guild_id)s
                     """,
-                    (
-                        guild_id,
-                    )
+                    {
+                        'guild_id' : guild_id,
+                    }
                 )
 
                 return True
@@ -691,9 +726,11 @@ class ClanBattleBossRepository:
                            image_path,
                            position
                     FROM clan_battle_boss
-                    WHERE clan_battle_boss_id = ?
+                    WHERE clan_battle_boss_id = %(clan_battle_boss_id)s
                     """,
-                    (clan_battle_boss_id,)
+                    {
+                        'clan_battle_boss_id': clan_battle_boss_id,
+                    }
                 )
                 result = cursor.fetchone()
                 if result:
@@ -720,10 +757,13 @@ class ClanBattleBossHealthRepository:
                            round_to,
                            health
                     FROM clan_battle_boss_health
-                    WHERE position = ?
-                    AND ? BETWEEN round_from AND round_to
+                    WHERE position = %(position)s
+                    AND %(boss_round)s BETWEEN round_from AND round_to
                     """,
-                    (position, boss_round,)
+                    {
+                        'position' : position,
+                        'boss_round' : boss_round,
+                    }
                 )
                 result = cursor.fetchone()
                 if result:
@@ -756,16 +796,16 @@ class ClanBattleOverallEntryRepository:
                             overall_leftover_entry_id,
                             entry_date
                     FROM clan_battle_overall_entry
-                    WHERE guild_id = ? 
-                    AND clan_battle_boss_id = ? 
-                    AND boss_round = ?
+                    WHERE guild_id = %(guild_id)s
+                    AND clan_battle_boss_id = %(clan_battle_boss_id)s
+                    AND boss_round = %(boss_round)s
                     ORDER BY entry_date
                     """,
-                    (
-                        guild_id,
-                        clan_battle_boss_id,
-                        boss_round,
-                    )
+                    {
+                        'guild_id' : guild_id,
+                        'clan_battle_boss_id': clan_battle_boss_id,
+                        'boss_round' : boss_round,
+                    }
                 )
                 result = cursor.fetchall()
                 if result:
@@ -778,7 +818,7 @@ class ClanBattleOverallEntryRepository:
                             clan_battle_boss_id=row['clan_battle_boss_id'],
                             player_id=row['player_id'],
                             player_name=row['player_name'],
-                            round=row['boss_round'],
+                            boss_round=row['boss_round'],
                             attack_type=row['attack_type'],
                             damage=row['damage'],
                             leftover_time=row['leftover_time'],
@@ -809,21 +849,32 @@ class ClanBattleOverallEntryRepository:
                     )
                     VALUES 
                     (
-                        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, SYSDATE()
+                        %(guild_id)s,
+                        %(clan_battle_period_id)s,
+                        %(clan_battle_boss_id)s,
+                        %(player_id)s,
+                        %(player_name)s,
+                        %(boss_round)s,
+                        %(damage)s,
+                        %(attack_type)s,
+                        %(leftover_time)s,
+                        %(overall_leftover_entry_id)s,
+                        %(entry_date)s
                     )
                     """,
-                    (
-                        cb_overall_entry.guild_id,
-                        cb_overall_entry.clan_battle_period_id,
-                        cb_overall_entry.clan_battle_boss_id,
-                        cb_overall_entry.player_id,
-                        cb_overall_entry.player_name,
-                        cb_overall_entry.round,
-                        cb_overall_entry.damage,
-                        cb_overall_entry.attack_type.name,
-                        cb_overall_entry.leftover_time,
-                        cb_overall_entry.overall_leftover_entry_id
-                    )
+                    {
+                        'guild_id': cb_overall_entry.guild_id,
+                        'clan_battle_period_id': cb_overall_entry.clan_battle_period_id,
+                        'clan_battle_boss_id': cb_overall_entry.clan_battle_boss_id,
+                        'player_id': cb_overall_entry.player_id,
+                        'player_name': cb_overall_entry.player_name,
+                        'boss_round': cb_overall_entry.boss_round,
+                        'damage': cb_overall_entry.damage,
+                        'attack_type': cb_overall_entry.attack_type,
+                        'leftover_time': cb_overall_entry.leftover_time,
+                        'overall_leftover_entry_id': cb_overall_entry.overall_leftover_entry_id,
+                        'entry_date': cb_overall_entry.entry_date,
+                    }
                 )
                 cb_overall_entry.clan_battle_overall_entry_id = cursor.lastrowid
 
@@ -835,14 +886,14 @@ class ClanBattleOverallEntryRepository:
                 cursor.execute(
                     """
                     UPDATE clan_battle_overall_entry
-                    SET overall_leftover_entry_id = ?
-                    WHERE clan_battle_overall_entry_id = ?
+                    SET overall_leftover_entry_id = %(overall_leftover_entry_id)s
+                    WHERE clan_battle_overall_entry_id = %(cb_overall_entry_id)s
     
                     """,
-                    (
-                        overall_leftover_entry_id,
-                        cb_overall_entry_id
-                    )
+                    {
+                        'overall_leftover_entry_id': overall_leftover_entry_id,
+                        'cb_overall_entry_id': cb_overall_entry_id,
+                    }
                 )
 
                 return True
@@ -856,8 +907,8 @@ class ClanBattleOverallEntryRepository:
                     FROM clan_battle_overall_entry CBOE
                              JOIN clan_battle_period CBP ON CBP.clan_battle_period_id = CBOE.clan_battle_period_id
                              JOIN clan_battle_boss CBB ON CBOE.clan_battle_boss_id = CBB.clan_battle_boss_id
-                    WHERE CBOE.guild_id = ?
-                      AND CBOE.player_id = ?
+                    WHERE CBOE.guild_id = %(guild_id)s
+                      AND CBOE.player_id = %(player_id)s
                       AND CBOE.attack_type <> 'CARRY'
                       AND CURDATE() BETWEEN CBP.date_from AND CBP.date_to
                       AND CBOE.entry_date >= IF(CURRENT_TIME() < '05:00:00',
@@ -868,10 +919,10 @@ class ClanBattleOverallEntryRepository:
                                        CONCAT(DATE_ADD(CURDATE(), INTERVAL 1 DAY), ' 05:00:00'))
 
                     """,
-                    (
-                        guild_id,
-                        player_id,
-                    )
+                    {
+                        'guild_id': guild_id,
+                        'player_id': player_id,
+                    }
                 )
                 result = cursor.fetchone()
                 if result:
@@ -892,8 +943,8 @@ class ClanBattleOverallEntryRepository:
                     FROM clan_battle_overall_entry CBOE
                              JOIN clan_battle_period CBP ON CBP.clan_battle_period_id = CBOE.clan_battle_period_id
                              JOIN clan_battle_boss CBB ON CBOE.clan_battle_boss_id = CBB.clan_battle_boss_id
-                    WHERE CBOE.guild_id = ?
-                        AND CBOE.player_id = ?
+                    WHERE CBOE.guild_id = %(guild_id)s
+                        AND CBOE.player_id = %(player_id)s
                         AND CBOE.leftover_time IS NOT NULL
                         AND CBOE.overall_leftover_entry_id IS NULL
                         AND CURDATE() BETWEEN CBP.date_from AND CBP.date_to
@@ -904,10 +955,10 @@ class ClanBattleOverallEntryRepository:
                                        CONCAT(CURDATE(), ' 05:00:00'),
                                        CONCAT(DATE_ADD(CURDATE(), INTERVAL 1 DAY), ' 05:00:00'));
                     """,
-                    (
-                        guild_id,
-                        player_id,
-                    )
+                    {
+                        'guild_id': guild_id,
+                        'player_id': player_id,
+                    }
                 )
                 result = cursor.fetchall()
                 if result:
@@ -931,11 +982,11 @@ class ClanBattleOverallEntryRepository:
                 cursor.execute(
                     """
                     DELETE FROM clan_battle_overall_entry
-                    WHERE guild_id = ?
+                    WHERE guild_id = %(guild_id)s
                     """,
-                    (
-                        guild_id,
-                    )
+                    {
+                        'guild_id': guild_id,
+                    }
                 )
 
                 return True
@@ -981,7 +1032,7 @@ class GuildPlayerRepository:
                     WHERE guild_id = ?
                     """,
                     (
-                        guild_id,
+                        'guild_id': guild_id,
                     )
                 )
 
