@@ -17,6 +17,7 @@ class DatabasePool:
                 cls._pool = PooledDB(
                     creator=mariadb.connect,
                     maxconnections=config.MAX_POOL_SIZE,
+                    maxusage=1,
                     mincached=2,
                     maxcached=10,
                     blocking=True,
