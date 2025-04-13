@@ -36,6 +36,10 @@ async def discord_close_response(interaction: discord.Interaction):
         logger.error(e)
         logger.error(traceback.print_exc())
 
+async def send_message(interaction: discord.Interaction, content: str, embed: Embed = None,
+                             embeds: list[Embed] = None, view: View = None, ephemeral: bool = False):
+    param = create_message_param(content=content, embed=embed, embeds=embeds, view=view, ephemeral=ephemeral)
+    await interaction.response.send_message(**param)
 
 async def send_message_short(interaction: discord.Interaction, content: str, embed: Embed = None,
                              embeds: list[Embed] = None, view: View = None, ephemeral: bool = False):
@@ -57,6 +61,10 @@ async def send_message_long(interaction: discord.Interaction, content: str, embe
                                  delete_after=config.MESSAGE_DEFAULT_DELETE_AFTER_LONG)
     await interaction.response.send_message(**param)
 
+async def send_channel_message(interaction: discord.Interaction, content: str, embed: Embed = None,
+                                     embeds: list[Embed] = None, view: View = None):
+    param = create_message_param(content=content, embed=embed, embeds=embeds, view=view)
+    await interaction.channel.send(**param)
 
 async def send_channel_message_short(interaction: discord.Interaction, content: str, embed: Embed = None,
                                      embeds: list[Embed] = None, view: View = None):

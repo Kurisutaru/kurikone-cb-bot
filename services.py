@@ -463,7 +463,7 @@ class MainService:
                 view=None)
 
             # Generate New One
-            await utils.send_channel_message_short(interaction=interaction,
+            await utils.send_channel_message(interaction=interaction,
                 content=f"{l.t(guild_id, "ui.events.boss_killed", user=interaction.user.display_name, attack_type=attack_type.value, leftover_time=leftover_time)}")
 
             next_round = boss_entry.boss_round + 1
