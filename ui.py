@@ -1,3 +1,6 @@
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
+
 import discord
 from discord.ui import View, Button, Modal, TextInput
 
@@ -152,12 +155,12 @@ class EntryInputModal(Modal):
 
     # Define a text input
     user_input = TextInput(
-        label="Leftover Time (in second)",
+        label="Damage input",
         placeholder="20",
         style=discord.TextStyle.short,
         required=True,
         min_length=1,
-        max_length=2
+        max_length=10
     )
 
     async def on_submit(self, interaction: discord.Interaction):
@@ -188,7 +191,7 @@ class EntryInputModal(Modal):
 
         damage = int(self.user_input.value)
         update_result = await self.clan_battle_boss_book_service.update_damage_boss_book_by_id(
-            book.clan_battle_boss_entry_id,
+            book.clan_battle_boss_book_id,
             damage)
 
         if not update_result.is_success:
@@ -284,6 +287,8 @@ class DoneOkButton(Button):
                 return
 
             await message.edit(embeds=embeds.result, view=ButtonView(guild_id))
+
+        asyncio.create_task(self.main_service.refresh_report_channel_message(interaction.guild))
 
         await utils.discord_close_response(interaction=interaction)
 
@@ -400,7 +405,7 @@ class LeftoverModal(Modal):
                                       ephemeral=True)
 
 
-# Done Ok Confirm Button
+# Dead Ok Confirm Button
 class DeadOkButton(Button):
     def __init__(self, message_id: int, leftover_time: int):
         super().__init__(label=EmojiEnum.DONE.name.capitalize(),
@@ -443,6 +448,8 @@ class DeadOkButton(Button):
             await interaction.response.defer(ephemeral=True)
             self.logger.error(embeds.error_messages)
             return
+
+        asyncio.create_task(self.main_service.refresh_report_channel_message(interaction.guild))
 
         await message.edit(content="", embeds=embeds.result, view=ButtonView(guild_id))
 

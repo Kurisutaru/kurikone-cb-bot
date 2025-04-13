@@ -1,10 +1,13 @@
 # Enum
 from enum import Enum
+from typing import Literal
 
 import discord
+from discord import app_commands
 
 from config import config
 
+NEW_LINE = "\n"
 
 class ChannelEnum(Enum):
     CATEGORY = {"type": "CATEGORY", "name": config.CATEGORY_CHANNEL_NAME}
@@ -21,6 +24,7 @@ class AttackTypeEnum(Enum):
     PATK = "🥊"
     MATK = "📘"
     CARRY = "💼"
+    LEFTOVER = "🎯"
 
 
 # Enums for better readability
@@ -45,3 +49,29 @@ class ButtonStyle:
     GREEN = discord.ButtonStyle.green
     RED = discord.ButtonStyle.red
     BLURPLE = discord.ButtonStyle.blurple
+
+
+class HelpTopic:
+    # Static key-value pairs declared inside the class
+    DATA = {
+        "cb-report-symbol": (
+            f"# Clan Battle Report Symbol{NEW_LINE}"
+            f"```powershell{NEW_LINE}"
+            f"{AttackTypeEnum.PATK.value} : Physical Attack{NEW_LINE}"
+            f"{AttackTypeEnum.MATK.value} : Magical Attack{NEW_LINE}"
+            f"{AttackTypeEnum.CARRY.value} : Leftover Entries{NEW_LINE}"
+            f"{AttackTypeEnum.LEFTOVER.value} : Active Leftover Entries{NEW_LINE}"
+            f"```"
+        ),
+        "bot": "Hello, Kurisutaru here from the Bot creator",
+    }
+
+    @classmethod
+    def get_keys(cls):
+        """Get just the keys as strings"""
+        return Literal[*cls.DATA.keys()]
+
+    @classmethod
+    def get_value(cls, key: str) -> str:
+        """Get the response text for a given key"""
+        return cls.DATA.get(key, "Topic not found")

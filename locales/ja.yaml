@@ -26,6 +26,7 @@ ja:
       not_yet_booked: "まだ予約されていません！"
       preparing_data: "データを準備中 . . ."
       round: "ラウンド %{round}"
+      day: "%{day}日"
     validation:
       enter_entry_type_first: "先にエントリータイプを入力してください！"
       only_numbers_allowed: "数字のみ入力可能です！"
@@ -60,3 +61,4 @@ ja:
     done_install: "ボットのインストールが完了しました！"
     guild_not_installed: "ギルドはインストールされていません。まずインストールしてください。"
     done_uninstall: "ボットのアンインストールが完了しました！"
+    done_sync: "ロールからユーザーを同期しました！"

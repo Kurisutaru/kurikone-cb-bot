@@ -17,7 +17,6 @@ class DatabasePool:
                 cls._pool = PooledDB(
                     creator=mariadb.connect,
                     maxconnections=config.MAX_POOL_SIZE,
-                    maxusage=1,
                     mincached=2,
                     maxcached=10,
                     blocking=True,
@@ -26,7 +25,8 @@ class DatabasePool:
                     password=config.DB_PASSWORD,
                     database=config.DB_NAME,
                     port=config.DB_PORT,
-                    setsession=["SET SESSION time_zone = 'Asia/Tokyo'"]
+                    setsession=["SET SESSION time_zone = 'Asia/Tokyo'"],
+                    ping=1
                 )
                 print(f"Connection pool initialized with size: {config.MAX_POOL_SIZE}")
             except Exception as e:

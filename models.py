@@ -86,6 +86,10 @@ class ClanBattlePeriod:
     boss4_id: int = field(default=None)
     boss5_id: int = field(default=None)
 
+@define
+class ClanBattlePeriodDay(ClanBattlePeriod):
+    current_day: int = field(default=None)
+
 
 @define
 class ClanBattleOverallEntry:
@@ -112,6 +116,31 @@ class ClanBattleLeftover:
     attack_type: AttackTypeEnum = field(converter=lambda x: AttackTypeEnum[x] if isinstance(x, str) else x, default=None)
     leftover_time: int = field(default=None)
     overall_leftover_entry_id: int = field(default=None)
+
+
+@define
+class ClanBattleReportMessage:
+    clan_battle_report_message_id: int = field(default=None)
+    guild_id: int = field(default=None)
+    clan_battle_period_id: int = field(default=None)
+    day: int = field(default=None)
+    message_id: int = field(default=None)
+
+
+@define
+class GuildPlayer:
+    guild_id: int = field(default=None)
+    player_id: int = field(default=None)
+    player_name: str = field(default=None)
+
+
+@define
+class ClanBattleReportEntry:
+    player_name: str = field(default=None)
+    patk_count: int = field(default=None)
+    matk_count: int = field(default=None)
+    leftover_count: int = field(default=None)
+    carry_count: int = field(default=None)
 
 
 @define

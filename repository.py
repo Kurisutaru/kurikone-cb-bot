@@ -156,6 +156,32 @@ class ChannelRepository:
                     return entries
                 return []
 
+    def get_all_by_guild_id_and_type(self, guild_id: int, type: str) -> Channel:
+        with connection_context() as conn:
+            with conn.cursor(dictionary=True) as cursor:
+                cursor.execute(
+                    """
+                    SELECT channel_id,
+                           guild_id,
+                           channel_type
+                    FROM channel
+                    WHERE guild_id = %(guild_id)s
+                    AND channel_type = %(channel_type)s
+                    """,
+                    {
+                        'guild_id' : guild_id,
+                        'channel_type' : type
+                    }
+                )
+                result = cursor.fetchone()
+                if result:
+                    return Channel(
+                                channel_id=result['channel_id'],
+                                guild_id=result['guild_id'],
+                                channel_type=result['channel_type']
+                            )
+                return None
+
     def insert_channel(self, channel: Channel) -> Channel:
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
@@ -171,7 +197,7 @@ class ChannelRepository:
                     {
                         'channel_id' : channel.channel_id,
                         'guild_id' : channel.guild_id,
-                        'channel_type' : channel.channel_type,
+                        'channel_type' : channel.channel_type.name,
                     }
                 )
                 channel.channel_id = cursor.lastrowid
@@ -190,7 +216,7 @@ class ChannelRepository:
                     {
                         'channel_id' : channel.channel_id,
                         'guild_id' : channel.guild_id,
-                        'channel_type' : channel.channel_type,
+                        'channel_type' : channel.channel_type.name,
                     }
                 )
                 channel.channel_id = cursor.lastrowid
@@ -318,14 +344,39 @@ class ChannelMessageRepository:
                 cursor.execute(
                     """
                     DELETE FROM channel_message 
-                    WHERE channel_id IN (SELECT channel_id from channel WHERE guild_id = ?)
+                    WHERE channel_id IN (SELECT channel_id from channel WHERE guild_id = %(guild_id)s)
                     """,
-                    (
-                        guild_id,
-                    )
+                    {
+                        'guild_id' : guild_id,
+                    }
                 )
 
                 return True
+
+    def get_message_by_guild_id_and_channel_type(self, guild_id, channel_type) -> Optional[ChannelMessage]:
+        with connection_context() as conn:
+            with conn.cursor(dictionary=True) as cursor:
+                cursor.execute(
+                    """
+                    SELECT CM.channel_id, CM.message_id
+                    FROM channel_message CM
+                             JOIN channel C on CM.channel_id = C.channel_id
+                    WHERE C.guild_id = %(guild_id)s
+                      AND C.channel_type = %(channel_type)s
+
+                    """,
+                    {
+                        'guild_id': guild_id,
+                        'channel_type' : channel_type
+                    }
+                )
+                result = cursor.fetchone()
+                if result:
+                    return ChannelMessage(
+                        channel_id=result['channel_id'],
+                        message_id=result['message_id']
+                    )
+                return None
 
 
 class ClanBattleBossEntryRepository:
@@ -505,8 +556,7 @@ class ClanBattleBossBookRepository:
                             clan_battle_overall_entry_id=row['clan_battle_overall_entry_id'],
                             leftover_time=row['leftover_time'],
                             entry_date=row['entry_date']
-                        )
-                        )
+                        ))
                     return entries
                 return []
 
@@ -624,7 +674,7 @@ class ClanBattleBossBookRepository:
                         %(damage)s,
                         %(clan_battle_overall_entry_id)s,
                         %(leftover_time)s,
-                        %(entry_date)s
+                        SYSDATE()
                     )
                     """,
                     {
@@ -633,11 +683,10 @@ class ClanBattleBossBookRepository:
                         'guild_id' : clan_battle_boss_book.guild_id,
                         'player_id' : clan_battle_boss_book.player_id,
                         'player_name' : clan_battle_boss_book.player_name,
-                        'attack_type' : clan_battle_boss_book.attack_type,
+                        'attack_type' : clan_battle_boss_book.attack_type.name,
                         'damage' : clan_battle_boss_book.damage,
                         'clan_battle_overall_entry_id': clan_battle_boss_book.clan_battle_overall_entry_id,
-                        'leftover_time' : clan_battle_boss_book.entry_date,
-                        'entry_date' : clan_battle_boss_book.entry_date,
+                        'leftover_time' : clan_battle_boss_book.leftover_time,
                     }
                 )
                 clan_battle_boss_book.clan_battle_boss_book_id = cursor.lastrowid
@@ -654,8 +703,8 @@ class ClanBattleBossBookRepository:
                     WHERE clan_battle_boss_book_id = %(clan_battle_boss_book_id)s
                     """,
                     {
-                        'damage' : damage,
                         'clan_battle_boss_book_id': clan_battle_boss_book_id,
+                        'damage' : damage
                     }
                 )
 
@@ -712,6 +761,84 @@ class ClanBattlePeriodRepository:
                     )
                 return None
 
+    def get_by_param(self, year: int, month:int) -> Optional[ClanBattlePeriod]:
+        with connection_context() as conn:
+            with conn.cursor(dictionary=True) as cursor:
+                cursor.execute(
+                    """
+                        SELECT clan_battle_period_id,
+                           clan_battle_period_name,
+                           date_from,
+                           date_to,
+                           boss1_id,
+                           boss2_id,
+                           boss3_id,
+                           boss4_id,
+                           boss5_id
+                        FROM clan_battle_period
+                        WHERE date_from <= LAST_DAY(CONCAT(%(year)s, '-', LPAD(%(month)s, 2, '0'), '-01'))
+                          AND date_to >= CONCAT(%(year)s, '-', LPAD(%(month)s, 2, '0'), '-01')
+                        LIMIT 1
+                    """,
+                    {
+                        'year' : year,
+                        'month' : month,
+                    }
+                )
+                result = cursor.fetchone()
+                if result:
+                    return ClanBattlePeriod(
+                        clan_battle_period_id=result['clan_battle_period_id'],
+                        clan_battle_period_name=result['clan_battle_period_name'],
+                        date_from=result['date_from'],
+                        date_to=result['date_to'],
+                        boss1_id=result['boss1_id'],
+                        boss2_id=result['boss2_id'],
+                        boss3_id=result['boss3_id'],
+                        boss4_id=result['boss4_id'],
+                        boss5_id=result['boss5_id']
+                    )
+                return None
+
+    def get_current_cb_period_day(self) -> Optional[ClanBattlePeriodDay] :
+        with connection_context() as conn:
+            with conn.cursor(dictionary=True) as cursor:
+                cursor.execute(
+                    """
+                    SELECT clan_battle_period_id,
+                           clan_battle_period_name,
+                           date_to,
+                           date_from,
+                           boss1_id,
+                           boss2_id,
+                           boss3_id,
+                           boss4_id,
+                           boss5_id,
+                           IFNULL(DATEDIFF(
+                                          IF(HOUR(SYSDATE()) < 5, DATE_SUB(SYSDATE(), INTERVAL 1 DAY),
+                                             SYSDATE()),
+                                          date_from
+                                  ) + 1, -1) AS current_day
+                    FROM (SELECT 1 AS dummy) AS d
+                             LEFT JOIN clan_battle_period
+                                       ON SYSDATE() BETWEEN date_from AND date_to
+                    """
+                )
+                result = cursor.fetchone()
+                if result:
+                    return ClanBattlePeriodDay(
+                        clan_battle_period_id=result['clan_battle_period_id'],
+                        clan_battle_period_name=result['clan_battle_period_name'],
+                        date_from=result['date_from'],
+                        date_to=result['date_to'],
+                        boss1_id=result['boss1_id'],
+                        boss2_id=result['boss2_id'],
+                        boss3_id=result['boss3_id'],
+                        boss4_id=result['boss4_id'],
+                        boss5_id=result['boss5_id'],
+                        current_day=result['current_day'],
+                    )
+                return None
 
 class ClanBattleBossRepository:
 
@@ -859,7 +986,7 @@ class ClanBattleOverallEntryRepository:
                         %(attack_type)s,
                         %(leftover_time)s,
                         %(overall_leftover_entry_id)s,
-                        %(entry_date)s
+                        SYSDATE()
                     )
                     """,
                     {
@@ -870,10 +997,9 @@ class ClanBattleOverallEntryRepository:
                         'player_name': cb_overall_entry.player_name,
                         'boss_round': cb_overall_entry.boss_round,
                         'damage': cb_overall_entry.damage,
-                        'attack_type': cb_overall_entry.attack_type,
+                        'attack_type': cb_overall_entry.attack_type.name,
                         'leftover_time': cb_overall_entry.leftover_time,
                         'overall_leftover_entry_id': cb_overall_entry.overall_leftover_entry_id,
-                        'entry_date': cb_overall_entry.entry_date,
                     }
                 )
                 cb_overall_entry.clan_battle_overall_entry_id = cursor.lastrowid
@@ -991,22 +1117,187 @@ class ClanBattleOverallEntryRepository:
 
                 return True
 
+    def get_report_entry_by_param(self, guild_id:int, year:int, month: int, day: int) -> list[ClanBattleReportEntry]:
+        with connection_context() as conn:
+            with conn.cursor(dictionary=True) as cursor:
+                cursor.execute(
+                    """
+                        WITH PERIOD AS (SELECT clan_battle_period_id, date_from, date_to
+                                    FROM clan_battle_period
+                                    WHERE date_from <= LAST_DAY(CONCAT(%(year)s, '-', LPAD(%(month)s, 2, '0'), '-01'))
+                                      AND date_to >= CONCAT(%(year)s, '-', LPAD(%(month)s, 2, '0'), '-01')
+                                    LIMIT 1)
+                       , ENTRY AS (SELECT DATEDIFF(
+                                                  IF(HOUR(CBOE.entry_date) < 5, DATE_SUB(CBOE.entry_date, INTERVAL 1 DAY),
+                                                     CBOE.entry_date),
+                                                  CBP.date_from
+                                          ) + 1                                                                          AS day,
+                                          CBOE.guild_id,
+                                          CBOE.player_id                                                                 AS player_id,
+                                          CBOE.player_name                                                               AS player_name,
+                                          SUM(IF(attack_type = 'PATK', 1, 0))                                            AS patk_count,
+                                          SUM(IF(attack_type = 'MATK', 1, 0))                                            AS matk_count,
+                                          SUM(IF(leftover_time IS NOT NULL AND overall_leftover_entry_id IS NULL, 1, 0)) AS leftover_count,
+                                          SUM(IF(attack_type = 'CARRY', 1, 0))                                           AS carry_count
+                                   FROM clan_battle_overall_entry CBOE
+                                            JOIN
+                                        PERIOD CBP ON CBP.clan_battle_period_id = CBOE.clan_battle_period_id
+                                            JOIN
+                                        clan_battle_boss CBB ON CBOE.clan_battle_boss_id = CBB.clan_battle_boss_id
+                                   WHERE CBOE.entry_date BETWEEN CBP.date_from AND CBP.date_to
+                                     AND CBOE.guild_id = %(guild_id)s
+                                   GROUP BY DATEDIFF(
+                                                    IF(HOUR(CBOE.entry_date) < 5,
+                                                       DATE_SUB(CBOE.entry_date, INTERVAL 1 DAY),
+                                                       CBOE.entry_date),
+                                                    CBP.date_from
+                                            ) + 1,
+                                            CBOE.guild_id,
+                                            CBOE.player_id,
+                                            CBOE.player_name)
+                    SELECT GP.player_name as player_name,
+                           COALESCE(E.patk_count, 0) AS patk_count,
+                           COALESCE(E.matk_count, 0) AS matk_count,
+                           COALESCE(E.leftover_count, 0) AS leftover_count,
+                           COALESCE(E.carry_count, 0) AS carry_count
+                    FROM guild_player GP
+                             LEFT JOIN ENTRY E on GP.player_id = E.player_id AND E.day = %(day)s
+                    WHERE GP.guild_id = %(guild_id)s
+                    """,
+                    {
+                        'guild_id': guild_id,
+                        'year': year,
+                        'month': month,
+                        'day': day
+                    }
+                )
+                result = cursor.fetchall()
+                if result:
+                    entry = []
+                    for row in result:
+                        entry.append(ClanBattleReportEntry(
+                            player_name=row['player_name'],
+                            patk_count=row['patk_count'],
+                            matk_count=row['matk_count'],
+                            leftover_count= row['leftover_count'],
+                            carry_count=row['carry_count'],
+                        ))
+                    return entry
+
+                return []
 
 class ClanBattleReportMessageRepository:
+    def get_by_guild_period_and_days(self, guild_id: int, clan_battle_period_id: int, day : int) -> Optional[ClanBattleReportMessage]:
+        with connection_context() as conn:
+            with conn.cursor(dictionary=True) as cursor:
+                cursor.execute(
+                    """
+                    SELECT clan_battle_report_message_id,
+                           guild_id,
+                           clan_battle_period_id,
+                           day,
+                           message_id
+                    FROM clan_battle_report_message
+                    WHERE guild_id = %(guild_id)s
+                      AND clan_battle_period_id = %(clan_battle_period_id)s
+                      AND day = %(day)s
+                    """,
+                    {
+                        'guild_id': guild_id,
+                        'clan_battle_period_id': clan_battle_period_id,
+                        'day': day
+                    }
+                )
+                result = cursor.fetchone()
+                if result:
+                    return ClanBattleReportMessage(
+                        clan_battle_report_message_id=result['clan_battle_report_message_id'],
+                        guild_id=result['guild_id'],
+                        clan_battle_period_id=result['clan_battle_period_id'],
+                        day=result['day'],
+                        message_id=result['message_id']
+                    )
+
+                return None
+
+    def get_last_by_guild_period(self, guild_id: int, clan_battle_period_id: int) -> Optional[ClanBattleReportMessage]:
+        with connection_context() as conn:
+            with conn.cursor(dictionary=True) as cursor:
+                cursor.execute(
+                    """
+                    SELECT clan_battle_report_message_id,
+                           guild_id,
+                           clan_battle_period_id,
+                           day,
+                           message_id
+                    FROM clan_battle_report_message
+                    WHERE guild_id = %(guild_id)s
+                      AND clan_battle_period_id = %(clan_battle_period_id)s
+                    ORDER BY clan_battle_report_message_id DESC
+                    """,
+                    {
+                        'guild_id': guild_id,
+                        'clan_battle_period_id': clan_battle_period_id,
+                    }
+                )
+                result = cursor.fetchone()
+                if result:
+                    return ClanBattleReportMessage(
+                        clan_battle_report_message_id=result['clan_battle_report_message_id'],
+                        guild_id=result['guild_id'],
+                        clan_battle_period_id=result['clan_battle_period_id'],
+                        day=result['day'],
+                        message_id=result['message_id']
+                    )
+
+                return None
+
+    def insert(self, report: ClanBattleReportMessage) -> ClanBattleReportMessage:
+        with connection_context() as conn:
+            with conn.cursor(dictionary=True) as cursor:
+                cursor.execute(
+                    """
+                    INSERT INTO clan_battle_report_message 
+                    (
+                        guild_id,
+                        clan_battle_period_id,
+                        day,
+                        message_id
+                    )
+                    VALUES 
+                    (
+                        %(guild_id)s,
+                        %(clan_battle_period_id)s,
+                        %(day)s,
+                        %(message_id)s
+                    )
+                    """,
+                    {
+                        'guild_id': report.guild_id,
+                        'clan_battle_period_id': report.clan_battle_period_id,
+                        'day': report.day,
+                        'message_id': report.message_id,
+                    }
+                )
+                report.clan_battle_report_message_id = cursor.lastrowid
+                return report
+
     def delete_by_guild_id(self, guild_id: int) -> bool:
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
                 cursor.execute(
                     """
                     DELETE FROM clan_battle_report_message
-                    WHERE guild_id = ?
+                    WHERE guild_id = %(guild_id)s
                     """,
-                    (
-                        guild_id,
-                    )
+                    {
+                        'guild_id': guild_id,
+                    }
                 )
 
                 return True
+
+
 
 
 class GuildPlayerRepository:
@@ -1029,11 +1320,37 @@ class GuildPlayerRepository:
                 cursor.execute(
                     """
                     DELETE FROM guild_player
-                    WHERE guild_id = ?
+                    WHERE guild_id = %(guild_id)s
                     """,
-                    (
+                    {
                         'guild_id': guild_id,
-                    )
+                    }
                 )
 
                 return True
+
+    def get_all_by_guild_id(self, guild_id: int) -> list[GuildPlayer]:
+        with connection_context() as conn:
+            with conn.cursor(dictionary=True) as cursor:
+                cursor.execute(
+                """
+                    SELECT guild_id, player_id, player_name 
+                    FROM guild_player
+                    WHERE guild_id = %(guild_id)s
+                """,
+                    {
+                        'guild_id': guild_id,
+                    }
+                )
+                result = cursor.fetchall()
+                entry = []
+                if result:
+                    for row in result:
+                        entry.append(GuildPlayer(
+                            guild_id=row['guild_id'],
+                            player_id=row['player_id'],
+                            player_name=row['player_name'],
+                        ))
+                    return entry
+
+                return []

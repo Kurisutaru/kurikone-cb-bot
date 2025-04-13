@@ -26,6 +26,7 @@ en-us:
       not_yet_booked: "Not booked!"
       preparing_data: "Preparing data . . ."
       round: "Round %{round}"
+      day: "day %{day}"
     validation:
       enter_entry_type_first: "Input entry first!"
       only_numbers_allowed: "Number only!"
@@ -60,4 +61,5 @@ en-us:
     done_install: "Bot done installing !"
     guild_not_installed: "Guild not installed, try to install first."
     done_uninstall: "Bot done uninstalling !"
+    done_sync: "Bot done syncing user from selected role !"
 

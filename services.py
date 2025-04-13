@@ -1,4 +1,6 @@
-from discord import Embed, Message
+from concurrent.futures import ThreadPoolExecutor
+
+from discord import Embed, Message, TextChannel
 from discord.abc import GuildChannel
 
 import utils
@@ -57,19 +59,28 @@ class MainService:
                 raise channel_result.error_messages
 
             for enum, channel in channel_result.result:
+                #Category doing nothing, pass
+                if enum == ChannelEnum.CATEGORY:
+                    continue
+
                 # For TL Shifting watcher
                 if enum == ChannelEnum.TL_SHIFTER and channel:
                     tl_shifter_channel[channel.id] = None
+                    continue
 
-                # Message
-                message = await self.setup_channel_message(enum, channel)
-                if not message.is_success:
-                    raise message.error_messages
+                #Report
+                if enum == ChannelEnum.REPORT and channel:
+                    message = await self.setup_channel_report_message(channel)
+                    if not message.is_success:
+                        raise message.error_messages
+                    continue
 
-                if not message.result is None:
-                    embeds = await self.refresh_clan_battle_boss_embeds(guild_id, message.result.id)
-                    if embeds.is_success:
-                        await message.result.edit(content="", embeds=embeds.result, view=utils.get_button_view(guild_id))
+                # Boss Channel
+                # Return if not enum named boss
+                if "boss" in enum.name.lower():
+                    message = await self.setup_channel_boss_message(enum, channel)
+                    if not message.is_success:
+                        raise message.error_messages
 
             service_result.set_success(None)
 
@@ -81,7 +92,6 @@ class MainService:
         return service_result
 
     # Guild Setup
-    @transactional
     async def guild_setup(self, guild_id: int, guild_name: str) -> ServiceResult[Guild]:
         service_result = ServiceResult[Guild]()
         try:
@@ -102,7 +112,6 @@ class MainService:
         return service_result
 
     # Channel Setup
-    @transactional
     async def setup_channel(self, guild: discord.Guild) -> ServiceResult[list[tuple[ChannelEnum, GuildChannel]]]:
         service_result = ServiceResult[list[tuple[ChannelEnum, GuildChannel]]]()
         try:
@@ -148,8 +157,6 @@ class MainService:
                     channel = guild.get_channel(channel_data.channel_id)
                     processed_channel.append((enum, channel))
 
-
-
             service_result.set_success(processed_channel)
 
         except Exception as e:
@@ -159,25 +166,37 @@ class MainService:
 
         return service_result
 
-    # Channel to Message Setup
-    @transactional
-    async def setup_channel_message(self, enum: ChannelEnum, channel: GuildChannel) -> ServiceResult[
+    # Channel Report to Message Setup
+    async def setup_channel_report_message(self, channel: GuildChannel) -> ServiceResult[
         Optional[Message]]:
         service_result = ServiceResult[Optional[Message]]()
         try:
-            # Return if not Text Channel
-            if not isinstance(channel, discord.TextChannel):
-                service_result.set_success(None)
+            if not isinstance(channel, TextChannel):
+                return service_result
+
+            result = await self.refresh_report_channel_message(channel.guild)
+            if not result.is_success:
+                service_result.set_error(result.error_messages)
+                return service_result
+
+            service_result.set_success(result.result)
+
+        except Exception as e:
+            logger.error(e)
+            service_result.set_error(str(e))
+
+        return service_result
+
+
+    # Channel Boss to Message Setup
+    async def setup_channel_boss_message(self, enum: ChannelEnum, channel: GuildChannel) -> ServiceResult[
+        Optional[Message]]:
+        service_result = ServiceResult[Optional[Message]]()
+        try:
+            if not isinstance(channel, TextChannel):
                 return service_result
 
             guild_id = channel.guild.id
-
-            # Return if not enum named boss
-            if not "boss" in enum.name.lower():
-                service_result.set_success(None)
-                return service_result
-
-            # Report later
 
             # Get Message from Database
             ch_message = _service.channel_message_repo.get_channel_message_by_channel_id(channel_id=channel.id)
@@ -232,6 +251,11 @@ class MainService:
                     boss_round=1
                 )
 
+            #Refresh the bosses
+            embeds = await self.refresh_clan_battle_boss_embeds(guild_id, message.id)
+            if embeds.is_success:
+                await message.edit(content="", embeds=embeds.result, view=utils.get_button_view(guild_id))
+
             service_result.set_success(message)
 
         except Exception as e:
@@ -241,6 +265,7 @@ class MainService:
 
         return service_result
 
+    @transactional
     async def insert_clan_battle_entry_by_round(self, guild_id: int, message_id: int, boss_id: int, period_id: int,
                                                 boss_round: int) -> ServiceResult[ClanBattleBossEntry]:
         service_result = ServiceResult[ClanBattleBossEntry]()
@@ -274,6 +299,7 @@ class MainService:
             service_result.set_success(cb_entry)
 
         except Exception as e:
+            transaction_rollback()
             logger.error(e)
             service_result.set_error(str(e))
 
@@ -589,17 +615,6 @@ class MainService:
 
             # Get all related to the guild and remove all of them, including the CB Data
 
-            # Channel
-            channels = _service.channel_repo.get_all_by_guild_id(guild_id)
-            if channels is None or len(channels) == 0:
-                service_result.set_error("Channel not found")
-                return service_result
-
-            _service.channel_repo.delete_channel_by_guild_id(guild_id)
-
-            # Channel Message
-            _service.channel_message_repo.delete_by_guild_id(guild_id)
-
             # Clan Battle Boss Entry
             _service.clan_battle_boss_entry_repo.delete_by_guild_id(guild_id)
 
@@ -614,6 +629,17 @@ class MainService:
 
             # Guild Player
             _service.guild_player_repo.delete_by_guild_id(guild_id)
+
+            # Channel Message
+            _service.channel_message_repo.delete_by_guild_id(guild_id)
+
+            # Channel
+            channels = _service.channel_repo.get_all_by_guild_id(guild_id)
+            if channels is None or len(channels) == 0:
+                service_result.set_error("Channel not found")
+                return service_result
+
+            _service.channel_repo.delete_channel_by_guild_id(guild_id)
 
             # Guild
             _service.guild_repo.delete_by_guild_id(guild_id)
@@ -632,6 +658,148 @@ class MainService:
 
         return service_result
 
+    @transactional
+    async def sync_user_role(self, guild_id: int, members: list[GuildPlayer]) -> ServiceResult[None]:
+        service_result = ServiceResult[None]()
+
+        try:
+            _service.guild_player_repo.delete_by_guild_id(guild_id)
+
+            player_data = [
+                (player.guild_id, player.player_id, player.player_name)
+                for player in members
+            ]
+
+            _service.guild_player_repo.batch_insert(player_data)
+
+            service_result.set_success(None)
+
+        except Exception as e:
+            transaction_rollback()
+            logger.error(e)
+            service_result.set_error(str(e))
+
+        return service_result
+
+    async def generate_report_text(self, guild_id:int, year:int, month:int, day:int) -> ServiceResult[str]:
+        service_result = ServiceResult[str]()
+
+        try:
+            header = _service.clan_battle_period_repo.get_by_param(year, month)
+            entries = _service.clan_battle_overall_entry_repo.get_report_entry_by_param(guild_id, year, month, day)
+
+            result = f"# {header.clan_battle_period_name} - {l.t(guild_id, "ui.status.day", day=day)}{NEW_LINE}"
+
+            sum_patk_count = 0
+            sum_matk_count = 0
+            sum_leftover_count = 0
+            sum_carry_count = 0
+
+            if len(entries):
+                sum_patk_count = sum(entry.patk_count for entry in entries)
+                sum_matk_count = sum(entry.matk_count for entry in entries)
+                sum_leftover_count = sum(entry.leftover_count for entry in entries)
+                sum_carry_count = sum(entry.carry_count for entry in entries)
+
+
+            result += f"`Entry Summary | {AttackTypeEnum.PATK.value}: {sum_patk_count} {AttackTypeEnum.MATK.value}: {sum_matk_count} {AttackTypeEnum.CARRY.value}: {sum_carry_count} {AttackTypeEnum.LEFTOVER.value}: {sum_leftover_count} |`{NEW_LINE}"
+            result += f"```powershell{NEW_LINE}"
+
+            if len(entries):
+                for data in entries:
+                    result += f"| {AttackTypeEnum.PATK.value}: {data.patk_count} {AttackTypeEnum.MATK.value}: {data.matk_count} {AttackTypeEnum.CARRY.value}: {data.carry_count} {AttackTypeEnum.LEFTOVER.value}: {data.leftover_count} | {data.player_name.ljust(20)[:20]} {NEW_LINE}"
+            else:
+                result += f"NO DATA OR ROLE MEMBER NOT SYNCED{NEW_LINE}"
+            result += f"```"
+            service_result.set_success(result)
+
+
+        except Exception as e:
+            logger.error(e)
+            service_result.set_error(str(e))
+
+        return service_result
+
+
+    async def refresh_report_channel_message(self, guild: discord.Guild, day: int = None) -> ServiceResult[Optional[Message]]:
+        service_result = ServiceResult[Optional[Message]]()
+
+        try:
+            logger.warning(f"Running Refresh report Channel from Guild : {guild.name} - {guild.id}")
+
+            guild_id = guild.id
+            channel_type = ChannelEnum.REPORT
+            # Current CB Period with Days
+            cur_period = _service.clan_battle_period_repo.get_current_cb_period_day()
+            if cur_period.current_day == -1:
+                service_result.set_error("No Running Clan Battle period detected")
+                return service_result
+
+            channel_data = _service.channel_repo.get_all_by_guild_id_and_type(guild_id, channel_type.REPORT.name)
+            if channel_data is None:
+                service_result.set_error("No Report channel found")
+                return service_result
+
+            channel = guild.get_channel(channel_data.channel_id)
+
+            report_message_data = _service.channel_message_repo.get_channel_message_by_channel_id(channel.id)
+            if report_message_data is None:
+                report_message = await channel.send(content=l.t(guild_id, "ui.status.preparing_data"))
+                channel_message = ChannelMessage(
+                    channel_id=channel.id,
+                    message_id=report_message.id,
+                )
+                _service.channel_message_repo.insert_channel_message(channel_message)
+            else:
+                report_message = await utils.discord_try_fetch_message(channel, report_message_data.message_id)
+                if report_message is None:
+                    report_message = await channel.send(content=l.t(guild_id, "ui.status.preparing_data"))
+                    report_message_data.message_id = report_message.id
+                    _service.channel_message_repo.update_channel_message(report_message_data)
+
+
+            # Check CB Report Message first for the day
+            cb_report_message_data = _service.clan_battle_report_message_repo.get_last_by_guild_period(guild_id, cur_period.clan_battle_period_id)
+            if cb_report_message_data is None:
+                # Treat as new entry
+                cb_report_message_data = _service.clan_battle_report_message_repo.insert(
+                    ClanBattleReportMessage(
+                        guild_id=guild_id,
+                        clan_battle_period_id=cur_period.clan_battle_period_id,
+                        day=cur_period.current_day,
+                        message_id=report_message.id
+                    )
+                )
+
+            if cb_report_message_data.day != cur_period.current_day:
+                cb_report_message_data = _service.clan_battle_report_message_repo.insert(
+                    ClanBattleReportMessage(
+                        guild_id=guild_id,
+                        clan_battle_period_id=cur_period.clan_battle_period_id,
+                        day=cur_period.current_day,
+                        message_id=report_message.id
+                    )
+                )
+
+            current_date = datetime.now()
+            year = current_date.year
+            month = current_date.month
+
+            report_gen = await self.generate_report_text(guild_id, year, month, cur_period.current_day)
+            if not report_gen.is_success:
+                service_result.set_error(report_gen.error_messages)
+                return service_result
+
+            await report_message.edit(content=report_gen.result)
+
+            service_result.set_success(report_message)
+            return service_result
+
+        except Exception as e:
+            logger.error(e)
+            service_result.set_error(str(e))
+
+        return service_result
 
 class GuildService:
     async def get_guild_by_id(self, guild_id: int) -> ServiceResult[Guild]:

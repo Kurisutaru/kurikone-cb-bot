@@ -1,5 +1,7 @@
 import re
+from typing import Literal
 
+from discord import app_commands
 from discord.ext import commands
 
 import utils
@@ -110,9 +112,9 @@ async def on_message(message):
         await message.reply(NEW_LINE.join(result_lines))
 
 
-# Slash Command
+# Slash Command or sc_
 @bot.tree.command(name="install", description="This command will try to install all channel related to the bot functions")
-async def install(interaction: discord.Interaction):
+async def sc_install(interaction: discord.Interaction):
     guild_id = interaction.guild_id
     if not interaction.user.guild_permissions.administrator:
         return await utils.send_message_medium(interaction, l.t(guild_id, "system.not_administrator", user=interaction.user.display_name))
@@ -139,7 +141,7 @@ async def install(interaction: discord.Interaction):
 
 
 @bot.tree.command(name="uninstall", description="This command will try to uninstall all channel related to the bots and removing data from database")
-async def uninstall(interaction: discord.Interaction):
+async def sc_uninstall(interaction: discord.Interaction):
     guild_id = interaction.guild_id
     if not interaction.user.guild_permissions.administrator:
         return await utils.send_message_medium(interaction, l.t(guild_id, "system.not_administrator", user=interaction.user.display_name))
@@ -171,13 +173,61 @@ async def uninstall(interaction: discord.Interaction):
 
 
 @bot.tree.command(name="report", description="Report generator")
-async def report(interaction: discord.Interaction):
+@app_commands.describe(year="Clan battle period year", month="Clan battle period month", day="Clan battle period day")
+async def sc_report(interaction: discord.Interaction, year: int, month: int, day: int):
     guild_id = interaction.guild_id
     if not interaction.user.guild_permissions.administrator:
         return await utils.send_message_medium(interaction, l.t(guild_id, "system.not_administrator", user=interaction.user.display_name))
 
-    return await utils.send_message_medium(interaction, f"Hello, {interaction.user.display_name}!")
+    await interaction.response.defer(thinking=True, ephemeral=True)
 
+    msg_content = l.t(guild_id, "message.not_found", input="Report")
+    report_result = await main_service.generate_report_text(guild_id=interaction.guild_id, year=year, month=month, day=day)
+    if report_result.is_success:
+        msg_content = report_result.result
+
+    msg = await interaction.followup.send(content=msg_content, ephemeral=True)
+    if msg:
+        await msg.delete(delay=120)
+
+
+@bot.tree.command(name="sync_user_role", description="Sync user with selected role for Clan Battle Report")
+@app_commands.describe(role="Discord Role")
+async def sc_sync_user_role(interaction: discord.Interaction, role: discord.Role):
+    guild_id = interaction.guild_id
+    if not interaction.user.guild_permissions.administrator:
+        return await utils.send_message_medium(interaction, l.t(guild_id, "system.not_administrator", user=interaction.user.display_name))
+
+    await interaction.response.defer(thinking=True, ephemeral=True)
+
+    members = [GuildPlayer(
+                            guild_id=interaction.guild_id,
+                            player_id=member.id,
+                            player_name=member.display_name
+                         )
+                for member in role.members]
+
+    service_result = await main_service.sync_user_role(guild_id=guild_id, members=members)
+    msg_content = l.t(guild_id, "message.done_sync")
+    if not service_result.is_success:
+            msg_content = service_result.error_messages
+
+    await main_service.refresh_report_channel_message(interaction.guild)
+
+    msg = await interaction.followup.send(content=msg_content, ephemeral=True)
+    if msg:
+        await msg.delete(delay=30)
+
+@bot.tree.command(name="help", description="Show the help available from the topic")
+@app_commands.describe(topic="Topic you want to check")
+async def sc_help(interaction: discord.Interaction, topic: HelpTopic().get_keys()):
+    guild_id = interaction.guild_id
+    if not interaction.user.guild_permissions.administrator:
+        return await utils.send_message_medium(interaction, l.t(guild_id, "system.not_administrator", user=interaction.user.display_name))
+
+    content = HelpTopic.get_value(topic)
+
+    await interaction.response.send_message(content=content, ephemeral=True, delete_after=60)
 
 
 bot.run(config.DISCORD_TOKEN, log_handler=None)
