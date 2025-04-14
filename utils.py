@@ -8,11 +8,10 @@ from discord.ui import View
 
 from config import config
 from enums import EmojiEnum
+from globals import NEW_LINE
 from locales import Locale
 from logger import KuriLogger
 from models import ClanBattleBossEntry, ClanBattleOverallEntry, ClanBattleBossBook
-
-NEW_LINE = "\n"
 
 logger = KuriLogger()
 l = Locale()
