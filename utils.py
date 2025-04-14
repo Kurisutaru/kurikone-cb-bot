@@ -11,7 +11,6 @@ from enums import EmojiEnum
 from locales import Locale
 from logger import KuriLogger
 from models import ClanBattleBossEntry, ClanBattleOverallEntry, ClanBattleBossBook
-import ui
 
 NEW_LINE = "\n"
 
@@ -198,6 +197,7 @@ def generate_health_bar(current_health: int, max_health: int):
 
 def create_confirmation_message_view(guild_id: int, yes_emoji: EmojiEnum = EmojiEnum.YES,
                                      no_emoji: EmojiEnum = EmojiEnum.NO, yes_callback=None) -> View:
+    import ui
     yes_btn = ui.ConfirmationOkDoneButton(yes_emoji, l.t(guild_id, "ui.button.yes"))
     no_btn = ui.ConfirmationNoCancelButton(no_emoji, l.t(guild_id, "ui.button.no"))
 

@@ -1,24 +1,12 @@
-import re
-
 from discord.ext import commands
 
-import utils
+from globals import TL_SHIFTER_CHANNEL
 from locales import guild_locale, Locale
 from logger import KuriLogger
 from repository import *
-from services import GuildService, MainService
+from services import MainService
 
-# Global Service
 main_service = MainService()
-guild_service = GuildService()
-
-# Global Variable
-NEW_LINE = "\n"
-TL_SHIFTER_CHANNEL = {}
-
-# Precompile regex patterns for better performance
-SPACE_PATTERN = re.compile(r'[ \t　]+')
-NON_DIGIT = re.compile(r'\D')
 
 intents = discord.Intents.default()
 intents.message_content = True

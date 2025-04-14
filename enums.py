@@ -3,11 +3,10 @@ from enum import Enum
 from typing import Literal
 
 import discord
-from discord import app_commands
 
 from config import config
+from globals import NEW_LINE
 
-NEW_LINE = "\n"
 
 class ChannelEnum(Enum):
     CATEGORY = {"type": "CATEGORY", "name": config.CATEGORY_CHANNEL_NAME}

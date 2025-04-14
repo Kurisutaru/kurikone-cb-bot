@@ -1,39 +1,31 @@
 import asyncio
 
 import discord
-from discord import Embed
 from discord.ui import View, Button, Modal, TextInput
 
-import utils
 from enums import EmojiEnum, AttackTypeEnum
 from locales import Locale
 from logger import KuriLogger
 from models import ClanBattleLeftover
-from services import ClanBattleBossBookService, ClanBattleOverallEntryService, MainService, ClanBattleBossEntryService, \
-    UiService
-
-NEW_LINE = "\n"
+from services import MainService, UiService, ClanBattleBossBookService
+import utils
 
 l = Locale()
-
+logger = KuriLogger()
 _main_service = MainService()
 _ui_service = UiService()
 _clan_battle_boss_book_service = ClanBattleBossBookService()
-_clan_battle_overall_entry_service = ClanBattleOverallEntryService()
-_clan_battle_boss_entry_service = ClanBattleBossEntryService()
-logger = KuriLogger()
 
 # Book Button
 class BookButton(Button):
-    def __init__(self, text : str = EmojiEnum.BOOK.name.capitalize()):
-        super().__init__(label= text,
+    def __init__(self, text: str = EmojiEnum.BOOK.name.capitalize()):
+        super().__init__(label=text,
                          style=discord.ButtonStyle.primary,
                          emoji=EmojiEnum.BOOK.value,
                          row=0)
 
     async def callback(self, interaction: discord.Interaction):
         guild_id = interaction.guild_id
-        message_id = interaction.message.id
 
         service = await _ui_service.book_button_service(interaction)
         if not service.is_success:
@@ -87,7 +79,7 @@ class EntryButton(Button):
 
     async def callback(self, interaction: discord.Interaction):
         book = await _clan_battle_boss_book_service.get_player_book_entry(message_id=interaction.message.id,
-                                                                         player_id=interaction.user.id)
+                                                                          player_id=interaction.user.id)
         if book.is_success and book.result is None:
             await utils.send_message_short(interaction=interaction,
                                            content=f"## {l.t(interaction.guild_id, "ui.status.not_yet_booked")}",
@@ -100,7 +92,7 @@ class EntryButton(Button):
 
 # Entry Input
 class EntryInputModal(Modal):
-    def __init__(self, guild_id:int) -> None:
+    def __init__(self, guild_id: int) -> None:
         super().__init__(
             title=l.t(guild_id, "ui.popup.entry_input.title")
         )
@@ -138,8 +130,7 @@ class EntryInputModal(Modal):
 
 # Done Button
 class DoneButton(Button):
-    def __init__(self, text : str= EmojiEnum.DONE.name.capitalize()):
-        self.clan_battle_book_service = ClanBattleBossBookService()
+    def __init__(self, text: str = EmojiEnum.DONE.name.capitalize()):
         super().__init__(label=text,
                          style=discord.ButtonStyle.green,
                          emoji=EmojiEnum.DONE.value,
@@ -245,7 +236,6 @@ class LeftoverModal(Modal):
         self.guild_id = guild_id
         self.user_input.label = l.t(guild_id, "ui.popup.leftover_input.label")
         self.user_input.placeholder = l.t(guild_id, "ui.popup.leftover_input.placeholder")
-
 
     # Define a text input
     user_input = TextInput(
@@ -390,7 +380,7 @@ class BookMatkButton(Button):
         message_id = self.parent_interaction.message.id
 
         insert_result = await _main_service.insert_boss_book_entry(guild_id, message_id, user_id, display_name,
-                                                                       self.attack_type)
+                                                                   self.attack_type)
         if not insert_result.is_success:
             await interaction.response.defer(ephemeral=True)
             logger.error(insert_result.error_messages)

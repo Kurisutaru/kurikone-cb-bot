@@ -5,18 +5,16 @@ from typing import Tuple
 
 from discord import Embed, Message, TextChannel
 from discord.abc import GuildChannel
-from pyexpat.errors import messages
 
-import ui
-import utils
 from locales import Locale
 from logger import KuriLogger
 from repository import *
 from transactional import transactional, transaction_rollback
 
+import utils
+
 l = Locale()
 logger = KuriLogger()
-NEW_LINE = "\n"
 
 class Services:
     _instance = None
@@ -266,6 +264,7 @@ class MainService:
             #Refresh the bosses
             embeds = await self.refresh_clan_battle_boss_embeds(guild_id, message.id)
             if embeds.is_success:
+                import ui
                 await message.edit(content="", embeds=embeds.result, view=ui.ButtonView(guild_id))
 
             service_result.set_success(message)
