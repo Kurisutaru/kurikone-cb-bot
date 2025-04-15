@@ -26,13 +26,55 @@ You can see my figma prototype at [here](https://www.figma.com/proto/C1qiBAUNZNN
 - **Discord Bot Token**: You can get the token by creating bot on [Discord Developer Portal](https://discord.com/developers/)
 - **MariaDB**: A MariaDB database is required for persistent storage.
 - **Dependencies**: Install required Python packages (see [Installation](#installation)).
+- **Docker**: Install Docker from [docker.com](https://www.docker.com/). (If you use Docker Setup)
 
 ## Installation
 
+### Docker Installation
+
+1. **Install Docker** (if not already installed):
+   - For Linux:
+     ```bash
+     curl -fsSL https://get.docker.com | sh
+     sudo usermod -aG docker $USER
+     ```
+   - For Windows/Mac: Download Docker Desktop from [docker.com](https://www.docker.com/products/docker-desktop)
+
+
+2. **Set Up Environment**:
+   - Copy `.env.example` to `.env`:
+     ```bash
+     cp .env.example .env
+     ```
+   - Edit `.env` with your configuration:
+     ```bash
+     nano .env  # or use your preferred text editor
+     ```
+
+3. **Run with Docker Compose**:
+   ```bash
+   docker-compose up -d
+   ```
+
+   Or manually with Docker:
+   ```bash
+   docker run -d \
+     --name kurikone-bot \
+     --env-file .env \
+     --restart unless-stopped \
+     kurisutaru/kurikone-cb-bot:latest
+   ```
+
+4. **View Logs**:
+   ```bash
+   docker logs -f kurikone-bot
+   ```
+
+### Manual Installation
 1. **Clone the Repository**:
    ```bash
    git clone https://github.com/Kurisutaru/kurikone-cb-bot.git
-   cd princess-connect-clan-battle-bot
+   cd kurikone-cb-bot
    ```
 
 2. **Install Dependencies**:
@@ -47,15 +89,24 @@ You can see my figma prototype at [here](https://www.figma.com/proto/C1qiBAUNZNN
    - Replace `YOUR_BOT_TOKEN_HERE` with your Discord bot token from the [Discord Developer Portal](https://discord.com/developers/applications).
    - Update the `DB_*` variables with your MariaDB connection details.
 
-4. **Set Up MariaDB**:
-   - Install MariaDB if not already installed (e.g., `sudo apt install mariadb-server` on Ubuntu).
-   - Create a database by run the script on dbscript/schema.sql
-   - Also run dbscript/master-data.sql
-
-5. **Run the Bot**:
+4. **Run the Bot**:
    ```bash
    python -0 main.py
    ```
+   
+### Database Setup
+The bot requires these database tables to be created:
+1. Run the schema script:
+   ```bash
+   mysql -u your_db_user -p your_db_name < dbscript/schema.sql
+   ```
+2. Load master data:
+   ```bash
+   mysql -u your_db_user -p your_db_name < dbscript/master-data.sql
+   ```
+3. Load Time Zone tables:
+
+   Read at here [MariaDB Time Zones](https://mariadb.com/kb/en/time-zones/#mysql-time-zone-tables)
 
 ## Usage
 
