@@ -1,4 +1,5 @@
 import logging
+import os
 import traceback
 from logging.handlers import RotatingFileHandler
 import threading
@@ -33,11 +34,15 @@ class KuriLogger:
         - file_level (int): The logging level for the file handler. Defaults to DEBUG.
         - console_level (int): The logging level for the console handler. Defaults to INFO.
         """
+        # Force log file to be in ./logs/ directory
+        log_dir = "logs"
+        os.makedirs(log_dir, exist_ok=True)  # Create if doesn't exist
+        full_log_path = os.path.join(log_dir, log_file)  # => logs/discord.log
         self.logger = logging.getLogger(name)
         self.logger.setLevel(min(file_level, console_level))  # Or set it to logging.DEBUG explicitly
 
         # Create a rotating file handler
-        self.file_handler = RotatingFileHandler(log_file, maxBytes=max_bytes, backupCount=backup_count)
+        self.file_handler = RotatingFileHandler(full_log_path, maxBytes=max_bytes, backupCount=backup_count)
         self.file_handler.setLevel(file_level)
 
         # Create a console handler
