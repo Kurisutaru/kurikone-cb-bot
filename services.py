@@ -36,12 +36,33 @@ class Services:
             cls._instance.error_log_repo = ErrorLogRepository()
         return cls._instance
 
-    async def error_log_db(self, guild_id: int, traceback: str):
-        identifier = str(uuid.uuid4())
-        self.error_log_repo.insert(guild_id, identifier, traceback)
-        return identifier
+    @transactional
+    async def error_log_db(self, guild_id: int, exception: Exception, transaction_id: str):
+        """Logs errors to the database with a UUID reference.
+        Guarantees the log is written even if the main transaction fails.
+        """
+        try:
+            # Capture the traceback as a string (works even outside exception context)
+            stacktrace = "".join(traceback.format_exception(type(exception), exception, exception.__traceback__)).rstrip()
 
+            self.error_log_repo.insert(
+                guild_id=guild_id,
+                identifier=transaction_id,
+                exception=str(exception),
+                stacktrace=stacktrace,
+            )
+            log.error(f"[{transaction_id}] Error: {exception}\n{stacktrace}")
+        except Exception as e:
+            # Critical fallback: If DB logging fails, log to console + external service (e.g., Sentry)
+            log.critical(
+                f"FAILED to log error {transaction_id}. Falling back to console.",
+                exc_info=e
+            )
+            # Optionally, add a fallback mechanism (e.g., file log, Sentry, etc.)
 
+    def gen_id(self) -> str:
+        trx_id = str(uuid.uuid4())
+        return trx_id
 
 _service = Services()
 
@@ -50,6 +71,7 @@ class MainService:
     async def setup_guild_channel_message(self, guild: discord.Guild, tl_shifter_channel: dict) -> \
             ServiceResult[None]:
         service_result = ServiceResult[None]()
+        guild_id = guild.id
         try:
             # Master CB Data
             clan_battle_period = _service.clan_battle_period_repo.get_current_cb_period()
@@ -58,7 +80,6 @@ class MainService:
                 log.error("Need Database setup !")
                 return service_result.set_error("Need Database setup !")
 
-            guild_id = guild.id
             guild_db = await self.guild_setup(guild_id=guild_id, guild_name=guild.name)
             if not guild_db.is_success:
                 raise guild_db.error_messages
@@ -95,8 +116,9 @@ class MainService:
 
         except Exception as e:
             transaction_rollback()
-            log.error(e)
-            service_result.set_error(str(e))
+            trx_id = _service.gen_id()
+            asyncio.create_task(_service.error_log_db(guild_id, e, trx_id))
+            service_result.set_error(l.t(guild_id, "message.unhandled_exception", uuid=trx_id))
 
         return service_result
 
@@ -115,7 +137,6 @@ class MainService:
             service_result.set_success(guild_db)
         except Exception as e:
             transaction_rollback()
-            log.error(e)
             service_result.set_error(str(e))
 
         return service_result
@@ -170,7 +191,6 @@ class MainService:
 
         except Exception as e:
             transaction_rollback()
-            log.error(e)
             service_result.set_error(str(e))
 
         return service_result
@@ -275,7 +295,6 @@ class MainService:
 
         return service_result
 
-    @transactional
     async def insert_clan_battle_entry_by_round(self, guild_id: int, message_id: int, boss_id: int, period_id: int,
                                                 boss_round: int) -> ServiceResult[ClanBattleBossEntry]:
         service_result = ServiceResult[ClanBattleBossEntry]()
@@ -401,9 +420,9 @@ class MainService:
             service_result.set_success(None)
         except Exception as e:
             transaction_rollback()
-            log.error(e)
-            service_result.set_error(str(e))
-            print(e)
+            trx_id = _service.gen_id()
+            asyncio.create_task(_service.error_log_db(guild_id, e, trx_id))
+            service_result.set_error(l.t(guild_id, "message.unhandled_exception", uuid=trx_id))
 
         return service_result
 
@@ -458,9 +477,9 @@ class MainService:
             service_result.set_success(overall)
         except Exception as e:
             transaction_rollback()
-            log.error(e)
-            service_result.set_error(str(e))
-            print(e)
+            trx_id = _service.gen_id()
+            asyncio.create_task(_service.error_log_db(guild_id, e, trx_id))
+            service_result.set_error(l.t(guild_id, "message.unhandled_exception", uuid=trx_id))
 
         return service_result
 
@@ -584,8 +603,9 @@ class MainService:
 
         except Exception as e:
             transaction_rollback()
-            log.error(e)
-            service_result.set_error(str(e))
+            trx_id = _service.gen_id()
+            asyncio.create_task(_service.error_log_db(guild_id, e, trx_id))
+            service_result.set_error(l.t(guild_id, "message.unhandled_exception", uuid=trx_id))
 
         return service_result
 
@@ -616,8 +636,8 @@ class MainService:
     @transactional
     async def uninstall_bot_command(self, guild: discord.Guild, tl_shifter_channel: dict) -> ServiceResult[list[int]]:
         service_result = ServiceResult[list[int]]()
+        guild_id = guild.id
         try:
-            guild_id = guild.id
             guild_result = _service.guild_repo.get_by_guild_id(guild_id)
             if guild_result is None:
                 service_result.set_error(l.t(guild_id, "message.guild_uninstalled"))
@@ -663,8 +683,9 @@ class MainService:
 
         except Exception as e:
             transaction_rollback()
-            log.error(e)
-            service_result.set_error(str(e))
+            trx_id = _service.gen_id()
+            asyncio.create_task(_service.error_log_db(guild_id, e, trx_id))
+            service_result.set_error(l.t(guild_id, "message.unhandled_exception", uuid=trx_id))
 
         return service_result
 
@@ -686,8 +707,9 @@ class MainService:
 
         except Exception as e:
             transaction_rollback()
-            log.error(e)
-            service_result.set_error(str(e))
+            trx_id = _service.gen_id()
+            asyncio.create_task(_service.error_log_db(guild_id, e, trx_id))
+            service_result.set_error(l.t(guild_id, "message.unhandled_exception", uuid=trx_id))
 
         return service_result
 
@@ -727,10 +749,8 @@ class MainService:
     @transactional
     async def refresh_report_channel_message(self, guild: discord.Guild, day: int = None) -> ServiceResult[Optional[Message]]:
         service_result = ServiceResult[Optional[Message]]()
-
+        guild_id = guild.id
         try:
-            guild_id = guild.id
-
             # Get current CB period once
             cur_period = _service.clan_battle_period_repo.get_current_cb_period_day()
             if cur_period.current_day == -1:
@@ -828,16 +848,17 @@ class MainService:
             service_result.set_success(report_message)
         except Exception as e:
             transaction_rollback()
-            log.error(e)
-            service_result.set_error(str(e))
+            trx_id = _service.gen_id()
+            asyncio.create_task(_service.error_log_db(guild_id, e, trx_id))
+            service_result.set_error(l.t(guild_id, "message.unhandled_exception", uuid=trx_id))
 
         return service_result
 
 class UiService:
     async def book_button_service(self, interaction: discord.Interaction) -> ServiceResult[Tuple[bool, int, list[ClanBattleLeftover]]]:
         service_result = ServiceResult[Tuple[bool, int, list[ClanBattleLeftover]]]()
+        guild_id = interaction.guild_id
         try:
-            guild_id = interaction.guild_id
             user_id = interaction.user.id
 
             boss_book = _service.clan_battle_boss_book_repo.get_player_book_count(guild_id, user_id)
@@ -859,17 +880,18 @@ class UiService:
             service_result.set_success((disable, utils.reduce_int_ab_non_zero(a=3, b=count), leftover))
 
         except Exception as e:
-            log.error(e)
-            err_id = asyncio.create_task(_service.error_log_db(interaction.guild.id, traceback.format_exc()))
-            service_result.set_error(l.t(interaction.guild.id, "message.unhandled_exception", uuid=err_id))
+            transaction_rollback()
+            trx_id = _service.gen_id()
+            asyncio.create_task(_service.error_log_db(guild_id, e, trx_id))
+            service_result.set_error(l.t(guild_id, "message.unhandled_exception", uuid=trx_id))
 
         return service_result
 
     @transactional
     async def cancel_button_service(self, interaction: discord.Interaction) -> ServiceResult[list[Embed]]:
         service_result = ServiceResult[list[Embed]]()
+        guild_id = interaction.guild_id
         try:
-            guild_id = interaction.guild_id
             user_id = interaction.user.id
             message_id = interaction.message.id
 
@@ -879,7 +901,7 @@ class UiService:
             )
 
             if book_result is None:
-                service_result.set_error(l.nf(guild_id, "Book Entry"))
+                service_result.set_error(l.t(guild_id, "ui.validation.book_entry_not_found"))
                 return service_result
 
             _service.clan_battle_boss_book_repo.delete_book_by_id(book_result.clan_battle_boss_book_id)
@@ -889,19 +911,18 @@ class UiService:
 
         except Exception as e:
             transaction_rollback()
-            log.error(e)
-            err_id = asyncio.create_task(_service.error_log_db(interaction.guild.id, traceback.format_exc()))
-            service_result.set_error(l.t(interaction.guild.id, "message.unhandled_exception", uuid=err_id))
+            trx_id = _service.gen_id()
+            asyncio.create_task(_service.error_log_db(guild_id, e, trx_id))
+            service_result.set_error(l.t(guild_id, "message.unhandled_exception", uuid=trx_id))
 
         return service_result
 
     @transactional
     async def entry_input_service(self, interaction: discord.Interaction, user_input: str) -> ServiceResult[list[Embed]]:
         service_result = ServiceResult[list[Embed]]()
+        guild_id = interaction.guild_id
         try:
-            guild_id = interaction.guild_id
             message_id = interaction.message.id
-
             if not user_input.isdigit():
                 service_result.set_error(f"## {l.t(guild_id, "ui.validation.only_numbers_allowed")}")
                 return service_result
@@ -930,16 +951,16 @@ class UiService:
 
         except Exception as e:
             transaction_rollback()
-            log.error(e)
-            err_id = asyncio.create_task(_service.error_log_db(interaction.guild.id, traceback.format_exc()))
-            service_result.set_error(l.t(interaction.guild.id, "message.unhandled_exception", uuid=err_id))
+            trx_id = _service.gen_id()
+            asyncio.create_task(_service.error_log_db(guild_id, e, trx_id))
+            service_result.set_error(l.t(guild_id, "message.unhandled_exception", uuid=trx_id))
 
         return service_result
 
     async def done_button_service(self, interaction: discord.Interaction) -> ServiceResult[None]:
         service_result = ServiceResult[None]()
+        guild_id = interaction.guild_id
         try:
-            guild_id = interaction.guild_id
             message_id = interaction.message.id
             user_id = interaction.user.id
             book_result = _service.clan_battle_boss_book_repo.get_player_book_entry(message_id, user_id)
@@ -954,17 +975,16 @@ class UiService:
 
             return service_result
         except Exception as e:
-            log.error(e)
-            err_id = asyncio.create_task(_service.error_log_db(interaction.guild.id, traceback.format_exc()))
-            service_result.set_error(l.t(interaction.guild.id, "message.unhandled_exception", uuid=err_id))
+            trx_id = _service.gen_id()
+            asyncio.create_task(_service.error_log_db(guild_id, e, trx_id))
+            service_result.set_error(l.t(guild_id, "message.unhandled_exception", uuid=trx_id))
 
         return service_result
 
     async def dead_button_service(self, interaction: discord.Interaction) -> ServiceResult[ClanBattleBossBook]:
         service_result = ServiceResult[ClanBattleBossBook]()
-
+        guild_id = interaction.guild_id
         try:
-            guild_id = interaction.guild_id
             message_id = interaction.message.id
             user_id = interaction.user.id
 
@@ -985,9 +1005,9 @@ class UiService:
 
             service_result.set_success(book)
         except Exception as e:
-            log.error(e)
-            err_id = asyncio.create_task(_service.error_log_db(interaction.guild.id, traceback.format_exc()))
-            service_result.set_error(l.t(interaction.guild.id, "message.unhandled_exception", uuid=err_id))
+            trx_id = _service.gen_id()
+            asyncio.create_task(_service.error_log_db(guild_id, e, trx_id))
+            service_result.set_error(l.t(guild_id, "message.unhandled_exception", uuid=trx_id))
 
         return service_result
 

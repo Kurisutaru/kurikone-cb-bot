@@ -63,26 +63,25 @@ class KuriLogger:
     file_formatter: logging.Formatter = attr.field(init=False)
     console_formatter: logging.Formatter = attr.field(init=False)
 
-    def debug(self, message):
-        """Log a debug message."""
-        self.logger.debug(message)
+    def debug(self, message, exc_info=None):
+        """Log a debug message with optional exception info."""
+        self.logger.debug(message, exc_info=exc_info)
 
-    def info(self, message):
-        """Log an info message."""
-        self.logger.info(message)
+    def info(self, message, exc_info=None):
+        """Log an info message with optional exception info."""
+        self.logger.info(message, exc_info=exc_info)
 
-    def warning(self, message):
-        """Log a warning message."""
-        self.logger.warning(message)
+    def warning(self, message, exc_info=None):
+        """Log a warning message with optional exception info."""
+        self.logger.warning(message, exc_info=exc_info)
 
-    def error(self, message):
-        """Log an error message."""
-        self.logger.error(message)
-        self.logger.error(traceback.print_exc())
+    def error(self, message, exc_info=None):
+        """Log an error message with optional exception info."""
+        self.logger.error(message, exc_info=exc_info)
 
-    def critical(self, message):
-        """Log a critical message."""
-        self.logger.critical(message)
+    def critical(self, message, exc_info=None):
+        """Log a critical message with optional exception info."""
+        self.logger.critical(message, exc_info=exc_info)
 
 
 class AnsiColorFormatter(logging.Formatter):

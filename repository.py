@@ -1357,18 +1357,19 @@ class GuildPlayerRepository:
 
 
 class ErrorLogRepository:
-    def insert(self, guild_id: int, identifier: str, stacktrace: str) -> bool:
+    def insert(self, guild_id: int, identifier: str, exception: str,stacktrace: str) -> bool:
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
                 cursor.execute(
                 """
                     INSERT INTO error_log
-                    (guild_id, identifier, stacktrace) VALUES 
-                    (%(guild_id)s, %(identifier)s, %(stacktrace)s)
+                    (guild_id, identifier, exception, stacktrace) VALUES 
+                    (%(guild_id)s, %(identifier)s,  %(exception)s, %(stacktrace)s)
                 """,
                     {
                         'guild_id': guild_id,
                         'identifier': identifier,
+                        'exception': exception,
                         'stacktrace': stacktrace,
                     }
                 )
