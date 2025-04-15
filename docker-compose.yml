@@ -1,0 +1,8 @@
+version: '3.8'
+
+services:
+  kurikone-bot:
+    image: kurisutaru/kurikone-cb-bot
+    env_file:
+      - .env
+    restart: unless-stopped

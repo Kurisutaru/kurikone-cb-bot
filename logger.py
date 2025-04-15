@@ -34,7 +34,7 @@ class KuriLogger:
         - console_level (int): The logging level for the console handler. Defaults to INFO.
         """
         self.logger = logging.getLogger(name)
-        self.logger.setLevel(logging.INFO)
+        self.logger.setLevel(min(file_level, console_level))  # Or set it to logging.DEBUG explicitly
 
         # Create a rotating file handler
         self.file_handler = RotatingFileHandler(log_file, maxBytes=max_bytes, backupCount=backup_count)

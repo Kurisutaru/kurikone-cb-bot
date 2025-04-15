@@ -1,7 +1,13 @@
+import os
+import sys
+
 from dotenv import load_dotenv
 from envier import Env
 
+from globals import logger
+
 load_dotenv()
+log = logger
 
 class GlobalConfig(Env):
     DB_HOST = Env.var(type=str, name="DB_HOST")
@@ -25,3 +31,18 @@ class GlobalConfig(Env):
 
 
 config = GlobalConfig()
+
+REQUIRED_ENV_VARS = {
+    "DISCORD_TOKEN": "Your Discord bot token",
+    # Add more variables and descriptions
+}
+
+
+def check_env_vars():
+    missing = False
+    for var, description in REQUIRED_ENV_VARS.items():
+        if not os.getenv(var):
+            missing = True
+            log.critical(f"❌ Missing Environment Variable: {var}")
+    if missing:
+        sys.exit(1)

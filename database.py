@@ -1,9 +1,12 @@
 import contextvars
+import sys
 
 from dbutils.pooled_db import PooledDB
 import mariadb
 from config import config
+from globals import logger
 
+log = logger
 
 class DatabasePool:
     _instance = None
@@ -28,10 +31,10 @@ class DatabasePool:
                     setsession=["SET SESSION time_zone = 'Asia/Tokyo'"],
                     ping=1
                 )
-                print(f"Connection pool initialized with size: {config.MAX_POOL_SIZE}")
+                log.info(f"Connection pool initialized with size: {config.MAX_POOL_SIZE}")
             except Exception as e:
-                print(f"Failed to initialize connection pool: {e}")
-                raise
+                log.critical(f"Failed to establish a database connection")
+                sys.exit(1)
         return cls._instance
 
     def get_connection(self):

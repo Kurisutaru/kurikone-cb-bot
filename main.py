@@ -1,6 +1,9 @@
+from pathlib import Path
+
 import discord
 from discord.ext import commands
 
+from config import check_env_vars
 from globals import TL_SHIFTER_CHANNEL, logger, locale
 from locales import guild_locale
 from repository import *
@@ -26,11 +29,12 @@ async def on_ready():
     await bot.load_extension("cogs.setup")
     await bot.load_extension("cogs.clan_battle")
 
+    await update_presence(bot)
+    await bot.tree.sync()
+
     for guild in bot.guilds:
         guild_locale[guild.id] = guild.preferred_locale.value.lower()
         await setup_channel(guild)
-
-    await update_presence(bot)
 
 @bot.event
 async def on_guild_join(guild):
@@ -51,4 +55,8 @@ async def update_presence(bot):
     activity = discord.Activity(name=f"{len(bot.guilds)} Servers", type=discord.ActivityType.listening)
     await bot.change_presence(activity=activity)
 
-bot.run(config.DISCORD_TOKEN, log_handler=None)
+if __name__ == "__main__":
+    # Check so people don't run away without .env file
+    check_env_vars()
+    bot.run(config.DISCORD_TOKEN, log_handler=None)
+
