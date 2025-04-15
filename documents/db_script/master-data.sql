@@ -53,3 +53,19 @@ INSERT INTO KurikoneCbBot.clan_battle_boss (name, description, image_path, posit
 INSERT INTO KurikoneCbBot.clan_battle_boss (name, description, image_path, position) VALUES ('Wild Claw', 'ワイルドクロウ', 'https://i.imgur.com/AvTNi7I.png', 3);
 INSERT INTO KurikoneCbBot.clan_battle_boss (name, description, image_path, position) VALUES ('Basilisk Allos', 'バジリスク・アロス', 'https://i.imgur.com/3S5NVX6.png', 4);
 INSERT INTO KurikoneCbBot.clan_battle_boss (name, description, image_path, position) VALUES ('Demi Khalid', 'デミ・カリド', 'https://i.imgur.com/1QhirZN.png', 2);
+
+INSERT INTO KurikoneCbBot.clan_battle_boss_health (position, round_from, round_to, health) VALUES (1, 1, 8, 12000000);
+INSERT INTO KurikoneCbBot.clan_battle_boss_health (position, round_from, round_to, health) VALUES (1, 9, 23, 50000000);
+INSERT INTO KurikoneCbBot.clan_battle_boss_health (position, round_from, round_to, health) VALUES (1, 23, 999, 1000000000);
+INSERT INTO KurikoneCbBot.clan_battle_boss_health (position, round_from, round_to, health) VALUES (2, 1, 8, 15000000);
+INSERT INTO KurikoneCbBot.clan_battle_boss_health (position, round_from, round_to, health) VALUES (2, 9, 23, 56000000);
+INSERT INTO KurikoneCbBot.clan_battle_boss_health (position, round_from, round_to, health) VALUES (2, 23, 999, 1040000000);
+INSERT INTO KurikoneCbBot.clan_battle_boss_health (position, round_from, round_to, health) VALUES (3, 1, 8, 20000000);
+INSERT INTO KurikoneCbBot.clan_battle_boss_health (position, round_from, round_to, health) VALUES (3, 9, 23, 64000000);
+INSERT INTO KurikoneCbBot.clan_battle_boss_health (position, round_from, round_to, health) VALUES (3, 23, 999, 1080000000);
+INSERT INTO KurikoneCbBot.clan_battle_boss_health (position, round_from, round_to, health) VALUES (4, 1, 8, 23000000);
+INSERT INTO KurikoneCbBot.clan_battle_boss_health (position, round_from, round_to, health) VALUES (4, 9, 23, 70000000);
+INSERT INTO KurikoneCbBot.clan_battle_boss_health (position, round_from, round_to, health) VALUES (4, 23, 999, 1120000000);
+INSERT INTO KurikoneCbBot.clan_battle_boss_health (position, round_from, round_to, health) VALUES (5, 1, 8, 30000000);
+INSERT INTO KurikoneCbBot.clan_battle_boss_health (position, round_from, round_to, health) VALUES (5, 9, 23, 85000000);
+INSERT INTO KurikoneCbBot.clan_battle_boss_health (position, round_from, round_to, health) VALUES (5, 23, 999, 1160000000);
