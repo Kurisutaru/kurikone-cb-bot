@@ -36,7 +36,7 @@ class BookButton(Button):
         view = View(timeout=None)
         view.add_item(BookPatkButton(interaction, disable))
         view.add_item(BookMatkButton(interaction, disable))
-        view.add_item(ConfirmationNoCancelButton(emoji_param=EmojiEnum.CANCEL))
+        view.add_item(ConfirmationNoCancelButton(text=l.t(guild_id, "ui.button.close"), emoji_param=EmojiEnum.CANCEL))
         for left_data in leftover:
             view.add_item(BookLeftoverButton(left_data, interaction))
 
@@ -328,7 +328,7 @@ class BookPatkButton(Button):
         self.attack_type = AttackTypeEnum.PATK
         self.parent_interaction = interaction
 
-        super().__init__(label=self.local_emoji.name,
+        super().__init__(label=l.t(interaction.guild_id, "ui.button.physical"),
                          style=discord.ButtonStyle.success,
                          emoji=self.local_emoji.value,
                          disabled=disable,
@@ -366,7 +366,7 @@ class BookMatkButton(Button):
         self.attack_type = AttackTypeEnum.MATK
         self.parent_interaction = interaction
 
-        super().__init__(label=self.local_emoji.name,
+        super().__init__(label=l.t(interaction.guild_id, "ui.button.magical"),
                          style=discord.ButtonStyle.blurple,
                          emoji=self.local_emoji.value,
                          disabled=disable,
@@ -404,7 +404,12 @@ class BookLeftoverButton(Button):
         self.attack_type = AttackTypeEnum.CARRY
         self.parent_interaction = interaction
         self.parent_overall_id = leftover.clan_battle_overall_entry_id
-        self.label_string = f"{leftover.attack_type.value} {leftover.leftover_time}s ({leftover.clan_battle_boss_name})"
+        self.label_string = l.t(interaction.guild_id,
+                                "ui.button.leftover",
+                                type=leftover.attack_type.value,
+                                sec=leftover.leftover_time,
+                                boss=leftover.clan_battle_boss_name
+                                )
         self.leftover_time = leftover.leftover_time
 
         super().__init__(label=self.label_string,

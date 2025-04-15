@@ -1,6 +1,4 @@
-# transactional.py
 import asyncio
-from contextvars import ContextVar
 from functools import wraps
 
 from database import rollback_flag_context, get_connection, reset_connection_context, set_connection_context, \

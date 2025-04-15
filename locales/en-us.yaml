@@ -22,6 +22,10 @@ en-us:
       done: "Done"
       dead: "Dead"
       ok: "OK"
+      physical: "PATK"
+      magical: "MATK"
+      close: "Close"
+      leftover: "%{type} %{sec}s (%{boss})"
     status:
       booked: "Already booked!"
       not_yet_booked: "Not booked!"
