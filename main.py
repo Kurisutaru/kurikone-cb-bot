@@ -1,3 +1,4 @@
+import discord
 from discord.ext import commands
 
 from globals import TL_SHIFTER_CHANNEL, logger, locale
@@ -29,15 +30,25 @@ async def on_ready():
         guild_locale[guild.id] = guild.preferred_locale.value.lower()
         await setup_channel(guild)
 
+    await update_presence(bot)
 
 @bot.event
 async def on_guild_join(guild):
+    await update_presence(bot)
     await setup_channel(guild)
 
+@bot.event
+async def on_guild_remove(guild):
+    log.info(f'Leaving guild {guild.id} - {guild.name}')
+    await update_presence(bot)
+    await main_service.uninstall_bot_command(guild, TL_SHIFTER_CHANNEL)
 
 async def setup_channel(guild):
     log.info(f'Setup for guild {guild.id} - {guild.name}')
-    await main_service.setup_guild_channel_message(guild=guild, tl_shifter_channel=TL_SHIFTER_CHANNEL)
+    await main_service.setup_guild_channel_message(guild, TL_SHIFTER_CHANNEL)
 
+async def update_presence(bot):
+    activity = discord.Activity(name=f"{len(bot.guilds)} Servers", type=discord.ActivityType.listening)
+    await bot.change_presence(activity=activity)
 
 bot.run(config.DISCORD_TOKEN, log_handler=None)
