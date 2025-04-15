@@ -7,14 +7,13 @@ from discord import TextChannel, Colour, Message, Embed
 from discord.ui import View
 
 from config import config
-from enums import EmojiEnum
-from globals import NEW_LINE
-from locales import Locale
-from logger import KuriLogger
+from enums import EmojiEnum, AttackTypeEnum
+from globals import NEW_LINE, locale, logger
+
 from models import ClanBattleBossEntry, ClanBattleOverallEntry, ClanBattleBossBook
 
-logger = KuriLogger()
-l = Locale()
+l = locale
+log = logger
 
 
 ### DISCORD STUFF UTILS
@@ -31,8 +30,8 @@ async def discord_close_response(interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
         await interaction.delete_original_response()
     except Exception as e:
-        logger.error(e)
-        logger.error(traceback.print_exc())
+        log.error(e)
+        log.error(traceback.print_exc())
 
 async def send_message(interaction: discord.Interaction, content: str, ephemeral: bool = False, embed: Embed = None,
                              embeds: list[Embed] = None, view: View = None):
@@ -165,8 +164,8 @@ def generate_done_attack_list(guild_id: int, datas: List[ClanBattleOverallEntry]
     lines = [f"========== {EmojiEnum.DONE.value} {l.t(guild_id, "ui.label.done_list")} =========="]
     for data in datas:
         line = f"{NEW_LINE}{data.attack_type.value} {f"[{format_large_number(data.damage)}] " if data.damage else ''}: {data.player_name}"
-        if data.leftover_time:
-            line += f"{NEW_LINE} ┗━ {EmojiEnum.STAR.value} ({data.leftover_time}s)"
+        if data.attack_type == AttackTypeEnum.CARRY or data.leftover_time:
+            line += f"{NEW_LINE} ┗━ {EmojiEnum.STAR.value} ({data.leftover_time if data.leftover_time else 0 }s)"
 
         lines.append(line)
 
@@ -192,22 +191,6 @@ def generate_health_bar(current_health: int, max_health: int):
         result += f"{EmojiEnum.RED_BLOCK.value}"
     result += f"`"
     return result
-
-
-def create_confirmation_message_view(guild_id: int, yes_emoji: EmojiEnum = EmojiEnum.YES,
-                                     no_emoji: EmojiEnum = EmojiEnum.NO, yes_callback=None) -> View:
-    import ui
-    yes_btn = ui.ConfirmationOkDoneButton(yes_emoji, l.t(guild_id, "ui.button.yes"))
-    no_btn = ui.ConfirmationNoCancelButton(no_emoji, l.t(guild_id, "ui.button.no"))
-
-    if yes_callback:
-        yes_btn.callback = yes_callback
-
-    view = View(timeout=None)
-    view.add_item(yes_btn)
-    view.add_item(no_btn)
-
-    return view
 
 
 def format_large_number(num):

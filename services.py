@@ -5,16 +5,15 @@ from typing import Tuple
 
 from discord import Embed, Message, TextChannel
 from discord.abc import GuildChannel
+from globals import locale, logger
 
-from locales import Locale
-from logger import KuriLogger
 from repository import *
 from transactional import transactional, transaction_rollback
 
 import utils
 
-l = Locale()
-logger = KuriLogger()
+l = locale
+log = logger
 
 class Services:
     _instance = None
@@ -56,7 +55,7 @@ class MainService:
             clan_battle_period = _service.clan_battle_period_repo.get_current_cb_period()
 
             if clan_battle_period is None:
-                logger.error("Need Database setup !")
+                log.error("Need Database setup !")
                 return service_result.set_error("Need Database setup !")
 
             guild_id = guild.id
@@ -96,7 +95,7 @@ class MainService:
 
         except Exception as e:
             transaction_rollback()
-            logger.error(e)
+            log.error(e)
             service_result.set_error(str(e))
 
         return service_result
@@ -116,7 +115,7 @@ class MainService:
             service_result.set_success(guild_db)
         except Exception as e:
             transaction_rollback()
-            logger.error(e)
+            log.error(e)
             service_result.set_error(str(e))
 
         return service_result
@@ -171,7 +170,7 @@ class MainService:
 
         except Exception as e:
             transaction_rollback()
-            logger.error(e)
+            log.error(e)
             service_result.set_error(str(e))
 
         return service_result
@@ -192,7 +191,7 @@ class MainService:
             service_result.set_success(result.result)
 
         except Exception as e:
-            logger.error(e)
+            log.error(e)
             service_result.set_error(str(e))
 
         return service_result
@@ -271,7 +270,7 @@ class MainService:
 
         except Exception as e:
             transaction_rollback()
-            logger.error(e)
+            log.error(e)
             service_result.set_error(str(e))
 
         return service_result
@@ -311,7 +310,7 @@ class MainService:
 
         except Exception as e:
             transaction_rollback()
-            logger.error(e)
+            log.error(e)
             service_result.set_error(str(e))
 
         return service_result
@@ -346,7 +345,7 @@ class MainService:
             service_result.set_success(embeds)
 
         except Exception as e:
-            logger.error(e)
+            log.error(e)
             service_result.set_error(str(e))
 
         return service_result
@@ -402,7 +401,7 @@ class MainService:
             service_result.set_success(None)
         except Exception as e:
             transaction_rollback()
-            logger.error(e)
+            log.error(e)
             service_result.set_error(str(e))
             print(e)
 
@@ -459,7 +458,7 @@ class MainService:
             service_result.set_success(overall)
         except Exception as e:
             transaction_rollback()
-            logger.error(e)
+            log.error(e)
             service_result.set_error(str(e))
             print(e)
 
@@ -547,7 +546,7 @@ class MainService:
             service_result.set_success(boss_entry)
         except Exception as e:
             transaction_rollback()
-            logger.error(e)
+            log.error(e)
             service_result.set_error(str(e))
             print(e)
 
@@ -585,7 +584,7 @@ class MainService:
 
         except Exception as e:
             transaction_rollback()
-            logger.error(e)
+            log.error(e)
             service_result.set_error(str(e))
 
         return service_result
@@ -609,7 +608,7 @@ class MainService:
 
         except Exception as e:
             transaction_rollback()
-            logger.error(e)
+            log.error(e)
             service_result.set_error(str(e))
 
         return service_result
@@ -664,7 +663,7 @@ class MainService:
 
         except Exception as e:
             transaction_rollback()
-            logger.error(e)
+            log.error(e)
             service_result.set_error(str(e))
 
         return service_result
@@ -687,7 +686,7 @@ class MainService:
 
         except Exception as e:
             transaction_rollback()
-            logger.error(e)
+            log.error(e)
             service_result.set_error(str(e))
 
         return service_result
@@ -701,32 +700,25 @@ class MainService:
 
             result = f"# {header.clan_battle_period_name} - {l.t(guild_id, "ui.status.day", day=day)}{NEW_LINE}"
 
-            sum_patk_count = 0
-            sum_matk_count = 0
-            sum_leftover_count = 0
-            sum_carry_count = 0
-
-            if len(entries):
-                sum_patk_count = sum(entry.patk_count for entry in entries)
-                sum_matk_count = sum(entry.matk_count for entry in entries)
-                sum_leftover_count = sum(entry.leftover_count for entry in entries)
-                sum_carry_count = sum(entry.carry_count for entry in entries)
+            sum_patk_count = sum(entry.patk_count for entry in entries) if entries else 0
+            sum_matk_count = sum(entry.matk_count for entry in entries) if entries else 0
+            sum_leftover_count = sum(entry.leftover_count for entry in entries) if entries else 0
+            sum_carry_count = sum(entry.carry_count for entry in entries) if entries else 0
 
 
-            result += f"`Entry Summary | {AttackTypeEnum.PATK.value}: {sum_patk_count} {AttackTypeEnum.MATK.value}: {sum_matk_count} {AttackTypeEnum.CARRY.value}: {sum_carry_count} {AttackTypeEnum.LEFTOVER.value}: {sum_leftover_count} |`{NEW_LINE}"
+            result += f"```powershell{NEW_LINE}{l.t(guild_id, "ui.label.entry_summary")} | {AttackTypeEnum.PATK.value}: {sum_patk_count} {AttackTypeEnum.MATK.value}: {sum_matk_count} {AttackTypeEnum.CARRY.value}: {sum_carry_count} {AttackTypeEnum.LEFTOVER.value}: {sum_leftover_count} |{NEW_LINE}```"
             result += f"```powershell{NEW_LINE}"
 
             if len(entries):
                 for data in entries:
                     result += f"| {AttackTypeEnum.PATK.value}: {data.patk_count} {AttackTypeEnum.MATK.value}: {data.matk_count} {AttackTypeEnum.CARRY.value}: {data.carry_count} {AttackTypeEnum.LEFTOVER.value}: {data.leftover_count} | {data.player_name.ljust(20)[:20]} {NEW_LINE}"
             else:
-                result += f"NO DATA OR ROLE MEMBER NOT SYNCED{NEW_LINE}"
+                result += f"{l.t(guild_id,"ui.status.not_synced")}{NEW_LINE}"
             result += f"```"
             service_result.set_success(result)
 
-
         except Exception as e:
-            logger.error(e)
+            log.error(e)
             service_result.set_error(str(e))
 
         return service_result
@@ -737,29 +729,33 @@ class MainService:
         service_result = ServiceResult[Optional[Message]]()
 
         try:
-            # logger.warning(f"Refresh Report Channel Message {guild.id} - {guild.name}")
             guild_id = guild.id
-            channel_type = ChannelEnum.REPORT
-            # Current CB Period with Days
+
+            # Get current CB period once
             cur_period = _service.clan_battle_period_repo.get_current_cb_period_day()
             if cur_period.current_day == -1:
                 service_result.set_error("No Running Clan Battle period detected")
                 return service_result
 
-            channel_data = _service.channel_repo.get_all_by_guild_id_and_type(guild_id, channel_type.REPORT.name)
+            # Get channel data once
+            channel_data = _service.channel_repo.get_all_by_guild_id_and_type(guild_id, ChannelEnum.REPORT.name)
             if channel_data is None:
                 service_result.set_error("No Report channel found")
                 return service_result
 
             channel = guild.get_channel(channel_data.channel_id)
+            if channel is None:
+                service_result.set_error("Report channel not found in guild")
+                return service_result
 
+            # Current date info
+            current_date = datetime.now()
+
+            # Get or create base report message
             report_message_data = _service.channel_message_repo.get_channel_message_by_channel_id(channel.id)
             if report_message_data is None:
                 report_message = await channel.send(content=l.t(guild_id, "ui.status.preparing_data"))
-                channel_message = ChannelMessage(
-                    channel_id=channel.id,
-                    message_id=report_message.id,
-                )
+                channel_message = ChannelMessage(channel_id=channel.id, message_id=report_message.id)
                 _service.channel_message_repo.insert_channel_message(channel_message)
             else:
                 report_message = await utils.discord_try_fetch_message(channel, report_message_data.message_id)
@@ -768,51 +764,71 @@ class MainService:
                     report_message_data.message_id = report_message.id
                     _service.channel_message_repo.update_channel_message(report_message_data)
 
+            # Get latest CB report message from DB
+            cb_report_message_data = _service.clan_battle_report_message_repo.get_last_by_guild_period(
+                guild_id, cur_period.clan_battle_period_id
+            )
 
-            # Check CB Report Message first for the day
-            cb_report_message_data = _service.clan_battle_report_message_repo.get_last_by_guild_period(guild_id, cur_period.clan_battle_period_id)
+            # If no existing report message, create one with current day
             if cb_report_message_data is None:
-                # Treat as new entry
-                cb_report_message_data = _service.clan_battle_report_message_repo.insert(
-                    ClanBattleReportMessage(
-                        guild_id=guild_id,
-                        clan_battle_period_id=cur_period.clan_battle_period_id,
-                        day=cur_period.current_day,
-                        message_id=report_message.id
-                    )
+                cb_report_message_data = ClanBattleReportMessage(
+                    guild_id=guild_id,
+                    clan_battle_period_id=cur_period.clan_battle_period_id,
+                    day=cur_period.current_day,
+                    message_id=report_message.id
                 )
+                _service.clan_battle_report_message_repo.insert(cb_report_message_data)
 
-            if cb_report_message_data.day != cur_period.current_day:
-                cb_report_message_data = _service.clan_battle_report_message_repo.insert(
-                    ClanBattleReportMessage(
-                        guild_id=guild_id,
-                        clan_battle_period_id=cur_period.clan_battle_period_id,
-                        day=cur_period.current_day,
-                        message_id=report_message.id
-                    )
-                )
+            # Always update the existing message first
+            report_gen = await self.generate_report_text(
+                guild_id,
+                current_date.year,
+                current_date.month,
+                cb_report_message_data.day
+            )
 
-            current_date = datetime.now()
-            year = current_date.year
-            month = current_date.month
-
-            # logger.warning(f"Refresh Report Channel Message : Current Day - {cur_period.current_day}")
-
-
-            report_gen = await self.generate_report_text(guild_id, year, month, cur_period.current_day)
             if not report_gen.is_success:
                 service_result.set_error(report_gen.error_messages)
                 return service_result
 
-            await report_message.edit(content=report_gen.result)
+            embed = Embed(description=report_gen.result, color=discord.Colour.blurple())
+            await report_message.edit(content="", embed=embed)
 
-            # logger.warning(f"Refresh Report Channel Message : Report - {report_gen.result}")
+            # Then check if we need a new message for new day
+            if cur_period.current_day > cb_report_message_data.day:
+                new_report_message = await channel.send(content=l.t(guild_id, "ui.status.preparing_data"))
+                report_message_data.message_id = new_report_message.id
+                _service.channel_message_repo.update_channel_message(report_message_data)
+
+                new_cb_report_message_data = ClanBattleReportMessage(
+                    guild_id=guild_id,
+                    clan_battle_period_id=cur_period.clan_battle_period_id,
+                    day=cur_period.current_day,
+                    message_id=new_report_message.id
+                )
+                _service.clan_battle_report_message_repo.insert(new_cb_report_message_data)
+
+                # Generate report for new day
+                new_report_gen = await self.generate_report_text(
+                    guild_id,
+                    current_date.year,
+                    current_date.month,
+                    cur_period.current_day
+                )
+
+                if not new_report_gen.is_success:
+                    service_result.set_error(new_report_gen.error_messages)
+                    return service_result
+
+                new_embed = Embed(description=new_report_gen.result, color=discord.Colour.blurple())
+                await new_report_message.edit(content="", embed=new_embed)
+                service_result.set_success(new_report_message)
+                return service_result
 
             service_result.set_success(report_message)
-            return service_result
-
         except Exception as e:
-            logger.error(e)
+            transaction_rollback()
+            log.error(e)
             service_result.set_error(str(e))
 
         return service_result
@@ -843,7 +859,7 @@ class UiService:
             service_result.set_success((disable, utils.reduce_int_ab_non_zero(a=3, b=count), leftover))
 
         except Exception as e:
-            logger.error(e)
+            log.error(e)
             err_id = asyncio.create_task(_service.error_log_db(interaction.guild.id, traceback.format_exc()))
             service_result.set_error(l.t(interaction.guild.id, "message.unhandled_exception", uuid=err_id))
 
@@ -873,7 +889,7 @@ class UiService:
 
         except Exception as e:
             transaction_rollback()
-            logger.error(e)
+            log.error(e)
             err_id = asyncio.create_task(_service.error_log_db(interaction.guild.id, traceback.format_exc()))
             service_result.set_error(l.t(interaction.guild.id, "message.unhandled_exception", uuid=err_id))
 
@@ -914,7 +930,7 @@ class UiService:
 
         except Exception as e:
             transaction_rollback()
-            logger.error(e)
+            log.error(e)
             err_id = asyncio.create_task(_service.error_log_db(interaction.guild.id, traceback.format_exc()))
             service_result.set_error(l.t(interaction.guild.id, "message.unhandled_exception", uuid=err_id))
 
@@ -938,7 +954,7 @@ class UiService:
 
             return service_result
         except Exception as e:
-            logger.error(e)
+            log.error(e)
             err_id = asyncio.create_task(_service.error_log_db(interaction.guild.id, traceback.format_exc()))
             service_result.set_error(l.t(interaction.guild.id, "message.unhandled_exception", uuid=err_id))
 
@@ -969,7 +985,7 @@ class UiService:
 
             service_result.set_success(book)
         except Exception as e:
-            logger.error(e)
+            log.error(e)
             err_id = asyncio.create_task(_service.error_log_db(interaction.guild.id, traceback.format_exc()))
             service_result.set_error(l.t(interaction.guild.id, "message.unhandled_exception", uuid=err_id))
 
@@ -984,7 +1000,7 @@ class GuildService:
             service_result.set_success(data)
 
         except Exception as e:
-            logger.error(e)
+            log.error(e)
             service_result.set_error(str(e))
             print(e)
 
@@ -1001,7 +1017,7 @@ class GuildService:
 
         except Exception as e:
             transaction_rollback()
-            logger.error(e)
+            log.error(e)
             service_result.set_error(str(e))
             print(e)
 
@@ -1018,7 +1034,7 @@ class ChannelService:
             service_result.set_success(data)
 
         except Exception as e:
-            logger.error(e)
+            log.error(e)
             service_result.set_error(str(e))
             print(e)
 
@@ -1036,7 +1052,7 @@ class ChannelService:
 
         except Exception as e:
             transaction_rollback()
-            logger.error(e)
+            log.error(e)
             service_result.set_error(str(e))
             print(e)
 
@@ -1052,7 +1068,7 @@ class ClanBattlePeriodService:
             service_result.set_success(data)
 
         except Exception as e:
-            logger.error(e)
+            log.error(e)
             service_result.set_error(str(e))
             print(e)
 
@@ -1069,7 +1085,7 @@ class ClanBattleBossBookService:
                                                                                      player_id=player_id)
             service_result.set_success(cb_book)
         except Exception as e:
-            logger.error(e)
+            log.error(e)
             service_result.set_error(str(e))
 
         return service_result
@@ -1083,7 +1099,7 @@ class ClanBattleBossBookService:
             service_result.set_success(cb_book)
 
         except Exception as e:
-            logger.error(e)
+            log.error(e)
             service_result.set_error(str(e))
 
         return service_result
@@ -1097,7 +1113,7 @@ class ClanBattleBossBookService:
 
         except Exception as e:
             transaction_rollback()
-            logger.error(e)
+            log.error(e)
             service_result.set_error(str(e))
 
         return service_result
@@ -1112,7 +1128,7 @@ class ClanBattleBossBookService:
 
         except Exception as e:
             transaction_rollback()
-            logger.error(e)
+            log.error(e)
             service_result.set_error(str(e))
 
         return service_result
@@ -1128,7 +1144,7 @@ class ClanBattleOverallEntryService:
                 guild_id, player_id)
             service_result.set_success(book_count)
         except Exception as e:
-            logger.error(e)
+            log.error(e)
             service_result.set_error(str(e))
 
         return service_result
@@ -1142,7 +1158,7 @@ class ClanBattleOverallEntryService:
                 guild_id, player_id)
             service_result.set_success(leftover_list)
         except Exception as e:
-            logger.error(e)
+            log.error(e)
             service_result.set_error(str(e))
 
         return service_result
@@ -1160,7 +1176,7 @@ class ClanBattleBossEntryService:
             service_result.set_success(result)
         except Exception as e:
             transaction_rollback()
-            logger.error(e)
+            log.error(e)
             service_result.set_error(str(e))
 
         return service_result
@@ -1172,7 +1188,7 @@ class ClanBattleBossEntryService:
             result = _service.clan_battle_boss_entry_repo.get_last_by_message_id(message_id)
             service_result.set_success(result)
         except Exception as e:
-            logger.error(e)
+            log.error(e)
             service_result.set_error(str(e))
 
         return service_result
@@ -1187,7 +1203,7 @@ class ClanBattleBossPeriodService:
             result = _service.clan_battle_period_repo.get_current_cb_period()
             service_result.set_success(result)
         except Exception as e:
-            logger.error(e)
+            log.error(e)
             service_result.set_error(str(e))
 
         return service_result

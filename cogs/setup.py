@@ -3,10 +3,10 @@ from discord import app_commands
 from discord.ext import commands
 
 import utils
-from enums import HelpTopic
 from globals import TL_SHIFTER_CHANNEL
 from locales import Locale
 from services import MainService
+from ui import ConfirmationButtonView
 
 l = Locale()
 _main_service = MainService()
@@ -36,7 +36,7 @@ class SetupCommands(commands.Cog, name="Setup Commands", description="Collection
             await utils.send_followup_short(interaction=interact, content=l.t(guild_id, "message.done_install"),
                                             ephemeral=True)
 
-        view = utils.create_confirmation_message_view(guild_id=guild_id, yes_callback=button_ok_callback)
+        view = ConfirmationButtonView(guild_id=guild_id, yes_callback=button_ok_callback)
 
         await utils.send_message_medium(interaction=interaction,
                                         content=l.t(guild_id, "ui.prompts.install_confirmation"),
@@ -70,7 +70,7 @@ class SetupCommands(commands.Cog, name="Setup Commands", description="Collection
             await utils.send_followup_short(interaction=interact, content=l.t(guild_id, "message.done_uninstall"),
                                             ephemeral=True)
 
-        view = utils.create_confirmation_message_view(guild_id=guild_id, yes_callback=button_ok_callback)
+        view = ConfirmationButtonView(guild_id=guild_id, yes_callback=button_ok_callback)
 
         await utils.send_message_medium(interaction=interaction,
                                         content=l.t(guild_id, "ui.prompts.uninstall_confirmation"),

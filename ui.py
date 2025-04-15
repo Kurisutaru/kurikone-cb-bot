@@ -4,14 +4,13 @@ import discord
 from discord.ui import View, Button, Modal, TextInput
 
 from enums import EmojiEnum, AttackTypeEnum
-from locales import Locale
-from logger import KuriLogger
+from globals import logger, locale
 from models import ClanBattleLeftover
 from services import MainService, UiService, ClanBattleBossBookService
 import utils
 
-l = Locale()
-logger = KuriLogger()
+l = locale
+log = logger
 _main_service = MainService()
 _ui_service = UiService()
 _clan_battle_boss_book_service = ClanBattleBossBookService()
@@ -173,7 +172,7 @@ class DoneOkButton(Button):
         done_service = await _main_service.done_entry(guild_id, message_id, user_id, display_name)
         if not done_service.is_success:
             await utils.discord_close_response(interaction=interaction)
-            logger.error(done_service.error_messages)
+            log.error(done_service.error_messages)
             return
 
         # Refresh Messages
@@ -182,7 +181,7 @@ class DoneOkButton(Button):
             embeds = await _main_service.refresh_clan_battle_boss_embeds(guild_id, message_id)
             if not embeds.is_success:
                 await interaction.response.defer(ephemeral=True)
-                logger.error(embeds.error_messages)
+                log.error(embeds.error_messages)
                 return
 
             await message.edit(embeds=embeds.result, view=ButtonView(guild_id))
@@ -296,25 +295,25 @@ class DeadOkButton(Button):
 
         dead_result = await _main_service.dead_ok(guild_id, message_id, user_id, display_name, leftover_time)
         if not dead_result.is_success:
-            logger.error(dead_result.error_messages)
+            log.error(dead_result.error_messages)
             await interaction.response.defer(ephemeral=True)
 
         boss_id = dead_result.result.clan_battle_boss_id
         generate = await _main_service.generate_next_boss(interaction, boss_id, message_id,
                                                               dead_result.result.attack_type, leftover_time)
         if not generate.is_success:
-            logger.error(generate.error_messages)
+            log.error(generate.error_messages)
             await interaction.response.defer(ephemeral=True)
 
         message = await utils.discord_try_fetch_message(interaction.channel, generate.result.message_id)
         if message is None:
-            logger.error("Failed to fetch message")
+            log.error("Failed to fetch message")
             await interaction.response.defer(ephemeral=True)
 
         embeds = await _main_service.refresh_clan_battle_boss_embeds(guild_id, message.id)
         if not embeds.is_success:
             await interaction.response.defer(ephemeral=True)
-            logger.error(embeds.error_messages)
+            log.error(embeds.error_messages)
             return
 
         asyncio.create_task(_main_service.refresh_report_channel_message(interaction.guild))
@@ -345,13 +344,13 @@ class BookPatkButton(Button):
                                                                        self.attack_type)
         if not insert_result.is_success:
             await interaction.response.defer(ephemeral=True)
-            logger.error(insert_result.error_messages)
+            log.error(insert_result.error_messages)
             return
 
         embeds = await _main_service.refresh_clan_battle_boss_embeds(guild_id, message_id)
         if not insert_result.is_success:
             await interaction.response.defer(ephemeral=True)
-            logger.error(embeds.error_messages)
+            log.error(embeds.error_messages)
             return
 
         await self.parent_interaction.message.edit(embeds=embeds.result, view=ButtonView(guild_id))
@@ -383,13 +382,13 @@ class BookMatkButton(Button):
                                                                    self.attack_type)
         if not insert_result.is_success:
             await interaction.response.defer(ephemeral=True)
-            logger.error(insert_result.error_messages)
+            log.error(insert_result.error_messages)
             return
 
         embeds = await _main_service.refresh_clan_battle_boss_embeds(guild_id, message_id)
         if not insert_result.is_success:
             await interaction.response.defer(ephemeral=True)
-            logger.error(embeds.error_messages)
+            log.error(embeds.error_messages)
             return
 
         await self.parent_interaction.message.edit(embeds=embeds.result, view=ButtonView(guild_id))
@@ -426,19 +425,19 @@ class BookLeftoverButton(Button):
                                                                        attack_type, parent_overall_id, leftover_time)
         if not insert_result.is_success:
             await interaction.response.defer(ephemeral=True)
-            logger.error(insert_result.error_messages)
+            log.error(insert_result.error_messages)
             return
 
         message = await utils.discord_try_fetch_message(interaction.channel, message_id)
         if message is None:
             await interaction.response.defer(ephemeral=True)
-            logger.error("Could not fetch message")
+            log.error("Could not fetch message")
             return
 
         embeds = await _main_service.refresh_clan_battle_boss_embeds(guild_id, message_id)
         if not insert_result.is_success:
             await interaction.response.defer(ephemeral=True)
-            logger.error(embeds.error_messages)
+            log.error(embeds.error_messages)
             return
 
         await self.parent_interaction.message.edit(embeds=embeds.result, view=ButtonView(guild_id))
@@ -475,3 +474,16 @@ class ButtonView(View):
         self.add_item(DoneButton(text=l.t(guild_id, "ui.button.done")))
         self.add_item(DeadButton(text=l.t(guild_id, "ui.button.dead")))
 
+
+class ConfirmationButtonView(View):
+    def __init__(self, guild_id: int, yes_emoji: EmojiEnum = EmojiEnum.YES,
+                                     no_emoji: EmojiEnum = EmojiEnum.NO, yes_callback=None):
+        super().__init__(timeout=None)
+        yes_btn = ConfirmationOkDoneButton(yes_emoji, l.t(guild_id, "ui.button.yes"))
+        no_btn = ConfirmationNoCancelButton(no_emoji, l.t(guild_id, "ui.button.no"))
+
+        if yes_callback:
+            yes_btn.callback = yes_callback
+
+        self.add_item(yes_btn)
+        self.add_item(no_btn)

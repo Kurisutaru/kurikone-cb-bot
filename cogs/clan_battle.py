@@ -1,15 +1,20 @@
+import datetime
+from zoneinfo import ZoneInfo
+
 import discord
+import pytz
 from discord import app_commands
-from discord.ext import commands
+from discord.ext import commands, tasks
 
 import utils
-from globals import TL_SHIFTER_CHANNEL, SPACE_PATTERN, NON_DIGIT, NEW_LINE
-from locales import Locale
+from globals import TL_SHIFTER_CHANNEL, SPACE_PATTERN, NON_DIGIT, NEW_LINE, locale, logger
 from models import GuildPlayer
 from services import MainService
 
-l = Locale()
+l = locale
+log = logger
 _main_service = MainService()
+
 
 class ClanBattleCommands(commands.Cog, name="Clan Battle Commands", description="Collection of Clan Battle Commands"):
     def __init__(self, bot: commands.Bot):
@@ -125,6 +130,15 @@ class ClanBattleCommands(commands.Cog, name="Clan Battle Commands", description=
         if len(result_lines) > 2:
             result_lines.append("```")
             await message.reply(NEW_LINE.join(result_lines))
+
+    #Background task
+    jst = pytz.timezone('Asia/Tokyo')
+    everyday_cb_time = datetime.time(hour=3, minute=5, tzinfo=jst)
+    @tasks.loop(time=everyday_cb_time)
+    async def refresh_clan_battle_report_daily(self):
+        for guild in self.bot.guilds:
+            log.info(f"Refreshing Clan Battle Report Daily on {guild.name} - {guild.id}")
+            await _main_service.refresh_report_channel_message(guild)
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(ClanBattleCommands(bot))
