@@ -1,34 +1,30 @@
-# Use an official Python runtime as a parent image
+# Stage 1: Build stage
+FROM python:3.12-alpine as builder
+
+# Install build dependencies
+RUN apk add --no-cache build-base mariadb-dev gcc
+
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --user --no-cache-dir -r requirements.txt
+
+# Stage 2: Runtime stage
 FROM python:3.12-alpine
 
-# Install system dependencies for MariaDB
-RUN apk update && \
-    apk add --no-cache \
-    build-base \
-    mariadb-client \
-    mariadb-dev \
-    gcc \
-    && rm -rf /var/cache/apk/*
+# Install runtime dependencies
+# mariadb-connector-c provides libmariadb.so.3
+RUN apk add --no-cache mariadb-connector-c
 
-# Set the working directory in the container
 WORKDIR /app
+COPY --from=builder /root/.local /root/.local
+COPY . .
 
-# Copy the current directory contents into the container at /app
-COPY . /app
-
-# Install any needed packages specified in requirements.txt
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Make port 80 available to the world outside this container
-# EXPOSE 80
-
-# Define environment variable
+# Ensure scripts in .local are usable
+ENV PATH=/root/.local/bin:$PATH
 ENV PYTHONUNBUFFERED=1
+# Add library path to environment
+ENV LD_LIBRARY_PATH=/usr/lib
 
-# Make the script executable
 RUN chmod +x entrypoint.sh
-
 ENTRYPOINT ["./entrypoint.sh"]
-
-# Run the application when the container launches
 CMD ["python", "main.py"]

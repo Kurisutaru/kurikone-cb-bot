@@ -1,18 +1,45 @@
+# Environment
 .env
 .env.example
+
+# Version control
 .git
 .gitignore
+
+# Python compiled files
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
+*.egg-info
+*.egg
+
+# IDE/Editor
 .DS_Store
 .venv
 .idea
 .vscode
-docker-compose.dev.yml
+*.swp
+*.swo
+
+# Docker/compose
+docker-compose*
+Dockerfile*
 docker-compose.yml
 Dockerfile
 Dockerfile.dev
+
+# Development
 Makefile
 README.md
+logs/
+tests/
+test/
+docs/
+examples/
+setup.py
+setup.cfg
+
+# Cache directories
+.mypy_cache
+.pytest_cache
