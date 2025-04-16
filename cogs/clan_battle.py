@@ -133,7 +133,7 @@ class ClanBattleCommands(commands.Cog, name="Clan Battle Commands", description=
 
     #Background task
     jst = pytz.timezone('Asia/Tokyo')
-    everyday_cb_time = datetime.time(hour=3, minute=5, tzinfo=jst)
+    everyday_cb_time = datetime.time(hour=5, minute=5, tzinfo=jst)
     @tasks.loop(time=everyday_cb_time)
     async def refresh_clan_battle_report_daily(self):
         for guild in self.bot.guilds:
