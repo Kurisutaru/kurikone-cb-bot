@@ -133,9 +133,10 @@ def create_header_embed(guild_id: int, cb_boss_entry: ClanBattleBossEntry, inclu
                         default_color: Colour = discord.Color.red()):
     embed = discord.Embed(
         title=f"{cb_boss_entry.name} ({l.t(guild_id, "ui.status.round", round=cb_boss_entry.boss_round)})",
-        description=f"""# HP : {format_large_number(cb_boss_entry.current_health)} / {format_large_number(cb_boss_entry.max_health)}{NEW_LINE}
-                        {generate_health_bar(current_health=cb_boss_entry.current_health, max_health=cb_boss_entry.max_health)}
-                        """,
+        description=(
+            f"# HP : {format_large_number(cb_boss_entry.current_health)} / {format_large_number(cb_boss_entry.max_health)}{NEW_LINE}"
+            f"{generate_health_bar(current_health=cb_boss_entry.current_health, max_health=cb_boss_entry.max_health)}"
+            ),
         color=default_color
     )
     if include_image:
