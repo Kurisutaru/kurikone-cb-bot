@@ -1,5 +1,6 @@
 import math
 import traceback
+from datetime import datetime
 from typing import List, Optional
 
 import discord
@@ -8,7 +9,7 @@ from discord.ui import View
 
 from config import config
 from enums import EmojiEnum, AttackTypeEnum
-from globals import NEW_LINE, locale, logger
+from globals import NEW_LINE, locale, logger, jst, datetime_format
 
 from models import ClanBattleBossEntry, ClanBattleOverallEntry, ClanBattleBossBook
 
@@ -221,3 +222,11 @@ def format_time(seconds: int) -> str:
     """Convert total seconds to MM:SS format."""
     m, s = divmod(seconds, 60)
     return f"{m}:{s:02d}"
+
+
+# DateTime with Timezone
+def now():
+    return datetime.now(jst).strftime(datetime_format)
+
+def utc():
+    return datetime.now().strftime(datetime_format)

@@ -1,13 +1,11 @@
 import datetime
-from zoneinfo import ZoneInfo
 
 import discord
-import pytz
 from discord import app_commands
 from discord.ext import commands, tasks
 
 import utils
-from globals import TL_SHIFTER_CHANNEL, SPACE_PATTERN, NON_DIGIT, NEW_LINE, locale, logger
+from globals import TL_SHIFTER_CHANNEL, SPACE_PATTERN, NON_DIGIT, NEW_LINE, locale, logger, jst
 from models import GuildPlayer
 from services import MainService
 
@@ -19,6 +17,10 @@ _main_service = MainService()
 class ClanBattleCommands(commands.Cog, name="Clan Battle Commands", description="Collection of Clan Battle Commands"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
+        self.refresh_clan_battle_report_daily.start()
+
+    def cog_unload(self) -> None:
+        self.refresh_clan_battle_report_daily.cancel()
 
     @app_commands.command(name="report", description="Report generator")
     @app_commands.describe(year="Clan battle period year", month="Clan battle period month",
@@ -33,7 +35,7 @@ class ClanBattleCommands(commands.Cog, name="Clan Battle Commands", description=
 
         msg_content = l.t(guild_id, "message.not_found", input="Report")
         report_result = await _main_service.generate_report_text(guild_id=interaction.guild_id, year=year, month=month,
-                                                                day=day)
+                                                                 day=day)
         if report_result.is_success:
             msg_content = report_result.result
 
@@ -131,14 +133,15 @@ class ClanBattleCommands(commands.Cog, name="Clan Battle Commands", description=
             result_lines.append("```")
             await message.reply(NEW_LINE.join(result_lines))
 
-    #Background task
-    jst = pytz.timezone('Asia/Tokyo')
+    # Background task
     everyday_cb_time = datetime.time(hour=5, minute=5, tzinfo=jst)
+
     @tasks.loop(time=everyday_cb_time)
     async def refresh_clan_battle_report_daily(self):
         for guild in self.bot.guilds:
             log.info(f"Refreshing Clan Battle Report Daily on {guild.name} - {guild.id}")
             await _main_service.refresh_report_channel_message(guild)
+
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(ClanBattleCommands(bot))

@@ -1,6 +1,3 @@
-from pathlib import Path
-
-import discord
 from discord.ext import commands
 
 from config import check_env_vars
@@ -19,6 +16,7 @@ bot = commands.Bot(command_prefix='!', intents=intents)
 
 log = logger
 l = locale
+
 
 @bot.event
 async def on_ready():

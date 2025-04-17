@@ -1,9 +1,12 @@
 import logging
 import os
-import traceback
-from logging.handlers import RotatingFileHandler
 import threading
+from dataclasses import field
+from datetime import datetime
+from logging.handlers import RotatingFileHandler
+
 import attr
+import pytz
 from attrs import define
 
 
@@ -11,6 +14,7 @@ from attrs import define
 class KuriLogger:
     _instance = None
     _lock = None
+    _timezone: datetime.tzinfo = field(default=pytz.UTC, init=False)
 
     def __new__(cls, *args, **kwargs):
         if cls._instance is None:
@@ -21,8 +25,9 @@ class KuriLogger:
                     cls._instance.init(*args, **kwargs)
         return cls._instance
 
-    def init(self, name='discord', log_file='discord.log', max_bytes=1024 * 1024 * 10, backup_count=5,
-             file_level=logging.DEBUG, console_level=logging.INFO):
+    def init(self, name='discord', log_file='discord.log', max_bytes=1024 * 1024 * 10,
+             backup_count=5, file_level=logging.DEBUG, console_level=logging.INFO,
+             timezone='UTC'):
         """
         Initialize the logger.
 
@@ -34,6 +39,9 @@ class KuriLogger:
         - file_level (int): The logging level for the file handler. Defaults to DEBUG.
         - console_level (int): The logging level for the console handler. Defaults to INFO.
         """
+        # Set the timezone
+        self._timezone = pytz.timezone(timezone)
+
         # Force log file to be in ./logs/ directory
         log_dir = "logs"
         os.makedirs(log_dir, exist_ok=True)  # Create if doesn't exist
@@ -50,11 +58,17 @@ class KuriLogger:
         self.console_handler.setLevel(console_level)
 
         # Create a formatter and attach it to the handlers
-        self.file_formatter = logging.Formatter('%(asctime)s [%(levelname)s] %(name)s: %(message)s',
-                                                datefmt='%Y-%m-%d %H:%M:%S')
+        self.file_formatter = TimezoneFormatter(
+            '%(asctime)s [%(levelname)s] %(name)s: %(message)s',
+            datefmt='%Y-%m-%d %H:%M:%S %Z',
+            tz=self._timezone
+        )
+
         self.console_formatter = AnsiColorFormatter(
-             '%(asctime)s [%(levelname)s] %(name)-20s: %(message)s',
-             datefmt='%Y-%m-%d %H:%M:%S')
+            '%(asctime)s [%(levelname)s] %(name)-20s: %(message)s',
+            datefmt='%Y-%m-%d %H:%M:%S %Z',
+            tz=self._timezone
+        )
         self.file_handler.setFormatter(self.file_formatter)
         self.console_handler.setFormatter(self.console_formatter)
 
@@ -89,11 +103,29 @@ class KuriLogger:
         self.logger.critical(message, exc_info=exc_info)
 
 
-class AnsiColorFormatter(logging.Formatter):
-    def __init__(self, fmt=None, datefmt='%Y-%m-%d %H:%M:%S'):
-        if fmt is None:
-            fmt = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+class TimezoneFormatter(logging.Formatter):
+    """Custom formatter that supports timezones with pytz"""
+    def __init__(self, fmt=None, datefmt=None, tz=pytz.UTC):
         super().__init__(fmt=fmt, datefmt=datefmt)
+        self.tz = tz
+
+    def formatTime(self, record, datefmt=None):
+        dt = datetime.fromtimestamp(record.created, self.tz)
+        if datefmt:
+            return dt.strftime(datefmt)
+        return dt.isoformat()
+
+class AnsiColorFormatter(logging.Formatter):
+    """Color formatter with timezone support using pytz"""
+    def __init__(self, fmt=None, datefmt=None, tz=pytz.UTC):
+        super().__init__(fmt=fmt, datefmt=datefmt)
+        self.tz = tz
+
+    def formatTime(self, record, datefmt=None):
+        dt = datetime.fromtimestamp(record.created, self.tz)
+        if datefmt:
+            return dt.strftime(datefmt)
+        return dt.isoformat()
 
     def format(self, record: logging.LogRecord):
         no_style = '\033[0m'
