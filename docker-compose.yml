@@ -1,7 +1,8 @@
 services:
-  kurikone-cb-bot:
-    image: ghcr.io/kurisutaru/kurikone-cb-bot
-    container_name: kurikone-cb-bot
+  kurikone-clan-battle-bot:
+    image: ghcr.io/kurisutaru/kurikone-clan-battle-bot:latest
+    pull_policy: always
+    container_name: kurikone-clan-battle-bot
     network_mode: bridge
     env_file:
       - .env
