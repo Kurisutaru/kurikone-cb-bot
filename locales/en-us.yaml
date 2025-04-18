@@ -31,7 +31,7 @@ en-us:
       not_yet_booked: "Not booked!"
       preparing_data: "Preparing data . . ."
       round: "Round %{round}"
-      day: "day %{day}"
+      day: "Day %{day}"
       not_synced: "NO DATA OR ROLE MEMBER NOT SYNCED"
     validation:
       enter_entry_type_first: "Input entry first!"
