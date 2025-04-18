@@ -3,7 +3,7 @@ import os
 import threading
 from dataclasses import field
 from datetime import datetime
-from logging.handlers import RotatingFileHandler
+from logging.handlers import TimedRotatingFileHandler
 
 import attr
 import pytz
@@ -25,19 +25,19 @@ class KuriLogger:
                     cls._instance.init(*args, **kwargs)
         return cls._instance
 
-    def init(self, name='discord', log_file='discord.log', max_bytes=1024 * 1024 * 10,
-             backup_count=5, file_level=logging.DEBUG, console_level=logging.INFO,
+    def init(self, name='discord', log_file='discord.log', max_days=7,
+             file_level=logging.DEBUG, console_level=logging.INFO,
              timezone='UTC'):
         """
-        Initialize the logger.
+        Initialize the logger with daily rotation and max retention of 7 days.
 
         Args:
         - name (str): The name of the logger.
-        - log_file (str): The path to the log file.
-        - max_bytes (int): The maximum size of the log file in bytes. Defaults to 10MB.
-        - backup_count (int): The number of backup log files to keep. Defaults to 5.
+        - log_file (str): The base name of the log file (will have date appended).
+        - max_days (int): The maximum number of days to keep logs. Defaults to 7 (1 week).
         - file_level (int): The logging level for the file handler. Defaults to DEBUG.
         - console_level (int): The logging level for the console handler. Defaults to INFO.
+        - timezone (str): The timezone for log timestamps.
         """
         # Set the timezone
         self._timezone = pytz.timezone(timezone)
@@ -45,19 +45,30 @@ class KuriLogger:
         # Force log file to be in ./logs/ directory
         log_dir = "logs"
         os.makedirs(log_dir, exist_ok=True)  # Create if it doesn't exist
-        full_log_path = os.path.join(log_dir, log_file)  # => logs/discord.log
-        self.logger = logging.getLogger(name)
-        self.logger.setLevel(min(file_level, console_level))  # Or set it to logging.DEBUG explicitly
 
-        # Create a rotating file handler
-        self.file_handler = RotatingFileHandler(full_log_path, maxBytes=max_bytes, backupCount=backup_count)
+        # Remove .log extension if present to create base filename
+        base_log_name = log_file.replace('.log', '')
+        full_log_path = os.path.join(log_dir, base_log_name)  # => logs/discord
+
+        self.logger = logging.getLogger(name)
+        self.logger.setLevel(min(file_level, console_level))
+
+        # Create a timed rotating file handler that rotates at midnight
+        self.file_handler = TimedRotatingFileHandler(
+            full_log_path,
+            when='midnight',
+            interval=1,
+            backupCount=max_days,
+            encoding='utf-8'
+        )
         self.file_handler.setLevel(file_level)
+        self.file_handler.suffix = "%Y-%m-%d.log"  # Format: discord-2023-01-01.log
 
         # Create a console handler
         self.console_handler = logging.StreamHandler()
         self.console_handler.setLevel(console_level)
 
-        # Create a formatter and attach it to the handlers
+        # Create formatters and attach them to the handlers
         self.file_formatter = TimezoneFormatter(
             '%(asctime)s [%(levelname)s] %(name)s: %(message)s',
             datefmt='%Y-%m-%d %H:%M:%S %Z',
@@ -76,7 +87,7 @@ class KuriLogger:
         self.logger.addHandler(self.file_handler)
         self.logger.addHandler(self.console_handler)
 
-    file_handler: RotatingFileHandler = attr.field(init=False)
+    file_handler: TimedRotatingFileHandler = attr.field(init=False)
     logger: logging.Logger = attr.field(init=False)
     console_handler: logging.StreamHandler = attr.field(init=False)
     file_formatter: logging.Formatter = attr.field(init=False)
@@ -105,6 +116,7 @@ class KuriLogger:
 
 class TimezoneFormatter(logging.Formatter):
     """Custom formatter that supports timezones with pytz"""
+
     def __init__(self, fmt=None, datefmt=None, tz=pytz.UTC):
         super().__init__(fmt=fmt, datefmt=datefmt)
         self.tz = tz
@@ -115,8 +127,10 @@ class TimezoneFormatter(logging.Formatter):
             return dt.strftime(datefmt)
         return dt.isoformat()
 
+
 class AnsiColorFormatter(logging.Formatter):
     """Color formatter with timezone support using pytz"""
+
     def __init__(self, fmt=None, datefmt=None, tz=pytz.UTC):
         super().__init__(fmt=fmt, datefmt=datefmt)
         self.tz = tz
