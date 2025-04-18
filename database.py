@@ -29,7 +29,9 @@ class DatabasePool:
                     database=config.DB_NAME,
                     port=config.DB_PORT,
                     setsession=["SET SESSION time_zone = 'Asia/Tokyo'"],
-                    ping=1
+                    reset=True,
+                    failures=None,
+                    ping=7,
                 )
                 log.info(f"Connection pool initialized with size: {config.MAX_POOL_SIZE}")
             except Exception as e:

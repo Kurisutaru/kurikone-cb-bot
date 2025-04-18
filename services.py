@@ -7,7 +7,7 @@ from discord.abc import GuildChannel
 from globals import locale, logger
 
 from repository import *
-from transactional import transactional, transaction_rollback
+from transactional import transactional, transaction_rollback, transaction_reset
 
 import utils
 
@@ -35,22 +35,24 @@ class Services:
             cls._instance.error_log_repo = ErrorLogRepository()
         return cls._instance
 
-    @transactional
+
     async def error_log_db(self, guild_id: int, exception: Exception, transaction_id: str):
         """Logs errors to the database with a UUID reference.
         Guarantees the log is written even if the main transaction fails.
         """
         try:
+            reset_connection_context()
+            transaction_reset()
             # Capture the traceback as a string (works even outside exception context)
             stacktrace = "".join(traceback.format_exception(type(exception), exception, exception.__traceback__)).rstrip()
 
-            self.error_log_repo.insert(
+            result = self.error_log_repo.insert(
                 guild_id=guild_id,
                 identifier=transaction_id,
                 exception=str(exception),
                 stacktrace=stacktrace,
             )
-            log.error(f"[{transaction_id}] Error: {exception}\n{stacktrace}")
+            log.error(f"[{transaction_id}] Error: {exception}")
         except Exception as e:
             # Critical fallback: If DB logging fails, log to console + external service (e.g., Sentry)
             log.critical(
@@ -58,6 +60,8 @@ class Services:
                 exc_info=e
             )
             # Optionally, add a fallback mechanism (e.g., file log, Sentry, etc.)
+
+        return True
 
     def gen_id(self) -> str:
         trx_id = str(uuid.uuid4())
@@ -135,8 +139,7 @@ class MainService:
 
             service_result.set_success(guild_db)
         except Exception as e:
-            transaction_rollback()
-            service_result.set_error(str(e))
+            raise e
 
         return service_result
 
@@ -189,8 +192,7 @@ class MainService:
             service_result.set_success(processed_channel)
 
         except Exception as e:
-            transaction_rollback()
-            service_result.set_error(str(e))
+            raise e
 
         return service_result
 
@@ -280,7 +282,7 @@ class MainService:
                 )
 
             #Refresh the bosses
-            embeds = await self.refresh_clan_battle_boss_embeds(guild_id, message)
+            embeds = await self.refresh_clan_battle_boss_embeds(guild_id, message.id)
             if embeds.is_success:
                 import ui
                 await message.edit(content="", embeds=embeds.result, view=ui.ButtonView(guild_id))
@@ -288,9 +290,7 @@ class MainService:
             service_result.set_success(message)
 
         except Exception as e:
-            transaction_rollback()
-            log.error(e)
-            service_result.set_error(str(e))
+            raise e
 
         return service_result
 
@@ -913,7 +913,7 @@ class MainService:
                 )
 
                 # Refresh the bosses
-                embeds = await self.refresh_clan_battle_boss_embeds(guild_id, message)
+                embeds = await self.refresh_clan_battle_boss_embeds(guild_id, message.id)
                 if embeds.is_success:
                     import ui
                     await message.edit(content="", embeds=embeds.result, view=ui.ButtonView(guild_id))
@@ -979,7 +979,7 @@ class UiService:
                 return service_result
 
             _service.clan_battle_boss_book_repo.delete_book_by_id(book_result.clan_battle_boss_book_id)
-            embeds = await MainService().refresh_clan_battle_boss_embeds(guild_id, interaction.message)
+            embeds = await MainService().refresh_clan_battle_boss_embeds(guild_id, interaction.message.id)
 
             service_result.set_success(embeds.result)
 

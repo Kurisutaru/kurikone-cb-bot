@@ -1,6 +1,7 @@
 import logging
 import os
 import threading
+import traceback
 from dataclasses import field
 from datetime import datetime
 from logging.handlers import TimedRotatingFileHandler
@@ -108,6 +109,8 @@ class KuriLogger:
     def error(self, message, exc_info=None):
         """Log an error message with optional exception info."""
         self.logger.error(message, exc_info=exc_info)
+        if not traceback.print_exc() is None:
+            traceback.print_exc()
 
     def critical(self, message, exc_info=None):
         """Log a critical message with optional exception info."""

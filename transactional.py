@@ -9,6 +9,9 @@ def transaction_rollback():
     """Java equivalent of TransactionAspectSupport.currentTransactionStatus().setRollbackOnly()"""
     rollback_flag_context.set(True)
 
+def transaction_reset():
+    rollback_flag_context.set(False)
+
 
 def transactional(func):
     @wraps(func)
@@ -19,7 +22,6 @@ def transactional(func):
 
         # New transaction
         conn, should_close = get_connection()
-        conn.execute("SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED")
         conn.autocommit = False
 
         set_connection_context(conn)
@@ -52,10 +54,6 @@ def transactional(func):
         # New transaction
         conn, should_close = get_connection()
         conn.autocommit = False
-
-        # Set isolation level using a cursor
-        #with conn.cursor() as cursor:
-        #    cursor.execute("SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED")
 
         set_connection_context(conn)
         rollback_flag_context.set(False)
