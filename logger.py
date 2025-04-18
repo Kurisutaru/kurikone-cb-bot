@@ -106,13 +106,11 @@ class KuriLogger:
         """Log a warning message with optional exception info."""
         self.logger.warning(message, exc_info=exc_info)
 
-    def error(self, message, exc_info=None):
+    def error(self, message, exc_info=True):
         """Log an error message with optional exception info."""
         self.logger.error(message, exc_info=exc_info)
-        if not traceback.print_exc() is None:
-            traceback.print_exc()
 
-    def critical(self, message, exc_info=None):
+    def critical(self, message, exc_info=True):
         """Log a critical message with optional exception info."""
         self.logger.critical(message, exc_info=exc_info)
 

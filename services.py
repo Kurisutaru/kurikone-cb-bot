@@ -4,10 +4,12 @@ import uuid
 
 from discord import Embed, Message, TextChannel
 from discord.abc import GuildChannel
+
+from database import db_pool
 from globals import locale, logger
 
 from repository import *
-from transactional import transactional, transaction_rollback, transaction_reset
+from transactional import transactional, transaction_rollback
 
 import utils
 
@@ -35,23 +37,29 @@ class Services:
             cls._instance.error_log_repo = ErrorLogRepository()
         return cls._instance
 
-
     async def error_log_db(self, guild_id: int, exception: Exception, transaction_id: str):
         """Logs errors to the database with a UUID reference.
         Guarantees the log is written even if the main transaction fails.
         """
         try:
-            reset_connection_context()
-            transaction_reset()
             # Capture the traceback as a string (works even outside exception context)
             stacktrace = "".join(traceback.format_exception(type(exception), exception, exception.__traceback__)).rstrip()
-
-            result = self.error_log_repo.insert(
-                guild_id=guild_id,
-                identifier=transaction_id,
-                exception=str(exception),
-                stacktrace=stacktrace,
-            )
+            with db_pool as conn:
+                with conn.cursor(dictionary=True) as cursor:
+                    cursor.execute(
+                        """
+                            INSERT INTO error_log
+                            (guild_id, identifier, exception, stacktrace) VALUES 
+                            (%(guild_id)s, %(identifier)s,  %(exception)s, %(stacktrace)s)
+                        """,
+                        {
+                            'guild_id': guild_id,
+                            'identifier': transaction_id,
+                            'exception': exception,
+                            'stacktrace': stacktrace,
+                        }
+                    )
+                    conn.commit()
             log.error(f"[{transaction_id}] Error: {exception}")
         except Exception as e:
             # Critical fallback: If DB logging fails, log to console + external service (e.g., Sentry)
@@ -212,8 +220,7 @@ class MainService:
             service_result.set_success(result.result)
 
         except Exception as e:
-            log.error(e)
-            service_result.set_error(str(e))
+            raise e
 
         return service_result
 
