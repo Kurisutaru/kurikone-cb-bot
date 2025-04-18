@@ -5,13 +5,14 @@ from discord import app_commands
 from discord.ext import commands, tasks
 
 import utils
-from globals import TL_SHIFTER_CHANNEL, SPACE_PATTERN, NON_DIGIT, NEW_LINE, locale, logger, jst
+from globals import TL_SHIFTER_CHANNEL, SPACE_PATTERN, NON_DIGIT, NEW_LINE, locale, logger, jst, CURRENT_CB_PERIOD_ID
 from models import GuildPlayer
-from services import MainService
+from services import MainService, ClanBattlePeriodService
 
 l = locale
 log = logger
 _main_service = MainService()
+_clan_battle_period_service = ClanBattlePeriodService()
 
 
 class ClanBattleCommands(commands.Cog, name="Clan Battle Commands", description="Collection of Clan Battle Commands"):
@@ -43,6 +44,8 @@ class ClanBattleCommands(commands.Cog, name="Clan Battle Commands", description=
         if msg:
             await msg.delete(delay=120)
 
+        return None
+
     @app_commands.command(name="sync_user_role", description="Sync user with selected role for Clan Battle Report")
     @app_commands.describe(role="Discord Role")
     async def sc_sync_user_role(self, interaction: discord.Interaction, role: discord.Role):
@@ -70,6 +73,8 @@ class ClanBattleCommands(commands.Cog, name="Clan Battle Commands", description=
         msg = await interaction.followup.send(content=msg_content, ephemeral=True)
         if msg:
             await msg.delete(delay=30)
+
+        return None
 
     # TL Shifter
     @commands.Cog.listener()
@@ -138,9 +143,23 @@ class ClanBattleCommands(commands.Cog, name="Clan Battle Commands", description=
 
     @tasks.loop(time=everyday_cb_time)
     async def refresh_clan_battle_report_daily(self):
+        cb_period_result = await _clan_battle_period_service.get_current_cb_period_day()
+        cb_period = cb_period_result.result
+
+        if cb_period.current_day == -1:
+            log.info("Refresh Clan Battle Report Daily Stopped : No Running Clan Battle Period")
+            return
+
+        gen_new_period = False
+        if CURRENT_CB_PERIOD_ID != cb_period.clan_battle_period_id:
+            gen_new_period = True
+            globals.CURRENT_CB_PERIOD_ID = cb_period.clan_battle_period_id
+
         for guild in self.bot.guilds:
-            log.info(f"Refreshing Clan Battle Report Daily on {guild.name} - {guild.id}")
+            if gen_new_period:
+                await _main_service.new_clan_battle_period(guild)
             await _main_service.refresh_report_channel_message(guild)
+
 
 
 async def setup(bot: commands.Bot):

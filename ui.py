@@ -1,6 +1,7 @@
 import asyncio
 
 import discord
+from discord import ButtonStyle, TextStyle
 from discord.ui import View, Button, Modal, TextInput
 
 from enums import EmojiEnum, AttackTypeEnum
@@ -19,7 +20,7 @@ _clan_battle_boss_book_service = ClanBattleBossBookService()
 class BookButton(Button):
     def __init__(self, text: str = EmojiEnum.BOOK.name.capitalize()):
         super().__init__(label=text,
-                         style=discord.ButtonStyle.primary,
+                         style=ButtonStyle.primary,
                          emoji=EmojiEnum.BOOK.value,
                          row=0)
 
@@ -50,7 +51,7 @@ class BookButton(Button):
 class CancelButton(Button):
     def __init__(self, text = EmojiEnum.CANCEL.name.capitalize()):
         super().__init__(label=text,
-                         style=discord.ButtonStyle.danger,
+                         style=ButtonStyle.danger,
                          emoji=EmojiEnum.CANCEL.value,
                          row=0)
 
@@ -72,7 +73,7 @@ class CancelButton(Button):
 class EntryButton(Button):
     def __init__(self, text: str = EmojiEnum.ENTRY.name.capitalize()):
         super().__init__(label=text,
-                         style=discord.ButtonStyle.primary,
+                         style=ButtonStyle.primary,
                          emoji=EmojiEnum.ENTRY.value,
                          row=1)
 
@@ -102,7 +103,7 @@ class EntryInputModal(Modal):
     user_input = TextInput(
         label="Damage input",
         placeholder="20",
-        style=discord.TextStyle.short,
+        style=TextStyle.short,
         required=True,
         min_length=1,
         max_length=10
@@ -131,7 +132,7 @@ class EntryInputModal(Modal):
 class DoneButton(Button):
     def __init__(self, text: str = EmojiEnum.DONE.name.capitalize()):
         super().__init__(label=text,
-                         style=discord.ButtonStyle.green,
+                         style=ButtonStyle.green,
                          emoji=EmojiEnum.DONE.value,
                          row=1)
 
@@ -158,7 +159,7 @@ class DoneButton(Button):
 class DoneOkButton(Button):
     def __init__(self, message_id: int):
         super().__init__(label=EmojiEnum.DONE.name.capitalize(),
-                         style=discord.ButtonStyle.green,
+                         style=ButtonStyle.green,
                          emoji=EmojiEnum.DONE.value,
                          row=0)
         self.message_id = message_id
@@ -195,7 +196,7 @@ class DoneOkButton(Button):
 class DeadButton(Button):
     def __init__(self, text: str = EmojiEnum.FINISH.value):
         super().__init__(label=text,
-                         style=discord.ButtonStyle.gray,
+                         style=ButtonStyle.gray,
                          emoji=EmojiEnum.FINISH.value,
                          row=1)
 
@@ -240,7 +241,7 @@ class LeftoverModal(Modal):
     user_input = TextInput(
         label="Leftover time (in seconds)",
         placeholder="20",
-        style=discord.TextStyle.short,
+        style=TextStyle.short,
         required=True,
         min_length=1,
         max_length=2
@@ -278,7 +279,7 @@ class LeftoverModal(Modal):
 class DeadOkButton(Button):
     def __init__(self, message_id: int, leftover_time: int):
         super().__init__(label=EmojiEnum.DONE.name.capitalize(),
-                         style=discord.ButtonStyle.green,
+                         style=ButtonStyle.green,
                          emoji=EmojiEnum.DONE.value,
                          row=0)
         self.message_id = message_id
@@ -329,7 +330,7 @@ class BookPatkButton(Button):
         self.parent_interaction = interaction
 
         super().__init__(label=l.t(interaction.guild_id, "ui.button.physical"),
-                         style=discord.ButtonStyle.success,
+                         style=ButtonStyle.success,
                          emoji=self.local_emoji.value,
                          disabled=disable,
                          row=0)
@@ -367,7 +368,7 @@ class BookMatkButton(Button):
         self.parent_interaction = interaction
 
         super().__init__(label=l.t(interaction.guild_id, "ui.button.magical"),
-                         style=discord.ButtonStyle.blurple,
+                         style=ButtonStyle.blurple,
                          emoji=self.local_emoji.value,
                          disabled=disable,
                          row=0)
@@ -413,7 +414,7 @@ class BookLeftoverButton(Button):
         self.leftover_time = leftover.leftover_time
 
         super().__init__(label=self.label_string,
-                         style=discord.ButtonStyle.blurple,
+                         style=ButtonStyle.blurple,
                          emoji=self.local_emoji.value,
                          row=1)
 
@@ -454,7 +455,7 @@ class BookLeftoverButton(Button):
 class ConfirmationOkDoneButton(Button):
     def __init__(self, emoji_param: EmojiEnum = EmojiEnum.DONE, text: str= None):
         super().__init__(label=text or emoji_param.name.capitalize(),
-                         style=discord.ButtonStyle.green,
+                         style=ButtonStyle.green,
                          emoji=emoji_param.value,
                          row=0)
 
@@ -462,7 +463,7 @@ class ConfirmationOkDoneButton(Button):
 class ConfirmationNoCancelButton(Button):
     def __init__(self, emoji_param: EmojiEnum = EmojiEnum.NO, text: str= None):
         super().__init__(label=text or emoji_param.name.capitalize(),
-                         style=discord.ButtonStyle.red,
+                         style=ButtonStyle.red,
                          emoji=emoji_param.value,
                          row=0)
 

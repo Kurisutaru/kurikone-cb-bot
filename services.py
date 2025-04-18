@@ -280,7 +280,7 @@ class MainService:
                 )
 
             #Refresh the bosses
-            embeds = await self.refresh_clan_battle_boss_embeds(guild_id, message.id)
+            embeds = await self.refresh_clan_battle_boss_embeds(guild_id, message)
             if embeds.is_success:
                 import ui
                 await message.edit(content="", embeds=embeds.result, view=ui.ButtonView(guild_id))
@@ -749,10 +749,13 @@ class MainService:
 
 
     @transactional
-    async def refresh_report_channel_message(self, guild: discord.Guild, day: int = None) -> ServiceResult[Optional[Message]]:
+    async def refresh_report_channel_message(self, guild: discord.Guild) -> ServiceResult[Optional[Message]]:
         service_result = ServiceResult[Optional[Message]]()
         guild_id = guild.id
+        # Current date info
+        current_date = utils.now()
         try:
+            log.info(f"Refreshing Clan Battle Report Daily on {guild.name} - {guild.id}")
             # Get current CB period once
             cur_period = _service.clan_battle_period_repo.get_current_cb_period_day()
             if cur_period.current_day == -1:
@@ -769,9 +772,6 @@ class MainService:
             if channel is None:
                 service_result.set_error("Report channel not found in guild")
                 return service_result
-
-            # Current date info
-            current_date = datetime.now()
 
             # Get or create base report message
             report_message_data = _service.channel_message_repo.get_channel_message_by_channel_id(channel.id)
@@ -856,6 +856,78 @@ class MainService:
 
         return service_result
 
+
+    @transactional
+    async def new_clan_battle_period(self, guild: discord.Guild) -> ServiceResult[None]:
+        service_result = ServiceResult[None]()
+        guild_id = guild.id
+        # Current date info
+        current_date = utils.now()
+        try:
+            log.info(f"Generating New Clan Battle Period on {guild.name} - {guild.id}")
+            # Get current CB period once
+            period = _service.clan_battle_period_repo.get_current_cb_period_day()
+            if period.current_day == -1:
+                service_result.set_error("No Running Clan Battle period detected")
+                return service_result
+
+            # Get channel data once
+            channel_data = _service.channel_repo.get_boss_channel_by_guild_id(guild_id)
+            if channel_data is None:
+                service_result.set_error("Guild channel not found")
+                return service_result
+
+            # Loop through boss Channel
+            for chan in channel_data:
+                channel = guild.get_channel(chan.channel_id)
+                if channel is None:
+                    service_result.set_error("Channel not found in guild")
+                    return service_result
+
+                # Get ChannelMessage for MessageId, to get old message and edit remove the button view and make it dark
+                ch_message = _service.channel_message_repo.get_channel_message_by_channel_id(channel_id=channel.id)
+                if ch_message is None:
+                    service_result.set_error("Channel Message not found in guild")
+                    return service_result
+
+                cur_msg = await utils.discord_try_fetch_message(channel, ch_message.message_id)
+                if cur_msg:
+                    # Set the embed color daaark
+                    for embed in cur_msg.embeds:
+                        embed.colour = discord.Colour.dark_grey()
+                    await cur_msg.edit(content=None, embeds=cur_msg.embeds, view=None)
+
+                # Create new one without touching old one
+                message = await channel.send(content=l.t(guild_id, "ui.status.preparing_data"))
+                ch_message.message_id = message.id
+                _service.channel_message_repo.update_channel_message(ch_message)
+
+                boss_id = getattr(period, f"{chan.channel_type.value['type'].lower()}_id")
+
+                await self.insert_clan_battle_entry_by_round(
+                    guild_id=guild_id,
+                    message_id=message.id,
+                    boss_id=boss_id,
+                    period_id=period.clan_battle_period_id,
+                    boss_round=1
+                )
+
+                # Refresh the bosses
+                embeds = await self.refresh_clan_battle_boss_embeds(guild_id, message)
+                if embeds.is_success:
+                    import ui
+                    await message.edit(content="", embeds=embeds.result, view=ui.ButtonView(guild_id))
+
+            service_result.set_success(None)
+        except Exception as e:
+            transaction_rollback()
+            trx_id = _service.gen_id()
+            asyncio.create_task(_service.error_log_db(guild_id, e, trx_id))
+            service_result.set_error(l.t(guild_id, "message.unhandled_exception", uuid=trx_id))
+
+        return service_result
+
+
 class UiService:
     async def book_button_service(self, interaction: discord.Interaction) -> ServiceResult[Tuple[bool, int, list[ClanBattleLeftover]]]:
         service_result = ServiceResult[Tuple[bool, int, list[ClanBattleLeftover]]]()
@@ -907,7 +979,7 @@ class UiService:
                 return service_result
 
             _service.clan_battle_boss_book_repo.delete_book_by_id(book_result.clan_battle_boss_book_id)
-            embeds = await MainService().refresh_clan_battle_boss_embeds(guild_id, message_id)
+            embeds = await MainService().refresh_clan_battle_boss_embeds(guild_id, interaction.message)
 
             service_result.set_success(embeds.result)
 
@@ -1087,6 +1159,19 @@ class ClanBattlePeriodService:
         service_result = ServiceResult[ClanBattlePeriod]()
         try:
             data = _service.clan_battle_period_repo.get_current_cb_period()
+            service_result.set_success(data)
+
+        except Exception as e:
+            log.error(e)
+            service_result.set_error(str(e))
+            print(e)
+
+        return service_result
+
+    async def get_current_cb_period_day(self) -> ServiceResult[ClanBattlePeriodDay]:
+        service_result = ServiceResult[ClanBattlePeriodDay]()
+        try:
+            data = _service.clan_battle_period_repo.get_current_cb_period_day()
             service_result.set_success(data)
 
         except Exception as e:

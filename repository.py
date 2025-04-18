@@ -157,6 +157,35 @@ class ChannelRepository:
                     return entries
                 return []
 
+    def get_boss_channel_by_guild_id(self, guild_id: int) -> List[Channel]:
+        with connection_context() as conn:
+            with conn.cursor(dictionary=True) as cursor:
+                cursor.execute(
+                    """
+                    SELECT channel_id,
+                           guild_id,
+                           channel_type
+                    FROM channel
+                    WHERE guild_id = %(guild_id)s AND UPPER(channel_type) like '%BOSS%'
+                    """,
+                    {
+                        'guild_id' : guild_id,
+                    }
+                )
+                result = cursor.fetchall()
+                if result:
+                    entries = []
+                    for row in result:
+                        entries.append(
+                            Channel(
+                                channel_id=row['channel_id'],
+                                guild_id=row['guild_id'],
+                                channel_type=row['channel_type']
+                            )
+                        )
+                    return entries
+                return []
+
     def get_all_by_guild_id_and_type(self, guild_id: int, channel_type: str) -> Optional[Channel]:
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
@@ -745,6 +774,8 @@ class ClanBattlePeriodRepository:
                            boss5_id
                     FROM clan_battle_period
                     WHERE SYSDATE() BETWEEN date_from AND date_to
+                    ORDER BY clan_battle_period_id DESC
+                    LIMIT 1
                     """
                 )
                 result = cursor.fetchone()
@@ -779,6 +810,7 @@ class ClanBattlePeriodRepository:
                         FROM clan_battle_period
                         WHERE date_from <= LAST_DAY(CONCAT(%(year)s, '-', LPAD(%(month)s, 2, '0'), '-01'))
                           AND date_to >= CONCAT(%(year)s, '-', LPAD(%(month)s, 2, '0'), '-01')
+                        ORDER BY clan_battle_period_id DESC
                         LIMIT 1
                     """,
                     {
@@ -823,6 +855,8 @@ class ClanBattlePeriodRepository:
                     FROM (SELECT 1 AS dummy) AS d
                              LEFT JOIN clan_battle_period
                                        ON SYSDATE() BETWEEN date_from AND date_to
+                    ORDER BY clan_battle_period_id DESC
+                    LIMIT 1
                     """
                 )
                 result = cursor.fetchone()

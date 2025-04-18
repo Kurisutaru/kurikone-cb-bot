@@ -2,13 +2,14 @@ from discord.ext import commands
 from discord.ext.commands import Bot
 
 from config import check_env_vars
+import globals
 from globals import TL_SHIFTER_CHANNEL, logger, locale
 from locales import guild_locale
 from repository import *
 from services import MainService, ClanBattlePeriodService
 
-main_service = MainService()
-clan_battle_period_service = ClanBattlePeriodService()
+_main_service = MainService()
+_clan_battle_period_service = ClanBattlePeriodService()
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -32,6 +33,10 @@ async def on_ready():
     await update_presence(bot)
     await bot.tree.sync()
 
+    # Get Current and store Clan Battle Period
+    cb_period_result = await _clan_battle_period_service.get_current_cb_period()
+    globals.CURRENT_CB_PERIOD_ID = cb_period_result.result if cb_period_result.is_success else None
+
     for guild in bot.guilds:
         guild_locale[guild.id] = guild.preferred_locale.value.lower()
         await setup_channel(guild)
@@ -45,11 +50,11 @@ async def on_guild_join(guild):
 async def on_guild_remove(guild):
     log.info(f'Leaving guild {guild.id} - {guild.name}')
     await update_presence(bot)
-    await main_service.uninstall_bot_command(guild, TL_SHIFTER_CHANNEL)
+    await _main_service.uninstall_bot_command(guild, TL_SHIFTER_CHANNEL)
 
 async def setup_channel(guild):
     log.info(f'Setup for guild {guild.id} - {guild.name}')
-    await main_service.setup_guild_channel_message(guild, TL_SHIFTER_CHANNEL)
+    await _main_service.setup_guild_channel_message(guild, TL_SHIFTER_CHANNEL)
 
 async def update_presence(discord_bot: Bot) -> None:
     activity = discord.Activity(name=f"{len(discord_bot.guilds)} Servers", type=discord.ActivityType.listening)
