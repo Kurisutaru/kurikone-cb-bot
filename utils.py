@@ -227,7 +227,7 @@ def format_time(seconds: int) -> str:
 
 # DateTime with Timezone
 def now():
-    return datetime.now(jst).strftime(datetime_format)
+    return datetime.now(jst)
 
 def utc():
-    return datetime.now().strftime(datetime_format)
+    return datetime.now()
