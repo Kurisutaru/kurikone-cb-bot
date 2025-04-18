@@ -40,7 +40,6 @@ You can see my figma prototype at [here](https://www.figma.com/proto/C1qiBAUNZNN
      ```
    - For Windows/Mac: Download Docker Desktop from [docker.com](https://www.docker.com/products/docker-desktop)
 
-
 2. **Set Up Environment**:
    - Copy `.env.example` to `.env`:
      ```bash
