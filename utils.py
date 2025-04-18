@@ -34,51 +34,51 @@ async def discord_close_response(interaction: discord.Interaction):
         log.error(e)
         log.error(traceback.print_exc())
 
-async def send_message(interaction: discord.Interaction, content: str, ephemeral: bool = False, silent: bool = True, embed: Embed = None,
+async def send_message(interaction: discord.Interaction, content: str, ephemeral: bool = False, silent: bool = None, embed: Embed = None,
                              embeds: list[Embed] = None, view: View = None):
     param = create_message_param(content=content, embed=embed, embeds=embeds, view=view, ephemeral=ephemeral, silent=silent)
     await interaction.response.send_message(**param)
 
-async def send_message_short(interaction: discord.Interaction, content: str, ephemeral: bool = False, silent: bool = True, embed: Embed = None,
+async def send_message_short(interaction: discord.Interaction, content: str, ephemeral: bool = False, silent: bool = None, embed: Embed = None,
                              embeds: list[Embed] = None, view: View = None):
     param = create_message_param(content=content, embed=embed, embeds=embeds, view=view, ephemeral=ephemeral, silent=silent,
                                  delete_after=config.MESSAGE_DEFAULT_DELETE_AFTER_SHORT)
     await interaction.response.send_message(**param)
 
 
-async def send_message_medium(interaction: discord.Interaction, content: str, ephemeral: bool = False, silent: bool = True, embed: Embed = None, embeds=None,
+async def send_message_medium(interaction: discord.Interaction, content: str, ephemeral: bool = False, silent: bool = None, embed: Embed = None, embeds=None,
                               view: View = None):
     param = create_message_param(content=content, embed=embed, embeds=embeds, view=view, ephemeral=ephemeral, silent=silent,
                                  delete_after=config.MESSAGE_DEFAULT_DELETE_AFTER_MEDIUM)
     await interaction.response.send_message(**param)
 
 
-async def send_message_long(interaction: discord.Interaction, content: str, ephemeral: bool = False, silent: bool = True, embed: Embed = None, embeds=None,
+async def send_message_long(interaction: discord.Interaction, content: str, ephemeral: bool = False, silent: bool = None, embed: Embed = None, embeds=None,
                             view: View = None):
     param = create_message_param(content=content, embed=embed, embeds=embeds, view=view, ephemeral=ephemeral, silent=silent,
                                  delete_after=config.MESSAGE_DEFAULT_DELETE_AFTER_LONG)
     await interaction.response.send_message(**param)
 
-async def send_channel_message(interaction: discord.Interaction, content: str, silent: bool = True, embed: Embed = None,
+async def send_channel_message(interaction: discord.Interaction, content: str, silent: bool = None, embed: Embed = None,
                                      embeds: list[Embed] = None, view: View = None):
     param = create_message_param(content=content, embed=embed, embeds=embeds, view=view, silent=silent)
     await interaction.channel.send(**param)
 
-async def send_channel_message_short(interaction: discord.Interaction, content: str, silent: bool = True, embed: Embed = None,
+async def send_channel_message_short(interaction: discord.Interaction, content: str, silent: bool = None, embed: Embed = None,
                                      embeds: list[Embed] = None, view: View = None):
     param = create_message_param(content=content, embed=embed, embeds=embeds, view=view,
                                  delete_after=config.MESSAGE_DEFAULT_DELETE_AFTER_SHORT, silent=silent)
     await interaction.channel.send(**param)
 
 
-async def send_channel_message_medium(interaction: discord.Interaction, content: str, silent: bool = True, embed: Embed = None,
+async def send_channel_message_medium(interaction: discord.Interaction, content: str, silent: bool = None, embed: Embed = None,
                                       embeds: list[Embed] = None, view: View = None):
     param = create_message_param(content=content, embed=embed, embeds=embeds, view=view,
                                  delete_after=config.MESSAGE_DEFAULT_DELETE_AFTER_MEDIUM, silent=silent)
     await interaction.channel.send(**param)
 
 
-async def send_channel_message_long(interaction: discord.Interaction, content: str, silent: bool = True, embed: Embed = None,
+async def send_channel_message_long(interaction: discord.Interaction, content: str, silent: bool = None, embed: Embed = None,
                                     embeds: list[Embed] = None, view: View = None):
     param = create_message_param(content=content, embed=embed, embeds=embeds, view=view,
                                  delete_after=config.MESSAGE_DEFAULT_DELETE_AFTER_LONG, silent=silent)
