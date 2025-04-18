@@ -1,8 +1,6 @@
-version: '3.8'
-
 services:
   kurikone-cb-bot:
-    image: kurisutaru/kurikone-cb-bot
+    image: ghcr.io/kurisutaru/kurikone-cb-bot
     container_name: kurikone-cb-bot
     network_mode: bridge
     env_file:

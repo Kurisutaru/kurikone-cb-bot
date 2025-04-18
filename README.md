@@ -62,7 +62,7 @@ You can see my figma prototype at [here](https://www.figma.com/proto/C1qiBAUNZNN
      --name kurikone-bot \
      --env-file .env \
      --restart unless-stopped \
-     kurisutaru/kurikone-cb-bot:latest
+     ghcr.io/kurisutaru/kurikone-cb-bot:latest
    ```
 
 4. **View Logs**:
