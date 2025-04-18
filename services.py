@@ -722,12 +722,16 @@ class MainService:
 
         return service_result
 
-    async def generate_report_text(self, guild_id:int, year:int, month:int, day:int) -> ServiceResult[str]:
+    async def generate_report_text(self, guild_id:int, year:int, month:int, day:int, period_id:int = None) -> ServiceResult[str]:
         service_result = ServiceResult[str]()
 
         try:
-            header = _service.clan_battle_period_repo.get_by_param(year, month)
-            entries = _service.clan_battle_overall_entry_repo.get_report_entry_by_param(guild_id, year, month, day)
+            if period_id is None:
+                header = _service.clan_battle_period_repo.get_by_param(year, month)
+                entries = _service.clan_battle_overall_entry_repo.get_report_entry_by_param(guild_id, year, month, day)
+            else:
+                header = _service.clan_battle_period_repo.get_by_id_day(period_id)
+                entries = _service.clan_battle_overall_entry_repo.get_report_entry_by_guild_and_period_id(guild_id, period_id)
 
             result = f"# {header.clan_battle_period_name} - {l.t(guild_id, "ui.status.day", day=day)}{NEW_LINE}"
 
@@ -762,7 +766,7 @@ class MainService:
         # Current date info
         current_date = utils.now()
         try:
-            log.info(f"Refreshing Clan Battle Report Daily on {guild.name} - {guild.id}")
+            log.info(f"Refreshing Clan Battle Report on {guild.name} - {guild.id}")
             # Get current CB period once
             cur_period = _service.clan_battle_period_repo.get_current_cb_period_day()
             if cur_period.current_day == -1:
@@ -813,7 +817,8 @@ class MainService:
                 guild_id,
                 current_date.year,
                 current_date.month,
-                cb_report_message_data.day
+                cb_report_message_data.day,
+                cur_period.clan_battle_period_id
             )
 
             if not report_gen.is_success:
@@ -842,7 +847,8 @@ class MainService:
                     guild_id,
                     current_date.year,
                     current_date.month,
-                    cur_period.current_day
+                    cur_period.current_day,
+                    cur_period.clan_battle_period_id
                 )
 
                 if not new_report_gen.is_success:

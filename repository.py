@@ -793,6 +793,44 @@ class ClanBattlePeriodRepository:
                     )
                 return None
 
+    def get_by_id(self, clan_battle_period_id:int) -> Optional[ClanBattlePeriod] :
+        with connection_context() as conn:
+            with conn.cursor(dictionary=True) as cursor:
+                cursor.execute(
+                    """
+                    SELECT clan_battle_period_id,
+                           clan_battle_period_name,
+                           date_from,
+                           date_to,
+                           boss1_id,
+                           boss2_id,
+                           boss3_id,
+                           boss4_id,
+                           boss5_id
+                    FROM clan_battle_period
+                    WHERE clan_battle_period_id = %(clan_battle_period_id)s
+                    ORDER BY clan_battle_period_id DESC
+                    LIMIT 1
+                    """,
+                    {
+                        'clan_battle_period_id': clan_battle_period_id
+                    }
+                )
+                result = cursor.fetchone()
+                if result:
+                    return ClanBattlePeriod(
+                        clan_battle_period_id=result['clan_battle_period_id'],
+                        clan_battle_period_name=result['clan_battle_period_name'],
+                        date_from=result['date_from'],
+                        date_to=result['date_to'],
+                        boss1_id=result['boss1_id'],
+                        boss2_id=result['boss2_id'],
+                        boss3_id=result['boss3_id'],
+                        boss4_id=result['boss4_id'],
+                        boss5_id=result['boss5_id']
+                    )
+                return None
+
     def get_by_param(self, year: int, month:int) -> Optional[ClanBattlePeriod]:
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
@@ -832,6 +870,50 @@ class ClanBattlePeriodRepository:
                         boss5_id=result['boss5_id']
                     )
                 return None
+
+    def get_by_id_day(self, clan_battle_period_id:int) -> Optional[ClanBattlePeriod] :
+        with connection_context() as conn:
+            with conn.cursor(dictionary=True) as cursor:
+                cursor.execute(
+                    """
+                     SELECT clan_battle_period_id,
+                           clan_battle_period_name,
+                           date_to,
+                           date_from,
+                           boss1_id,
+                           boss2_id,
+                           boss3_id,
+                           boss4_id,
+                           boss5_id,
+                           IFNULL(DATEDIFF(
+                                          IF(HOUR(SYSDATE()) < 5, DATE_SUB(SYSDATE(), INTERVAL 1 DAY),
+                                             SYSDATE()),
+                                          date_from
+                                  ) + 1, -1) AS current_day
+                    FROM (SELECT 1 AS dummy) AS d
+                             LEFT JOIN clan_battle_period ON clan_battle_period_id = %(clan_battle_period_id)s
+                    ORDER BY clan_battle_period_id DESC
+                    LIMIT 1
+                    """,
+                    {
+                        'clan_battle_period_id': clan_battle_period_id
+                    }
+                )
+                result = cursor.fetchone()
+                if result:
+                    return ClanBattlePeriod(
+                        clan_battle_period_id=result['clan_battle_period_id'],
+                        clan_battle_period_name=result['clan_battle_period_name'],
+                        date_from=result['date_from'],
+                        date_to=result['date_to'],
+                        boss1_id=result['boss1_id'],
+                        boss2_id=result['boss2_id'],
+                        boss3_id=result['boss3_id'],
+                        boss4_id=result['boss4_id'],
+                        boss5_id=result['boss5_id']
+                    )
+                return None
+
 
     def get_current_cb_period_day(self) -> Optional[ClanBattlePeriodDay] :
         with connection_context() as conn:
@@ -1204,6 +1286,69 @@ class ClanBattleOverallEntryRepository:
                         'year': year,
                         'month': month,
                         'day': day
+                    }
+                )
+                result = cursor.fetchall()
+                if result:
+                    entry = []
+                    for row in result:
+                        entry.append(ClanBattleReportEntry(
+                            player_name=row['player_name'],
+                            patk_count=row['patk_count'],
+                            matk_count=row['matk_count'],
+                            leftover_count= row['leftover_count'],
+                            carry_count=row['carry_count'],
+                        ))
+                    return entry
+
+                return []
+
+    def get_report_entry_by_guild_and_period_id(self, guild_id:int, period_id: int) -> list[ClanBattleReportEntry]:
+        with connection_context() as conn:
+            with conn.cursor(dictionary=True) as cursor:
+                cursor.execute(
+                    """
+                        WITH ENTRY AS (SELECT DATEDIFF(
+                                                  IF(HOUR(CBOE.entry_date) < 5, DATE_SUB(CBOE.entry_date, INTERVAL 1 DAY),
+                                                     CBOE.entry_date),
+                                                  CBP.date_from
+                                          ) + 1                                                                          AS day,
+                                          CBOE.guild_id,
+                                          CBOE.player_id                                                                 AS player_id,
+                                          CBOE.player_name                                                               AS player_name,
+                                          SUM(IF(attack_type = 'PATK', 1, 0))                                            AS patk_count,
+                                          SUM(IF(attack_type = 'MATK', 1, 0))                                            AS matk_count,
+                                          SUM(IF(leftover_time IS NOT NULL AND overall_leftover_entry_id IS NULL, 1, 0)) AS leftover_count,
+                                          SUM(IF(attack_type = 'CARRY', 1, 0))                                           AS carry_count
+                                   FROM clan_battle_overall_entry CBOE
+                                            JOIN
+                                        clan_battle_period CBP ON CBP.clan_battle_period_id = CBOE.clan_battle_period_id
+                                            JOIN
+                                        clan_battle_boss CBB ON CBOE.clan_battle_boss_id = CBB.clan_battle_boss_id
+                                   WHERE CBOE.entry_date BETWEEN CBP.date_from AND CBP.date_to
+                                     AND CBP.clan_battle_period_id = %(guild_id)s
+                                     AND CBOE.guild_id = %(guild_id)s
+                                   GROUP BY DATEDIFF(
+                                                    IF(HOUR(CBOE.entry_date) < 5,
+                                                       DATE_SUB(CBOE.entry_date, INTERVAL 1 DAY),
+                                                       CBOE.entry_date),
+                                                    CBP.date_from
+                                            ) + 1,
+                                            CBOE.guild_id,
+                                            CBOE.player_id,
+                                            CBOE.player_name)
+                    SELECT GP.player_name as player_name,
+                           COALESCE(E.patk_count, 0) AS patk_count,
+                           COALESCE(E.matk_count, 0) AS matk_count,
+                           COALESCE(E.leftover_count, 0) AS leftover_count,
+                           COALESCE(E.carry_count, 0) AS carry_count
+                    FROM guild_player GP
+                             LEFT JOIN ENTRY E on GP.player_id = E.player_id
+                    WHERE GP.guild_id = %(guild_id)s
+                    """,
+                    {
+                        'guild_id': guild_id,
+                        'period_id': period_id,
                     }
                 )
                 result = cursor.fetchall()
