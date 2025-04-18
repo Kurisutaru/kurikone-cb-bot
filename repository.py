@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 from contextlib import contextmanager
 from models import *
@@ -88,6 +88,7 @@ class GuildRepository:
                         guild_id=result['guild_id'],
                         guild_name=result['guild_name']
                     )
+                return None
 
     def insert_guild(self, guild: Guild) -> Guild:
         with connection_context() as conn:
@@ -156,7 +157,7 @@ class ChannelRepository:
                     return entries
                 return []
 
-    def get_all_by_guild_id_and_type(self, guild_id: int, type: str) -> Channel:
+    def get_all_by_guild_id_and_type(self, guild_id: int, channel_type: str) -> Optional[Channel]:
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
                 cursor.execute(
@@ -170,7 +171,7 @@ class ChannelRepository:
                     """,
                     {
                         'guild_id' : guild_id,
-                        'channel_type' : type
+                        'channel_type' : channel_type
                     }
                 )
                 result = cursor.fetchone()
@@ -1301,7 +1302,7 @@ class ClanBattleReportMessageRepository:
 
 
 class GuildPlayerRepository:
-    def batch_insert(self, data: list[(int, int, str)]) -> bool:
+    def batch_insert(self, data: list[Tuple[int, int, str]]) -> bool:
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
                 cursor.executemany(

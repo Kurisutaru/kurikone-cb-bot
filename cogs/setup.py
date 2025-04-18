@@ -27,9 +27,9 @@ class SetupCommands(commands.Cog, name="Setup Commands", description="Collection
             await interact.response.defer(thinking=True, ephemeral=True)
 
             guild = interaction.guild
-            setup = await _main_service.install_bot_command(guild, TL_SHIFTER_CHANNEL)
-            if not setup.is_success:
-                await utils.send_followup_short(interaction=interact, content=f"{setup.error_messages}",
+            setup_result = await _main_service.install_bot_command(guild, TL_SHIFTER_CHANNEL)
+            if not setup_result.is_success:
+                await utils.send_followup_short(interaction=interact, content=f"{setup_result.error_messages}",
                                                 ephemeral=True)
                 return
 
@@ -41,6 +41,7 @@ class SetupCommands(commands.Cog, name="Setup Commands", description="Collection
         await utils.send_message_medium(interaction=interaction,
                                         content=l.t(guild_id, "ui.prompts.install_confirmation"),
                                         view=view, ephemeral=True)
+        return None
 
     @app_commands.command(name="uninstall",
                       description="This command will try to uninstall all channel related to the bots and removing data from database")
@@ -75,6 +76,7 @@ class SetupCommands(commands.Cog, name="Setup Commands", description="Collection
         await utils.send_message_medium(interaction=interaction,
                                         content=l.t(guild_id, "ui.prompts.uninstall_confirmation"),
                                         view=view, ephemeral=True)
+        return None
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(SetupCommands(bot))

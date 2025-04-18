@@ -44,7 +44,7 @@ class KuriLogger:
 
         # Force log file to be in ./logs/ directory
         log_dir = "logs"
-        os.makedirs(log_dir, exist_ok=True)  # Create if doesn't exist
+        os.makedirs(log_dir, exist_ok=True)  # Create if it doesn't exist
         full_log_path = os.path.join(log_dir, log_file)  # => logs/discord.log
         self.logger = logging.getLogger(name)
         self.logger.setLevel(min(file_level, console_level))  # Or set it to logging.DEBUG explicitly

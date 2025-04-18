@@ -1,7 +1,6 @@
 import asyncio
 import traceback
 import uuid
-from typing import Tuple
 
 from discord import Embed, Message, TextChannel
 from discord.abc import GuildChannel
