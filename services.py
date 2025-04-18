@@ -674,6 +674,9 @@ class MainService:
             # Guild
             _service.guild_repo.delete_by_guild_id(guild_id)
 
+            # Error Log
+            _service.error_log_repo.delete_by_guild_id(guild_id)
+
             # Remove TL-Shifter listener from global dictionary
             tl_shifter_channel.pop(guild.id, None)
 

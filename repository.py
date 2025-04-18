@@ -1374,3 +1374,17 @@ class ErrorLogRepository:
                     }
                 )
                 return True
+
+    def delete_by_guild_id(self, guild_id: int) -> bool:
+        with connection_context() as conn:
+            with conn.cursor(dictionary=True) as cursor:
+                cursor.execute(
+                """
+                    DELETE FROM error_log
+                    WHERE guild_id = %(guild_id)s
+                """,
+                    {
+                        'guild_id': guild_id,
+                    }
+                )
+                return True
