@@ -1,7 +1,6 @@
 import logging
 import os
 import threading
-import traceback
 from dataclasses import field
 from datetime import datetime
 from logging.handlers import TimedRotatingFileHandler
@@ -34,7 +33,7 @@ class KuriLogger:
 
         Args:
         - name (str): The name of the logger.
-        - log_file (str): The base name of the log file (will have date appended).
+        - log_file (str): The base name of the log file (will have date appended for rotations).
         - max_days (int): The maximum number of days to keep logs. Defaults to 7 (1 week).
         - file_level (int): The logging level for the file handler. Defaults to DEBUG.
         - console_level (int): The logging level for the console handler. Defaults to INFO.
@@ -47,9 +46,8 @@ class KuriLogger:
         log_dir = "logs"
         os.makedirs(log_dir, exist_ok=True)  # Create if it doesn't exist
 
-        # Remove .log extension if present to create base filename
-        base_log_name = log_file.replace('.log', '')
-        full_log_path = os.path.join(log_dir, base_log_name)  # => logs/discord
+        # Full path for the main log file
+        full_log_path = os.path.join(log_dir, log_file)  # => logs/discord.log
 
         self.logger = logging.getLogger(name)
         self.logger.setLevel(min(file_level, console_level))
@@ -63,7 +61,8 @@ class KuriLogger:
             encoding='utf-8'
         )
         self.file_handler.setLevel(file_level)
-        self.file_handler.suffix = "%Y-%m-%d.log"  # Format: discord-2023-01-01.log
+        self.file_handler.suffix = "-%Y-%m-%d.log"  # Format: discord-2023-01-01.log
+        self.file_handler.namer = lambda name: name.replace(".log", "") + ".log"  # Keep base name consistent
 
         # Create a console handler
         self.console_handler = logging.StreamHandler()

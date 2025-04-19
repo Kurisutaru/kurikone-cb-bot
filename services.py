@@ -60,7 +60,7 @@ class Services:
                         }
                     )
                     conn.commit()
-            log.error(f"[{transaction_id}] Error: {exception}")
+            #log.error(f"[{transaction_id}] Error: {exception}")
         except Exception as e:
             # Critical fallback: If DB logging fails, log to console + external service (e.g., Sentry)
             log.critical(
@@ -147,6 +147,8 @@ class MainService:
 
             service_result.set_success(guild_db)
         except Exception as e:
+            transaction_rollback()
+            log.error(e)
             raise e
 
         return service_result
@@ -863,6 +865,7 @@ class MainService:
             service_result.set_success(report_message)
         except Exception as e:
             transaction_rollback()
+            log.error(e)
             trx_id = _service.gen_id()
             asyncio.create_task(_service.error_log_db(guild_id, e, trx_id))
             service_result.set_error(l.t(guild_id, "message.unhandled_exception", uuid=trx_id))
@@ -933,10 +936,11 @@ class MainService:
 
             service_result.set_success(None)
         except Exception as e:
+            log.error(e)
             transaction_rollback()
-            trx_id = _service.gen_id()
-            asyncio.create_task(_service.error_log_db(guild_id, e, trx_id))
-            service_result.set_error(l.t(guild_id, "message.unhandled_exception", uuid=trx_id))
+
+        return service_result
+
 
         return service_result
 
@@ -1109,7 +1113,6 @@ class GuildService:
         except Exception as e:
             log.error(e)
             service_result.set_error(str(e))
-            print(e)
 
         return service_result
 
