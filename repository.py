@@ -1,4 +1,4 @@
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Type
 
 from contextlib import contextmanager
 
@@ -6,7 +6,6 @@ import attrs
 
 from models import *
 from database import get_connection, reset_connection_context, set_connection_context, db_connection_context
-
 
 @contextmanager
 def connection_context():
@@ -25,6 +24,22 @@ def connection_context():
         if should_close:
             conn.close()
             reset_connection_context()
+
+T = TypeVar('T')
+
+def fetch_all_to_model(cursor, model_class: Type[T]) -> List[T]:
+    """Convert all fetched rows to instances of the given model class."""
+    result = cursor.fetchall()
+    if result:
+        return [model_class(**row) for row in result]
+    return []
+
+def fetch_one_to_model(cursor, model_class: Type[T]) -> Optional[T]:
+    """Convert a single fetched row to an instance of the given model class."""
+    result = cursor.fetchone()
+    if result:
+        return model_class(**result)
+    return None
 
 class GenericRepository:
     def get_connection_id(self) -> int:
@@ -85,10 +100,7 @@ class GuildRepository:
                         "guild_id" : guild_id,
                     }
                 )
-                result = cursor.fetchone()
-                if result:
-                    return Guild(**result)
-                return None
+                return fetch_one_to_model(cursor, Guild)
 
     def insert_guild(self, guild: Guild) -> Guild:
         with connection_context() as conn:
@@ -140,15 +152,7 @@ class ChannelRepository:
                         'guild_id' : guild_id,
                     }
                 )
-                result = cursor.fetchall()
-                if result:
-                    entries = []
-                    for row in result:
-                        entries.append(
-                            Channel(**row)
-                        )
-                    return entries
-                return []
+                return fetch_all_to_model(cursor, Channel)
 
     def get_boss_channel_by_guild_id(self, guild_id: int) -> List[Channel]:
         with connection_context() as conn:
@@ -165,15 +169,7 @@ class ChannelRepository:
                         'guild_id' : guild_id,
                     }
                 )
-                result = cursor.fetchall()
-                if result:
-                    entries = []
-                    for row in result:
-                        entries.append(
-                            Channel(**row)
-                        )
-                    return entries
-                return []
+                return fetch_all_to_model(cursor, Channel)
 
     def get_all_by_guild_id_and_type(self, guild_id: int, channel_type: str) -> Optional[Channel]:
         with connection_context() as conn:
@@ -192,10 +188,7 @@ class ChannelRepository:
                         'channel_type' : channel_type
                     }
                 )
-                result = cursor.fetchone()
-                if result:
-                    return Channel(**result)
-                return None
+                return fetch_one_to_model(cursor, Channel)
 
     def insert_channel(self, channel: Channel) -> Channel:
         with connection_context() as conn:
@@ -318,10 +311,7 @@ class ChannelMessageRepository:
                         'channel_id' : channel_id,
                     }
                 )
-                result = cursor.fetchone()
-                if result:
-                    return ChannelMessage(**result)
-                return None
+                return fetch_one_to_model(cursor, ChannelMessage)
 
     def get_all_by_guild_id(self, guild_id: int) -> list[ChannelMessage]:
         with connection_context() as conn:
@@ -339,13 +329,7 @@ class ChannelMessageRepository:
                         'guild_id' : guild_id,
                     }
                 )
-                result = cursor.fetchall()
-                if result:
-                    entries = []
-                    for row in result:
-                        entries.append(ChannelMessage(**row))
-                    return entries
-                return []
+                return fetch_all_to_model(cursor, ChannelMessage)
 
     def delete_by_guild_id(self, guild_id: int) -> bool:
         with connection_context() as conn:
@@ -379,10 +363,7 @@ class ChannelMessageRepository:
                         'channel_type' : channel_type
                     }
                 )
-                result = cursor.fetchone()
-                if result:
-                    return ChannelMessage(**result)
-                return None
+                return fetch_one_to_model(cursor, ChannelMessage)
 
 
 class ClanBattleBossEntryRepository:
@@ -414,17 +395,7 @@ class ClanBattleBossEntryRepository:
                          %(current_health)s,
                          %(max_health)s)
                     """,
-                    {
-                        'guild_id' : clan_battle_boss_entry.guild_id,
-                        'message_id' : clan_battle_boss_entry.message_id,
-                        'clan_battle_period_id' : clan_battle_boss_entry.clan_battle_period_id,
-                        'clan_battle_boss_id': clan_battle_boss_entry.clan_battle_boss_id,
-                        'name' : clan_battle_boss_entry.name,
-                        'image_path' : clan_battle_boss_entry.image_path,
-                        'boss_round' : clan_battle_boss_entry.boss_round,
-                        'current_health' : clan_battle_boss_entry.current_health,
-                        'max_health' : clan_battle_boss_entry.max_health,
-                    }
+                    attrs.asdict(clan_battle_boss_entry)
                 )
                 clan_battle_boss_entry.clan_battle_boss_entry_id = cursor.lastrowid
 
@@ -455,10 +426,10 @@ class ClanBattleBossEntryRepository:
                         'message_id' : message_id,
                     }
                 )
-                result = cursor.fetchone()
-                if result:
-                    return ClanBattleBossEntry(**result)
-                return None
+                return fetch_one_to_model(cursor, ClanBattleBossEntry)
+
+    def get_last_active_period_by_message_id(self, message_id: int) -> Optional[ClanBattleBossEntry]:
+        with connection_context() as conn:
 
     def update_on_attack(self, clan_battle_boss_entry_id: int, current_health: int) -> bool:
         with connection_context() as conn:
@@ -536,13 +507,7 @@ class ClanBattleBossBookRepository:
                         'message_id' : message_id,
                     }
                 )
-                result = cursor.fetchall()
-                if result:
-                    entries = []
-                    for row in result:
-                        entries.append(ClanBattleBossBook(**row))
-                    return entries
-                return []
+                return fetch_all_to_model(cursor, ClanBattleBossBook)
 
     def get_player_book_entry(self, message_id: int, player_id: int) -> Optional[ClanBattleBossBook]:
         with connection_context() as conn:
@@ -569,10 +534,7 @@ class ClanBattleBossBookRepository:
                         'message_id' : message_id,
                     }
                 )
-                result = cursor.fetchone()
-                if result:
-                    return ClanBattleBossBook(**result)
-                return None
+                return fetch_one_to_model(cursor, ClanBattleBossBook)
 
     def get_player_book_count(self, guild_id: int, player_id: int) -> int:
         with connection_context() as conn:
@@ -650,7 +612,7 @@ class ClanBattleBossBookRepository:
                         SYSDATE()
                     )
                     """,
-                    attrs.asdict(clan_battle_boss_book)
+                    clan_battle_boss_book.to_db_dict()
                 )
                 clan_battle_boss_book.clan_battle_boss_book_id = cursor.lastrowid
 
@@ -711,10 +673,7 @@ class ClanBattlePeriodRepository:
                     LIMIT 1
                     """
                 )
-                result = cursor.fetchone()
-                if result:
-                    return ClanBattlePeriod(**result)
-                return None
+                return fetch_one_to_model(cursor, ClanBattlePeriod)
 
     def get_by_id(self, clan_battle_period_id:int) -> Optional[ClanBattlePeriod] :
         with connection_context() as conn:
@@ -739,10 +698,7 @@ class ClanBattlePeriodRepository:
                         'clan_battle_period_id': clan_battle_period_id
                     }
                 )
-                result = cursor.fetchone()
-                if result:
-                    return ClanBattlePeriod(**result)
-                return None
+                return fetch_one_to_model(cursor, ClanBattlePeriod)
 
     def get_by_param(self, year: int, month:int) -> Optional[ClanBattlePeriod]:
         with connection_context() as conn:
@@ -769,10 +725,7 @@ class ClanBattlePeriodRepository:
                         'month' : month,
                     }
                 )
-                result = cursor.fetchone()
-                if result:
-                    return ClanBattlePeriod(**result)
-                return None
+                return fetch_one_to_model(cursor, ClanBattlePeriod)
 
     def get_by_id_day(self, clan_battle_period_id:int) -> Optional[ClanBattlePeriod] :
         with connection_context() as conn:
@@ -802,10 +755,7 @@ class ClanBattlePeriodRepository:
                         'clan_battle_period_id': clan_battle_period_id
                     }
                 )
-                result = cursor.fetchone()
-                if result:
-                    return ClanBattlePeriodDay(**result)
-                return None
+                return fetch_one_to_model(cursor, ClanBattlePeriodDay)
 
 
     def get_current_cb_period_day(self) -> Optional[ClanBattlePeriodDay] :
@@ -834,10 +784,10 @@ class ClanBattlePeriodRepository:
                     LIMIT 1
                     """
                 )
-                result = cursor.fetchone()
-                if result:
-                    return ClanBattlePeriodDay(**result)
-                return None
+                return fetch_one_to_model(cursor, ClanBattlePeriodDay)
+
+    def set_all_inactive(self) -> bool :
+        with connection_context() as conn:
 
 class ClanBattleBossRepository:
 
@@ -885,10 +835,7 @@ class ClanBattleBossHealthRepository:
                         'boss_round' : boss_round,
                     }
                 )
-                result = cursor.fetchone()
-                if result:
-                    return ClanBattleBossHealth(**result)
-                return None
+                return fetch_one_to_model(cursor, ClanBattleBossHealth)
 
 
 class ClanBattleOverallEntryRepository:
@@ -921,14 +868,7 @@ class ClanBattleOverallEntryRepository:
                         'boss_round' : boss_round,
                     }
                 )
-                result = cursor.fetchall()
-                if result:
-                    entries = []
-                    for row in result:
-                        entry = ClanBattleOverallEntry(**row)
-                        entries.append(entry)
-                    return entries
-                return []
+                return fetch_all_to_model(cursor, ClanBattleOverallEntry)
 
     def insert(self, cb_overall_entry: ClanBattleOverallEntry) -> ClanBattleOverallEntry:
         with connection_context() as conn:
@@ -1049,14 +989,7 @@ class ClanBattleOverallEntryRepository:
                         'player_id': player_id,
                     }
                 )
-                result = cursor.fetchall()
-                if result:
-                    entries = []
-                    for row in result:
-                        entry = ClanBattleLeftover(**row)
-                        entries.append(entry)
-                    return entries
-                return []
+                return fetch_all_to_model(cursor, ClanBattleLeftover)
 
     def delete_by_guild_id(self, guild_id: int) -> bool:
         with connection_context() as conn:
@@ -1127,14 +1060,7 @@ class ClanBattleOverallEntryRepository:
                         'day': day
                     }
                 )
-                result = cursor.fetchall()
-                if result:
-                    entry = []
-                    for row in result:
-                        entry.append(ClanBattleReportEntry(**row))
-                    return entry
-
-                return []
+                return fetch_all_to_model(cursor, ClanBattleReportEntry)
 
     def get_report_entry_by_guild_and_period_id(self, guild_id:int, period_id: int) -> list[ClanBattleReportEntry]:
         with connection_context() as conn:
@@ -1184,14 +1110,8 @@ class ClanBattleOverallEntryRepository:
                         'period_id': period_id,
                     }
                 )
-                result = cursor.fetchall()
-                if result:
-                    entry = []
-                    for row in result:
-                        entry.append(ClanBattleReportEntry(**row))
-                    return entry
 
-                return []
+                return fetch_all_to_model(cursor, ClanBattleReportEntry)
 
 class ClanBattleReportMessageRepository:
     def get_by_guild_period_and_days(self, guild_id: int, clan_battle_period_id: int, day : int) -> Optional[ClanBattleReportMessage]:
@@ -1219,7 +1139,7 @@ class ClanBattleReportMessageRepository:
                 if result:
                     return ClanBattleReportMessage(**result)
 
-                return None
+                return fetch_one_to_model(cursor, ClanBattleReportMessage)
 
     def get_last_by_guild_period(self, guild_id: int, clan_battle_period_id: int) -> Optional[ClanBattleReportMessage]:
         with connection_context() as conn:
@@ -1241,11 +1161,8 @@ class ClanBattleReportMessageRepository:
                         'clan_battle_period_id': clan_battle_period_id,
                     }
                 )
-                result = cursor.fetchone()
-                if result:
-                    return ClanBattleReportMessage(**result)
 
-                return None
+                return fetch_one_to_model(cursor, ClanBattleReportMessage)
 
     def insert(self, report: ClanBattleReportMessage) -> ClanBattleReportMessage:
         with connection_context() as conn:
@@ -1332,14 +1249,8 @@ class GuildPlayerRepository:
                         'guild_id': guild_id,
                     }
                 )
-                result = cursor.fetchall()
-                entry = []
-                if result:
-                    for row in result:
-                        entry.append(GuildPlayer(**row))
-                    return entry
 
-                return []
+                return fetch_all_to_model(cursor, GuildPlayer)
 
 
 class ErrorLogRepository:

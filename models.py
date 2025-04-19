@@ -8,6 +8,21 @@ from enums import *
 T = TypeVar('T')
 
 
+class EnumSerializerMixin:
+    def to_db_dict(self):
+        data = {}
+        for var in fields(self.__class__):
+            value = getattr(self, var.name)
+
+            # Handle Enums
+            if isinstance(value, Enum):
+                data[var.name] = value.value
+            # Default case
+            else:
+                data[var.name] = value
+
+        return data
+
 @define
 class Guild:
     guild_id: int = field(default=None)
