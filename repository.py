@@ -431,6 +431,32 @@ class ClanBattleBossEntryRepository:
     def get_last_active_period_by_message_id(self, message_id: int) -> Optional[ClanBattleBossEntry]:
         with connection_context() as conn:
 
+            with conn.cursor(dictionary=True) as cursor:
+                cursor.execute(
+                    """
+                    SELECT CBBE.clan_battle_boss_entry_id,
+                           CBBE.guild_id,
+                           CBBE.message_id,
+                           CBBE.clan_battle_period_id,
+                           CBBE.clan_battle_boss_id,
+                           CBBE.name,
+                           CBBE.image_path,
+                           CBBE.boss_round,
+                           CBBE.current_health,
+                           CBBE.max_health
+                    FROM clan_battle_boss_entry AS CBBE 
+                    JOIN clan_battle_period CBR ON CBBE.clan_battle_period_id = CBR.clan_battle_period_id
+                    WHERE message_id = %(message_id)s
+                    AND CBR.is_active = 1
+                    ORDER BY boss_round, clan_battle_boss_entry_id DESC
+                    LIMIT 1
+                    """,
+                    {
+                        'message_id' : message_id
+                    }
+                )
+                return fetch_one_to_model(cursor, ClanBattleBossEntry)
+
     def update_on_attack(self, clan_battle_boss_entry_id: int, current_health: int) -> bool:
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
@@ -653,15 +679,55 @@ class ClanBattleBossBookRepository:
 
 class ClanBattlePeriodRepository:
 
-    def get_current_cb_period(self) -> Optional[ClanBattlePeriod] :
+    def insert(self, clan_battle_period: ClanBattlePeriod) -> ClanBattlePeriod :
+        with connection_context() as conn:
+            with conn.cursor(dictionary=True) as cursor:
+                cursor.execute(
+                    """
+                    INSERT INTO clan_battle_period
+                    (
+                        clan_battle_period_name, 
+                        period_type, 
+                        date_from, 
+                        date_to, 
+                        is_active, 
+                        boss1_id, 
+                        boss2_id, 
+                        boss3_id, 
+                        boss4_id, 
+                        boss5_id
+                    ) 
+                    VALUES 
+                    (
+                        %(clan_battle_period_name)s,
+                        %(period_type)s,
+                        %(date_from)s,
+                        %(date_to)s,
+                        %(is_active)s,
+                        %(boss1_id)s,
+                        %(boss2_id)s,
+                        %(boss3_id)s,
+                        %(boss4_id)s,
+                        %(boss5_id)s
+                    )
+                    """,
+                    clan_battle_period.to_db_dict()
+                )
+                clan_battle_period.clan_battle_overall_entry_id = cursor.lastrowid
+
+            return clan_battle_period
+
+    def get_latest_cb_period(self) -> Optional[ClanBattlePeriod] :
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
                 cursor.execute(
                     """
                     SELECT clan_battle_period_id,
                            clan_battle_period_name,
-                           date_from,
+                           period_type,
                            date_to,
+                           date_from,
+                           is_active,
                            boss1_id,
                            boss2_id,
                            boss3_id,
@@ -675,6 +741,30 @@ class ClanBattlePeriodRepository:
                 )
                 return fetch_one_to_model(cursor, ClanBattlePeriod)
 
+    def get_current_active_cb_period(self) -> Optional[ClanBattlePeriod] :
+        with connection_context() as conn:
+            with conn.cursor(dictionary=True) as cursor:
+                cursor.execute(
+                    """
+                    SELECT clan_battle_period_id,
+                           clan_battle_period_name,
+                           period_type,
+                           date_to,
+                           date_from,
+                           is_active,
+                           boss1_id,
+                           boss2_id,
+                           boss3_id,
+                           boss4_id,
+                           boss5_id
+                    FROM clan_battle_period
+                    WHERE is_active = 1
+                    ORDER BY clan_battle_period_id DESC
+                    LIMIT 1
+                    """
+                )
+                return fetch_one_to_model(cursor, ClanBattlePeriod)
+
     def get_by_id(self, clan_battle_period_id:int) -> Optional[ClanBattlePeriod] :
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
@@ -682,8 +772,10 @@ class ClanBattlePeriodRepository:
                     """
                     SELECT clan_battle_period_id,
                            clan_battle_period_name,
-                           date_from,
+                           period_type,
                            date_to,
+                           date_from,
+                           is_active,
                            boss1_id,
                            boss2_id,
                            boss3_id,
@@ -707,8 +799,10 @@ class ClanBattlePeriodRepository:
                     """
                         SELECT clan_battle_period_id,
                            clan_battle_period_name,
-                           date_from,
+                           period_type,
                            date_to,
+                           date_from,
+                           is_active,
                            boss1_id,
                            boss2_id,
                            boss3_id,
@@ -734,8 +828,10 @@ class ClanBattlePeriodRepository:
                     """
                      SELECT clan_battle_period_id,
                            clan_battle_period_name,
+                           period_type,
                            date_to,
                            date_from,
+                           is_active,
                            boss1_id,
                            boss2_id,
                            boss3_id,
@@ -758,15 +854,17 @@ class ClanBattlePeriodRepository:
                 return fetch_one_to_model(cursor, ClanBattlePeriodDay)
 
 
-    def get_current_cb_period_day(self) -> Optional[ClanBattlePeriodDay] :
+    def get_current_active_cb_period_day(self) -> Optional[ClanBattlePeriodDay] :
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
                 cursor.execute(
                     """
                     SELECT clan_battle_period_id,
                            clan_battle_period_name,
+                           period_type,
                            date_to,
                            date_from,
+                           is_active,
                            boss1_id,
                            boss2_id,
                            boss3_id,
@@ -780,6 +878,7 @@ class ClanBattlePeriodRepository:
                     FROM (SELECT 1 AS dummy) AS d
                              LEFT JOIN clan_battle_period
                                        ON SYSDATE() BETWEEN date_from AND date_to
+                    WHERE clan_battle_period.is_active = 1
                     ORDER BY clan_battle_period_id DESC
                     LIMIT 1
                     """
@@ -788,6 +887,30 @@ class ClanBattlePeriodRepository:
 
     def set_all_inactive(self) -> bool :
         with connection_context() as conn:
+            with conn.cursor(dictionary=True) as cursor:
+                cursor.execute(
+                    """
+                    UPDATE clan_battle_period
+                    SET is_active = 0
+                    WHERE is_active = 1
+                    """
+                )
+                return True
+
+    def set_active_by_id(self, clan_battle_period_id:int) -> bool :
+        with connection_context() as conn:
+            with conn.cursor(dictionary=True) as cursor:
+                cursor.execute(
+                    """
+                    UPDATE clan_battle_period
+                    SET is_active = 1
+                    WHERE clan_battle_period_id = %(clan_battle_period_id)s
+                    """,
+                    {
+                        'clan_battle_period_id': clan_battle_period_id
+                    }
+                )
+                return True
 
 class ClanBattleBossRepository:
 
@@ -808,10 +931,22 @@ class ClanBattleBossRepository:
                         'clan_battle_boss_id': clan_battle_boss_id,
                     }
                 )
-                result = cursor.fetchone()
-                if result:
-                    return ClanBattleBoss(**result)
-                return None
+                return fetch_one_to_model(cursor, ClanBattleBoss)
+
+    def get_all(self) -> Optional[list[ClanBattleBoss]]:
+        with connection_context() as conn:
+            with conn.cursor(dictionary=True) as cursor:
+                cursor.execute(
+                    """
+                    SELECT clan_battle_boss_id,
+                           name,
+                           description,
+                           image_path,
+                           position
+                    FROM clan_battle_boss
+                    """,
+                )
+                return fetch_all_to_model(cursor, ClanBattleBoss)
 
 
 class ClanBattleBossHealthRepository:
@@ -903,7 +1038,7 @@ class ClanBattleOverallEntryRepository:
                         SYSDATE()
                     )
                     """,
-                    attrs.asdict(cb_overall_entry)
+                    cb_overall_entry.to_db_dict()
                 )
                 cb_overall_entry.clan_battle_overall_entry_id = cursor.lastrowid
 
@@ -1135,13 +1270,10 @@ class ClanBattleReportMessageRepository:
                         'day': day
                     }
                 )
-                result = cursor.fetchone()
-                if result:
-                    return ClanBattleReportMessage(**result)
 
                 return fetch_one_to_model(cursor, ClanBattleReportMessage)
 
-    def get_last_by_guild_period(self, guild_id: int, clan_battle_period_id: int) -> Optional[ClanBattleReportMessage]:
+    def get_last_by_guild_period(self, guild_id: int, clan_battle_period_id: int, day: int) -> Optional[ClanBattleReportMessage]:
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
                 cursor.execute(
@@ -1154,11 +1286,13 @@ class ClanBattleReportMessageRepository:
                     FROM clan_battle_report_message
                     WHERE guild_id = %(guild_id)s
                       AND clan_battle_period_id = %(clan_battle_period_id)s
+                      AND day = %(day)s
                     ORDER BY clan_battle_report_message_id DESC
                     """,
                     {
                         'guild_id': guild_id,
                         'clan_battle_period_id': clan_battle_period_id,
+                        'day': day
                     }
                 )
 

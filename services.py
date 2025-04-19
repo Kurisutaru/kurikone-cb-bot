@@ -2,9 +2,11 @@ import asyncio
 import traceback
 import uuid
 
+import discord
 from discord import Embed, Message, TextChannel
 from discord.abc import GuildChannel
 
+import globals
 from database import db_pool
 from globals import locale, logger
 
@@ -85,7 +87,7 @@ class MainService:
         guild_id = guild.id
         try:
             # Master CB Data
-            clan_battle_period = _service.clan_battle_period_repo.get_current_cb_period()
+            clan_battle_period = _service.clan_battle_period_repo.get_current_active_cb_period()
 
             if clan_battle_period is None:
                 log.error("Need Database setup !")
@@ -248,11 +250,20 @@ class MainService:
                 )
                 _service.channel_message_repo.insert_channel_message(ch_message)
 
-            period = _service.clan_battle_period_repo.get_current_cb_period()
+            period = _service.clan_battle_period_repo.get_current_active_cb_period()
             boss_id = getattr(period, f"{enum.value['type'].lower()}_id")
 
             cb_entry = _service.clan_battle_boss_entry_repo.get_last_by_message_id(message_id=ch_message.message_id)
             message = await utils.discord_try_fetch_message(channel, ch_message.message_id)
+
+            # Alter if different CB period, set old into viewable only or something and embed color dark
+            if message and cb_entry and period and cb_entry.clan_battle_period_id != period.clan_battle_period_id:
+                # Set the embed color daaark
+                for embed in message.embeds:
+                    embed.colour = discord.Colour.dark_grey()
+                await message.edit(view=None, embeds=message.embeds)
+                message = None
+                cb_entry = None
 
             # Main logic flow
             if message is None:
@@ -394,7 +405,7 @@ class MainService:
                 service_result.set_error(f"Boss entry is None")
                 return service_result
 
-            period = _service.clan_battle_period_repo.get_current_cb_period()
+            period = _service.clan_battle_period_repo.get_current_active_cb_period()
             if period is None:
                 service_result.set_error(f"Period is None")
                 return service_result
@@ -451,7 +462,7 @@ class MainService:
                 service_result.set_error(f"Boss entry is None")
                 return service_result
 
-            period = _service.clan_battle_period_repo.get_current_cb_period()
+            period = _service.clan_battle_period_repo.get_current_active_cb_period()
             if period is None:
                 service_result.set_error(f"Period is None")
                 return service_result
@@ -543,7 +554,7 @@ class MainService:
                 service_result.set_error(f"Boss Health is None")
                 return service_result
 
-            period = _service.clan_battle_period_repo.get_current_cb_period()
+            period = _service.clan_battle_period_repo.get_current_active_cb_period()
             if health is None:
                 service_result.set_error(f"Period is None")
                 return service_result
@@ -760,7 +771,6 @@ class MainService:
 
         return service_result
 
-
     @transactional
     async def refresh_report_channel_message(self, guild: discord.Guild) -> ServiceResult[Optional[Message]]:
         service_result = ServiceResult[Optional[Message]]()
@@ -768,9 +778,8 @@ class MainService:
         # Current date info
         current_date = utils.now()
         try:
-            log.info(f"Refreshing Clan Battle Report on {guild.name} - {guild.id}")
             # Get current CB period once
-            cur_period = _service.clan_battle_period_repo.get_current_cb_period_day()
+            cur_period = _service.clan_battle_period_repo.get_current_active_cb_period_day()
             if cur_period.current_day == -1:
                 service_result.set_error("No Running Clan Battle period detected")
                 return service_result
@@ -799,13 +808,21 @@ class MainService:
                     report_message_data.message_id = report_message.id
                     _service.channel_message_repo.update_channel_message(report_message_data)
 
+
             # Get latest CB report message from DB
             cb_report_message_data = _service.clan_battle_report_message_repo.get_last_by_guild_period(
-                guild_id, cur_period.clan_battle_period_id
+                guild_id, cur_period.clan_battle_period_id, cur_period.current_day
             )
 
             # If no existing report message, create one with current day
             if cb_report_message_data is None:
+                # Alter here if message exist but report data is new,
+                # so it don't replace old one, but create new one if Period LIVE
+                if report_message and cur_period.period_type == PeriodType.LIVE:
+                    report_message = await channel.send(content=l.t(guild_id, "ui.status.preparing_data"))
+                    report_message_data.message_id = report_message.id
+                    _service.channel_message_repo.update_channel_message(report_message_data)
+
                 cb_report_message_data = ClanBattleReportMessage(
                     guild_id=guild_id,
                     clan_battle_period_id=cur_period.clan_battle_period_id,
@@ -874,17 +891,17 @@ class MainService:
 
 
     @transactional
-    async def new_clan_battle_period(self, guild: discord.Guild) -> ServiceResult[None]:
+    async def check_cb_period_message(self, guild: discord.Guild) -> ServiceResult[None]:
         service_result = ServiceResult[None]()
         guild_id = guild.id
-        # Current date info
-        current_date = utils.now()
         try:
-            log.info(f"Generating New Clan Battle Period on {guild.name} - {guild.id}")
-            # Get current CB period once
-            period = _service.clan_battle_period_repo.get_current_cb_period_day()
-            if period.current_day == -1:
-                service_result.set_error("No Running Clan Battle period detected")
+            # Get CB period mark as active
+            active_period = _service.clan_battle_period_repo.get_current_active_cb_period()
+            # Get current CB period (should be)
+            current_period = _service.clan_battle_period_repo.get_latest_cb_period()
+
+            if active_period and current_period and active_period.clan_battle_period_id == current_period.clan_battle_period_id:
+                service_result.set_success(None)
                 return service_result
 
             # Get channel data once
@@ -918,13 +935,13 @@ class MainService:
                 ch_message.message_id = message.id
                 _service.channel_message_repo.update_channel_message(ch_message)
 
-                boss_id = getattr(period, f"{chan.channel_type.value['type'].lower()}_id")
+                boss_id = getattr(active_period, f"{chan.channel_type.value['type'].lower()}_id")
 
                 await self.insert_clan_battle_entry_by_round(
                     guild_id=guild_id,
                     message_id=message.id,
                     boss_id=boss_id,
-                    period_id=period.clan_battle_period_id,
+                    period_id=active_period.clan_battle_period_id,
                     boss_round=1
                 )
 
@@ -941,6 +958,46 @@ class MainService:
 
         return service_result
 
+    @transactional
+    async def check_clan_battle_period(self) -> ServiceResult[bool]:
+        service_result = ServiceResult[bool]()
+        # Current date info
+        current_date = utils.now()
+        try:
+            # Get CB period mark as active
+            active_period = _service.clan_battle_period_repo.get_current_active_cb_period()
+            # Get current CB period (should be)
+            current_period = _service.clan_battle_period_repo.get_latest_cb_period()
+
+            # Check if all exist and same period then nothing to do
+            if active_period and current_period and active_period.clan_battle_period_id == current_period.clan_battle_period_id:
+                service_result.set_success(False)
+                return service_result
+
+
+            # If active period is existed copy the mobs only like aoi
+            # If not, randomize the boss
+            # Also just prepare, don't make it active, let the 5AM Cron task do the job to switch the period
+            if current_period is None:
+                if active_period is None:
+                    bosses = _service.clan_battle_boss_repo.get_all()
+                    rand_boss = utils.generate_random_boss_period(bosses)
+                    generate_period = utils.generate_current_cb_period()
+                    # Append the generated random boss
+                    generate_period.merge_bosses(rand_boss)
+                else:
+                    generate_period = utils.generate_current_cb_period()
+                    generate_period.merge_bosses(active_period)
+
+                # Set all other period not active
+                _service.clan_battle_period_repo.set_all_inactive()
+                _service.clan_battle_period_repo.insert(generate_period)
+
+
+            service_result.set_success(True)
+        except Exception as e:
+            log.error(e)
+            transaction_rollback()
 
         return service_result
 
@@ -951,6 +1008,13 @@ class UiService:
         guild_id = interaction.guild_id
         try:
             user_id = interaction.user.id
+            message_id = interaction.message.id
+
+            # Check if ended
+            boss_entry = _service.clan_battle_boss_entry_repo.get_last_active_period_by_message_id(message_id)
+            if boss_entry is None:
+                service_result.set_error(l.t(guild_id, "ui.status.clan_battle_ended"))
+                return service_result
 
             boss_book = _service.clan_battle_boss_book_repo.get_player_book_count(guild_id, user_id)
             if boss_book > 0:
@@ -986,6 +1050,12 @@ class UiService:
             user_id = interaction.user.id
             message_id = interaction.message.id
 
+            # Check if ended
+            boss_entry = _service.clan_battle_boss_entry_repo.get_last_active_period_by_message_id(message_id)
+            if boss_entry is None:
+                service_result.set_error(l.t(guild_id, "ui.status.clan_battle_ended"))
+                return service_result
+
             book_result = _service.clan_battle_boss_book_repo.get_player_book_entry(
                 message_id=message_id,
                 player_id=user_id
@@ -1014,6 +1084,13 @@ class UiService:
         guild_id = interaction.guild_id
         try:
             message_id = interaction.message.id
+
+            # Check if ended
+            boss_entry = _service.clan_battle_boss_entry_repo.get_last_active_period_by_message_id(message_id)
+            if boss_entry is None:
+                service_result.set_error(l.t(guild_id, "ui.status.clan_battle_ended"))
+                return service_result
+
             if not user_input.isdigit():
                 service_result.set_error(f"## {l.t(guild_id, "ui.validation.only_numbers_allowed")}")
                 return service_result
@@ -1054,6 +1131,12 @@ class UiService:
         try:
             message_id = interaction.message.id
             user_id = interaction.user.id
+            # Check if ended
+            boss_entry = _service.clan_battle_boss_entry_repo.get_last_active_period_by_message_id(message_id)
+            if boss_entry is None:
+                service_result.set_error(l.t(guild_id, "ui.status.clan_battle_ended"))
+                return service_result
+
             book_result = _service.clan_battle_boss_book_repo.get_player_book_entry(message_id, user_id)
 
             if book_result is None:
@@ -1078,6 +1161,12 @@ class UiService:
         try:
             message_id = interaction.message.id
             user_id = interaction.user.id
+
+            # Check if ended
+            boss_entry = _service.clan_battle_boss_entry_repo.get_last_active_period_by_message_id(message_id)
+            if boss_entry is None:
+                service_result.set_error(l.t(guild_id, "ui.status.clan_battle_ended"))
+                return service_result
 
             book = _service.clan_battle_boss_book_repo.get_player_book_entry(message_id, user_id)
 
@@ -1171,10 +1260,23 @@ class ChannelService:
 
 class ClanBattlePeriodService:
 
-    async def get_current_cb_period(self) -> ServiceResult[ClanBattlePeriod]:
+    async def get_latest_cb_period(self) -> ServiceResult[ClanBattlePeriod]:
         service_result = ServiceResult[ClanBattlePeriod]()
         try:
-            data = _service.clan_battle_period_repo.get_current_cb_period()
+            data = _service.clan_battle_period_repo.get_latest_cb_period()
+            service_result.set_success(data)
+
+        except Exception as e:
+            log.error(e)
+            service_result.set_error(str(e))
+            print(e)
+
+        return service_result
+
+    async def get_current_active_cb_period(self) -> ServiceResult[ClanBattlePeriod]:
+        service_result = ServiceResult[ClanBattlePeriod]()
+        try:
+            data = _service.clan_battle_period_repo.get_current_active_cb_period()
             service_result.set_success(data)
 
         except Exception as e:
@@ -1187,7 +1289,7 @@ class ClanBattlePeriodService:
     async def get_current_cb_period_day(self) -> ServiceResult[ClanBattlePeriodDay]:
         service_result = ServiceResult[ClanBattlePeriodDay]()
         try:
-            data = _service.clan_battle_period_repo.get_current_cb_period_day()
+            data = _service.clan_battle_period_repo.get_current_active_cb_period_day()
             service_result.set_success(data)
 
         except Exception as e:
@@ -1323,7 +1425,7 @@ class ClanBattleBossPeriodService:
         service_result = ServiceResult[ClanBattlePeriod]()
 
         try:
-            result = _service.clan_battle_period_repo.get_current_cb_period()
+            result = _service.clan_battle_period_repo.get_latest_cb_period()
             service_result.set_success(result)
         except Exception as e:
             log.error(e)

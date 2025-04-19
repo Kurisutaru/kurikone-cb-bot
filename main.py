@@ -1,3 +1,5 @@
+import asyncio
+
 from discord.ext import commands
 from discord.ext.commands import Bot
 
@@ -31,11 +33,9 @@ async def on_ready():
     await bot.load_extension("cogs.clan_battle")
 
     await update_presence(bot)
-    await bot.tree.sync()
+    #await bot.tree.sync()
 
-    # Get Current and store Clan Battle Period
-    cb_period_result = await _clan_battle_period_service.get_current_cb_period()
-    globals.CURRENT_CB_PERIOD_ID = cb_period_result.result if cb_period_result.is_success else None
+    await _main_service.check_clan_battle_period()
 
     for guild in bot.guilds:
         guild_locale[guild.id] = guild.preferred_locale.value.lower()

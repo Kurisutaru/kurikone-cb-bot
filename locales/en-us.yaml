@@ -33,6 +33,7 @@ en-us:
       round: "Round %{round}"
       day: "Day %{day}"
       not_synced: "NO DATA OR ROLE MEMBER NOT SYNCED"
+      clan_battle_ended: "The Clan Battle has been ended."
     validation:
       enter_entry_type_first: "Input entry first!"
       only_numbers_allowed: "Number only!"

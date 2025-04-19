@@ -33,6 +33,7 @@ ja:
       round: "ラウンド %{round}"
       day: "%{day}日"
       not_synced: "データまたは役割メンバーが同期されていません"
+      clan_battle_ended: "クランバトルが終了しました。"
     validation:
       enter_entry_type_first: "先にエントリータイプを入力してください！"
       only_numbers_allowed: "数字のみ入力可能です！"

@@ -19,6 +19,11 @@ class ChannelEnum(Enum):
     TL_SHIFTER = {"type": "TL_SHIFTER", "name": config.TL_SHIFTER_CHANNEL_NAME}
 
 
+class PeriodType(Enum):
+    LIVE = "LIVE"
+    OFFSEASON = "OFFSEASON"
+
+
 class AttackTypeEnum(Enum):
     PATK = "🥊"
     MATK = "📘"

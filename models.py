@@ -1,7 +1,7 @@
 from datetime import datetime
-from typing import TypeVar, Generic
+from typing import TypeVar, Generic, Union
 
-from attrs import field, define
+from attrs import field, define, fields
 
 from enums import *
 
@@ -30,7 +30,7 @@ class Guild:
 
 
 @define
-class Channel:
+class Channel(EnumSerializerMixin):
     channel_id: int = field(default=None)
     guild_id: int = field(default=None)
     channel_type: ChannelEnum = field(default=None, converter=lambda x: ChannelEnum[x] if isinstance(x, str) else x)
@@ -57,13 +57,14 @@ class ClanBattleBossEntry:
 
 
 @define
-class ClanBattleBossBook:
+class ClanBattleBossBook(EnumSerializerMixin):
     guild_id: int
     clan_battle_boss_book_id: int = field(default=None)
     clan_battle_boss_entry_id: int = field(default=None)
     player_id: int = field(default=None)
     player_name: str = field(default=None)
-    attack_type: AttackTypeEnum = field(converter=lambda x: AttackTypeEnum[x] if isinstance(x, str) else x, default=None)
+    attack_type: AttackTypeEnum = field(converter=lambda x: AttackTypeEnum[x] if isinstance(x, str) else AttackTypeEnum(x) ,
+                                        default=None)
     damage: int = field(default=None)
     clan_battle_overall_entry_id: int = field(default=None)
     leftover_time: int = field(default=None)
@@ -89,16 +90,28 @@ class ClanBattleBossHealth:
 
 
 @define
-class ClanBattlePeriod:
+class ClanBattlePeriod(EnumSerializerMixin):
     clan_battle_period_id: int = field(default=None)
     clan_battle_period_name: str = field(default=None)
+    period_type: PeriodType = field(converter=lambda x: PeriodType[x] if isinstance(x, str) else PeriodType(x),
+                                        default=None)
     date_from: datetime = field(default=None)
     date_to: datetime = field(default=None)
+    is_active: bool = field(default=False)
     boss1_id: int = field(default=None)
     boss2_id: int = field(default=None)
     boss3_id: int = field(default=None)
     boss4_id: int = field(default=None)
     boss5_id: int = field(default=None)
+
+    def merge_bosses(self, source: Union[dict, object]):
+        for i in range(1, 6):
+            attr = f'boss{i}_id'
+            if isinstance(source, dict):
+                setattr(self, attr, source.get(attr))
+            else:
+                setattr(self, attr, getattr(source, attr, None))
+
 
 @define
 class ClanBattlePeriodDay(ClanBattlePeriod):
@@ -106,7 +119,7 @@ class ClanBattlePeriodDay(ClanBattlePeriod):
 
 
 @define
-class ClanBattleOverallEntry:
+class ClanBattleOverallEntry(EnumSerializerMixin):
     clan_battle_overall_entry_id: int = field(default=None)
     guild_id: int = field(default=None)
     clan_battle_period_id: int = field(default=None)
@@ -122,12 +135,13 @@ class ClanBattleOverallEntry:
 
 
 @define
-class ClanBattleLeftover:
+class ClanBattleLeftover(EnumSerializerMixin):
     clan_battle_overall_entry_id: int = field(default=None)
     clan_battle_boss_id: int = field(default=None)
     clan_battle_boss_name: str = field(default=None)
     player_id: int = field(default=None)
-    attack_type: AttackTypeEnum = field(converter=lambda x: AttackTypeEnum[x] if isinstance(x, str) else x, default=None)
+    attack_type: AttackTypeEnum = field(converter=lambda x: AttackTypeEnum[x] if isinstance(x, str) else AttackTypeEnum(x),
+                                        default=None)
     leftover_time: int = field(default=None)
     overall_leftover_entry_id: int = field(default=None)
 
@@ -170,3 +184,4 @@ class ServiceResult(Generic[T]):
     def set_error(self, err_msg: str):
         self.error_messages = err_msg
         self.is_success = False
+

@@ -1,6 +1,8 @@
 import math
+import random
 import traceback
-from datetime import datetime
+from datetime import datetime, timedelta
+
 from typing import List, Optional
 
 import discord
@@ -8,10 +10,10 @@ from discord import TextChannel, Colour, Message, Embed
 from discord.ui import View
 
 from config import config
-from enums import EmojiEnum, AttackTypeEnum
-from globals import NEW_LINE, locale, logger, jst, datetime_format
+from enums import EmojiEnum, AttackTypeEnum, PeriodType
+from globals import NEW_LINE, locale, logger, jst, PURIKONE_LIVE_SERVICE_DATE
 
-from models import ClanBattleBossEntry, ClanBattleOverallEntry, ClanBattleBossBook
+from models import ClanBattleBossEntry, ClanBattleOverallEntry, ClanBattleBossBook, ClanBattleBoss, ClanBattlePeriod
 
 l = locale
 log = logger
@@ -231,3 +233,87 @@ def now():
 
 def utc():
     return datetime.now()
+
+
+# Period thingy
+def calc_cb_num():
+    cur_date = now()
+    count = ((cur_date.year - PURIKONE_LIVE_SERVICE_DATE.year) * 12) + (cur_date.month - PURIKONE_LIVE_SERVICE_DATE.month)
+    return abs(count - 1)
+
+def ordinal(n):
+    if 11 <= (n % 100) <= 13:
+        suffix = 'th'
+    else:
+        suffix = ['th', 'st', 'nd', 'rd', 'th'][min(n % 10, 4)]
+    return f"{n}{suffix}"
+
+
+def check_season_status(current_date=None):
+    if current_date is None:
+        current_date = now()
+
+    # Get the end of current month
+    if current_date.month == 12:
+        next_month = current_date.replace(year=current_date.year + 1, month=1, day=1)
+    else:
+        next_month = current_date.replace(month=current_date.month + 1, day=1)
+
+    end_of_month = next_month - timedelta(days=1)
+    end_of_month = end_of_month.replace(hour=0, minute=0, second=0, microsecond=0)
+
+    # Calculate important dates
+    end_minus_5 = end_of_month - timedelta(days=5)
+    end_minus_5 = end_minus_5.replace(hour=5, minute=0, second=0, microsecond=0)  # Set to 05:00
+
+    end_minus_1 = end_of_month - timedelta(days=1)
+    end_minus_1 = end_minus_1.replace(hour=0, minute=0, second=0, microsecond=0)  # Set to 00:00
+
+    # Check if current date is in LIVE period
+    if end_minus_5 <= current_date <= end_minus_1:
+        return {
+            "period_type": PeriodType.LIVE,
+            "date_from": end_minus_5,
+            "date_to": end_of_month
+        }
+    else:
+        # For OFFSEASON, we need dates from previous month's end-1 to current month's end-5
+        prev_month_end = (current_date.replace(day=1) - timedelta(days=1))
+        prev_month_end = prev_month_end.replace(hour=0, minute=0, second=0, microsecond=0)
+
+        prev_month_end_minus_1 = prev_month_end - timedelta(days=1)
+        prev_month_end_minus_1 = prev_month_end_minus_1.replace(hour=0, minute=0, second=0, microsecond=0)
+
+        current_month_end_minus_5 = end_of_month - timedelta(days=5)
+        current_month_end_minus_5 = current_month_end_minus_5.replace(hour=5, minute=0, second=0, microsecond=0)
+
+        return {
+            "period_type": PeriodType.OFFSEASON,
+            "date_from": prev_month_end_minus_1,
+            "date_to": current_month_end_minus_5
+        }
+
+def generate_current_cb_period() -> ClanBattlePeriod:
+    season_status = check_season_status()
+
+    return ClanBattlePeriod(
+        clan_battle_period_name=f"{ordinal(calc_cb_num())} {"Purikone CB" if season_status['period_type'] == PeriodType.LIVE else season_status['period_type'].value}",
+        is_active = True,
+        **season_status
+    )
+
+
+def generate_random_boss_period(bosses: list[ClanBattleBoss]) -> dict:
+    bosses_1 = [boss.clan_battle_boss_id for boss in bosses if boss.position == 1]
+    bosses_2 = [boss.clan_battle_boss_id for boss in bosses if boss.position == 2]
+    bosses_3 = [boss.clan_battle_boss_id for boss in bosses if boss.position == 3]
+    bosses_4 = [boss.clan_battle_boss_id for boss in bosses if boss.position == 4]
+    bosses_5 = [boss.clan_battle_boss_id for boss in bosses if boss.position == 5]
+
+    return {
+        "boss1_id" : random.choice(bosses_1),
+        "boss2_id" : random.choice(bosses_2),
+        "boss3_id" : random.choice(bosses_3),
+        "boss4_id" : random.choice(bosses_4),
+        "boss5_id" : random.choice(bosses_5),
+    }

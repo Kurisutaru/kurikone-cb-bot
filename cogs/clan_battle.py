@@ -5,7 +5,8 @@ from discord import app_commands
 from discord.ext import commands, tasks
 
 import utils
-from globals import TL_SHIFTER_CHANNEL, SPACE_PATTERN, NON_DIGIT, NEW_LINE, locale, logger, jst, CURRENT_CB_PERIOD_ID
+from globals import TL_SHIFTER_CHANNEL, SPACE_PATTERN, NON_DIGIT, NEW_LINE, locale, logger, jst, CURRENT_CB_PERIOD_ID, \
+    datetime_format
 from models import GuildPlayer
 from services import MainService, ClanBattlePeriodService
 
@@ -139,28 +140,19 @@ class ClanBattleCommands(commands.Cog, name="Clan Battle Commands", description=
             await message.reply(NEW_LINE.join(result_lines))
 
     # Background task
-    everyday_cb_time = datetime.time(hour=5, minute=5, tzinfo=jst)
-
+    everyday_cb_time = datetime.time(hour=5, minute=0, tzinfo=jst)
     @tasks.loop(time=everyday_cb_time)
     async def refresh_clan_battle_report_daily(self):
-        cb_period_result = await _clan_battle_period_service.get_current_cb_period_day()
-        cb_period = cb_period_result.result
-
-        if cb_period.current_day == -1:
-            log.info("Refresh Clan Battle Report Daily Stopped : No Running Clan Battle Period")
-            return
-
-        gen_new_period = False
-        if CURRENT_CB_PERIOD_ID != cb_period.clan_battle_period_id:
-            gen_new_period = True
-            globals.CURRENT_CB_PERIOD_ID = cb_period.clan_battle_period_id
 
         for guild in self.bot.guilds:
-            if gen_new_period:
-                await _main_service.new_clan_battle_period(guild)
-            await _main_service.refresh_report_channel_message(guild)
+            log.info(f"Refresh Bot Daily: {guild.name} - {guild.id}")
+            await _main_service.setup_guild_channel_message(guild)
 
-
+    everyday_cb_end_time = datetime.time(hour=0, minute=0, tzinfo=jst)
+    @tasks.loop(time=everyday_cb_end_time)
+    async def check_clan_battle_period(self):
+        log.info(f"Check Clan Battle Period daily @{utils.now().strftime(datetime_format)}")
+        await _main_service.check_clan_battle_period()
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(ClanBattleCommands(bot))
