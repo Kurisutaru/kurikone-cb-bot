@@ -1,6 +1,9 @@
 from typing import List, Optional, Tuple
 
 from contextlib import contextmanager
+
+import attrs
+
 from models import *
 from database import get_connection, reset_connection_context, set_connection_context, db_connection_context
 
@@ -84,10 +87,7 @@ class GuildRepository:
                 )
                 result = cursor.fetchone()
                 if result:
-                    return Guild(
-                        guild_id=result['guild_id'],
-                        guild_name=result['guild_name']
-                    )
+                    return Guild(**result)
                 return None
 
     def insert_guild(self, guild: Guild) -> Guild:
@@ -101,10 +101,7 @@ class GuildRepository:
                         )
                     VALUES (%(guild_id)s, %(guild_name)s)
                     """,
-                    {
-                        'guild_id' : guild.guild_id,
-                        'guild_name' : guild.guild_name,
-                    }
+                    attrs.asdict(guild)
                 )
 
                 return guild
@@ -148,11 +145,7 @@ class ChannelRepository:
                     entries = []
                     for row in result:
                         entries.append(
-                            Channel(
-                                channel_id=row['channel_id'],
-                                guild_id=row['guild_id'],
-                                channel_type=row['channel_type']
-                            )
+                            Channel(**row)
                         )
                     return entries
                 return []
@@ -177,11 +170,7 @@ class ChannelRepository:
                     entries = []
                     for row in result:
                         entries.append(
-                            Channel(
-                                channel_id=row['channel_id'],
-                                guild_id=row['guild_id'],
-                                channel_type=row['channel_type']
-                            )
+                            Channel(**row)
                         )
                     return entries
                 return []
@@ -205,11 +194,7 @@ class ChannelRepository:
                 )
                 result = cursor.fetchone()
                 if result:
-                    return Channel(
-                                channel_id=result['channel_id'],
-                                guild_id=result['guild_id'],
-                                channel_type=result['channel_type']
-                            )
+                    return Channel(**result)
                 return None
 
     def insert_channel(self, channel: Channel) -> Channel:
@@ -335,10 +320,7 @@ class ChannelMessageRepository:
                 )
                 result = cursor.fetchone()
                 if result:
-                    return ChannelMessage(
-                        channel_id=result['channel_id'],
-                        message_id=result['message_id']
-                    )
+                    return ChannelMessage(**result)
                 return None
 
     def get_all_by_guild_id(self, guild_id: int) -> list[ChannelMessage]:
@@ -361,10 +343,7 @@ class ChannelMessageRepository:
                 if result:
                     entries = []
                     for row in result:
-                        entries.append(ChannelMessage(
-                            channel_id=row['channel_id'],
-                            message_id=row['message_id']
-                        ))
+                        entries.append(ChannelMessage(**row))
                     return entries
                 return []
 
@@ -402,10 +381,7 @@ class ChannelMessageRepository:
                 )
                 result = cursor.fetchone()
                 if result:
-                    return ChannelMessage(
-                        channel_id=result['channel_id'],
-                        message_id=result['message_id']
-                    )
+                    return ChannelMessage(**result)
                 return None
 
 
@@ -481,18 +457,7 @@ class ClanBattleBossEntryRepository:
                 )
                 result = cursor.fetchone()
                 if result:
-                    return ClanBattleBossEntry(
-                        clan_battle_boss_entry_id=result['clan_battle_boss_entry_id'],
-                        guild_id=result['guild_id'],
-                        message_id=result['message_id'],
-                        clan_battle_period_id=result['clan_battle_period_id'],
-                        clan_battle_boss_id=result['clan_battle_boss_id'],
-                        name=result['name'],
-                        image_path=result['image_path'],
-                        boss_round=result['boss_round'],
-                        current_health=result['current_health'],
-                        max_health=result['max_health']
-                    )
+                    return ClanBattleBossEntry(**result)
                 return None
 
     def update_on_attack(self, clan_battle_boss_entry_id: int, current_health: int) -> bool:
@@ -575,18 +540,7 @@ class ClanBattleBossBookRepository:
                 if result:
                     entries = []
                     for row in result:
-                        entries.append(ClanBattleBossBook(
-                            clan_battle_boss_book_id=row['clan_battle_boss_book_id'],
-                            clan_battle_boss_entry_id=row['clan_battle_boss_entry_id'],
-                            guild_id=row['guild_id'],
-                            player_id=row['player_id'],
-                            player_name=row['player_name'],
-                            attack_type=row['attack_type'],
-                            damage=row['damage'],
-                            clan_battle_overall_entry_id=row['clan_battle_overall_entry_id'],
-                            leftover_time=row['leftover_time'],
-                            entry_date=row['entry_date']
-                        ))
+                        entries.append(ClanBattleBossBook(**row))
                     return entries
                 return []
 
@@ -617,18 +571,7 @@ class ClanBattleBossBookRepository:
                 )
                 result = cursor.fetchone()
                 if result:
-                    return ClanBattleBossBook(
-                        clan_battle_boss_book_id=result['clan_battle_boss_book_id'],
-                        clan_battle_boss_entry_id=result['clan_battle_boss_entry_id'],
-                        guild_id=result['guild_id'],
-                        player_id=result['player_id'],
-                        player_name=result['player_name'],
-                        attack_type=result['attack_type'],
-                        damage=result['damage'],
-                        clan_battle_overall_entry_id=result['clan_battle_overall_entry_id'],
-                        leftover_time=result['leftover_time'],
-                        entry_date=result['entry_date']
-                    )
+                    return ClanBattleBossBook(**result)
                 return None
 
     def get_player_book_count(self, guild_id: int, player_id: int) -> int:
@@ -707,17 +650,7 @@ class ClanBattleBossBookRepository:
                         SYSDATE()
                     )
                     """,
-                    {
-                        'clan_battle_boss_book_id': clan_battle_boss_book.clan_battle_boss_book_id,
-                        'clan_battle_boss_entry_id': clan_battle_boss_book.clan_battle_boss_entry_id,
-                        'guild_id' : clan_battle_boss_book.guild_id,
-                        'player_id' : clan_battle_boss_book.player_id,
-                        'player_name' : clan_battle_boss_book.player_name,
-                        'attack_type' : clan_battle_boss_book.attack_type.name,
-                        'damage' : clan_battle_boss_book.damage,
-                        'clan_battle_overall_entry_id': clan_battle_boss_book.clan_battle_overall_entry_id,
-                        'leftover_time' : clan_battle_boss_book.leftover_time,
-                    }
+                    attrs.asdict(clan_battle_boss_book)
                 )
                 clan_battle_boss_book.clan_battle_boss_book_id = cursor.lastrowid
 
@@ -780,17 +713,7 @@ class ClanBattlePeriodRepository:
                 )
                 result = cursor.fetchone()
                 if result:
-                    return ClanBattlePeriod(
-                        clan_battle_period_id=result['clan_battle_period_id'],
-                        clan_battle_period_name=result['clan_battle_period_name'],
-                        date_from=result['date_from'],
-                        date_to=result['date_to'],
-                        boss1_id=result['boss1_id'],
-                        boss2_id=result['boss2_id'],
-                        boss3_id=result['boss3_id'],
-                        boss4_id=result['boss4_id'],
-                        boss5_id=result['boss5_id']
-                    )
+                    return ClanBattlePeriod(**result)
                 return None
 
     def get_by_id(self, clan_battle_period_id:int) -> Optional[ClanBattlePeriod] :
@@ -818,17 +741,7 @@ class ClanBattlePeriodRepository:
                 )
                 result = cursor.fetchone()
                 if result:
-                    return ClanBattlePeriod(
-                        clan_battle_period_id=result['clan_battle_period_id'],
-                        clan_battle_period_name=result['clan_battle_period_name'],
-                        date_from=result['date_from'],
-                        date_to=result['date_to'],
-                        boss1_id=result['boss1_id'],
-                        boss2_id=result['boss2_id'],
-                        boss3_id=result['boss3_id'],
-                        boss4_id=result['boss4_id'],
-                        boss5_id=result['boss5_id']
-                    )
+                    return ClanBattlePeriod(**result)
                 return None
 
     def get_by_param(self, year: int, month:int) -> Optional[ClanBattlePeriod]:
@@ -858,17 +771,7 @@ class ClanBattlePeriodRepository:
                 )
                 result = cursor.fetchone()
                 if result:
-                    return ClanBattlePeriod(
-                        clan_battle_period_id=result['clan_battle_period_id'],
-                        clan_battle_period_name=result['clan_battle_period_name'],
-                        date_from=result['date_from'],
-                        date_to=result['date_to'],
-                        boss1_id=result['boss1_id'],
-                        boss2_id=result['boss2_id'],
-                        boss3_id=result['boss3_id'],
-                        boss4_id=result['boss4_id'],
-                        boss5_id=result['boss5_id']
-                    )
+                    return ClanBattlePeriod(**result)
                 return None
 
     def get_by_id_day(self, clan_battle_period_id:int) -> Optional[ClanBattlePeriod] :
@@ -901,17 +804,7 @@ class ClanBattlePeriodRepository:
                 )
                 result = cursor.fetchone()
                 if result:
-                    return ClanBattlePeriod(
-                        clan_battle_period_id=result['clan_battle_period_id'],
-                        clan_battle_period_name=result['clan_battle_period_name'],
-                        date_from=result['date_from'],
-                        date_to=result['date_to'],
-                        boss1_id=result['boss1_id'],
-                        boss2_id=result['boss2_id'],
-                        boss3_id=result['boss3_id'],
-                        boss4_id=result['boss4_id'],
-                        boss5_id=result['boss5_id']
-                    )
+                    return ClanBattlePeriodDay(**result)
                 return None
 
 
@@ -943,18 +836,7 @@ class ClanBattlePeriodRepository:
                 )
                 result = cursor.fetchone()
                 if result:
-                    return ClanBattlePeriodDay(
-                        clan_battle_period_id=result['clan_battle_period_id'],
-                        clan_battle_period_name=result['clan_battle_period_name'],
-                        date_from=result['date_from'],
-                        date_to=result['date_to'],
-                        boss1_id=result['boss1_id'],
-                        boss2_id=result['boss2_id'],
-                        boss3_id=result['boss3_id'],
-                        boss4_id=result['boss4_id'],
-                        boss5_id=result['boss5_id'],
-                        current_day=result['current_day'],
-                    )
+                    return ClanBattlePeriodDay(**result)
                 return None
 
 class ClanBattleBossRepository:
@@ -978,13 +860,7 @@ class ClanBattleBossRepository:
                 )
                 result = cursor.fetchone()
                 if result:
-                    return ClanBattleBoss(
-                        clan_battle_boss_id=result['clan_battle_boss_id'],
-                        name=result['name'],
-                        description=result['description'],
-                        image_path=result['image_path'],
-                        position=result['position']
-                    )
+                    return ClanBattleBoss(**result)
                 return None
 
 
@@ -1011,13 +887,7 @@ class ClanBattleBossHealthRepository:
                 )
                 result = cursor.fetchone()
                 if result:
-                    return ClanBattleBossHealth(
-                        clan_battle_boss_health_id=result['clan_battle_boss_health_id'],
-                        position=result['position'],
-                        round_from=result['round_from'],
-                        round_to=result['round_to'],
-                        health=result['health']
-                    )
+                    return ClanBattleBossHealth(**result)
                 return None
 
 
@@ -1055,20 +925,7 @@ class ClanBattleOverallEntryRepository:
                 if result:
                     entries = []
                     for row in result:
-                        entry = ClanBattleOverallEntry(
-                            clan_battle_overall_entry_id=row['clan_battle_overall_entry_id'],
-                            guild_id=row['guild_id'],
-                            clan_battle_period_id=row['clan_battle_period_id'],
-                            clan_battle_boss_id=row['clan_battle_boss_id'],
-                            player_id=row['player_id'],
-                            player_name=row['player_name'],
-                            boss_round=row['boss_round'],
-                            attack_type=row['attack_type'],
-                            damage=row['damage'],
-                            leftover_time=row['leftover_time'],
-                            overall_leftover_entry_id=row['overall_leftover_entry_id'],
-                            entry_date=row['entry_date']
-                        )
+                        entry = ClanBattleOverallEntry(**row)
                         entries.append(entry)
                     return entries
                 return []
@@ -1106,18 +963,7 @@ class ClanBattleOverallEntryRepository:
                         SYSDATE()
                     )
                     """,
-                    {
-                        'guild_id': cb_overall_entry.guild_id,
-                        'clan_battle_period_id': cb_overall_entry.clan_battle_period_id,
-                        'clan_battle_boss_id': cb_overall_entry.clan_battle_boss_id,
-                        'player_id': cb_overall_entry.player_id,
-                        'player_name': cb_overall_entry.player_name,
-                        'boss_round': cb_overall_entry.boss_round,
-                        'damage': cb_overall_entry.damage,
-                        'attack_type': cb_overall_entry.attack_type.name,
-                        'leftover_time': cb_overall_entry.leftover_time,
-                        'overall_leftover_entry_id': cb_overall_entry.overall_leftover_entry_id,
-                    }
+                    attrs.asdict(cb_overall_entry)
                 )
                 cb_overall_entry.clan_battle_overall_entry_id = cursor.lastrowid
 
@@ -1207,14 +1053,7 @@ class ClanBattleOverallEntryRepository:
                 if result:
                     entries = []
                     for row in result:
-                        entry = ClanBattleLeftover(
-                            clan_battle_overall_entry_id=row['clan_battle_overall_entry_id'],
-                            clan_battle_boss_id=row['clan_battle_boss_id'],
-                            clan_battle_boss_name=row['name'],
-                            player_id=row['player_id'],
-                            attack_type=row['attack_type'],
-                            leftover_time=row['leftover_time'],
-                        )
+                        entry = ClanBattleLeftover(**row)
                         entries.append(entry)
                     return entries
                 return []
@@ -1292,13 +1131,7 @@ class ClanBattleOverallEntryRepository:
                 if result:
                     entry = []
                     for row in result:
-                        entry.append(ClanBattleReportEntry(
-                            player_name=row['player_name'],
-                            patk_count=row['patk_count'],
-                            matk_count=row['matk_count'],
-                            leftover_count= row['leftover_count'],
-                            carry_count=row['carry_count'],
-                        ))
+                        entry.append(ClanBattleReportEntry(**row))
                     return entry
 
                 return []
@@ -1355,13 +1188,7 @@ class ClanBattleOverallEntryRepository:
                 if result:
                     entry = []
                     for row in result:
-                        entry.append(ClanBattleReportEntry(
-                            player_name=row['player_name'],
-                            patk_count=row['patk_count'],
-                            matk_count=row['matk_count'],
-                            leftover_count= row['leftover_count'],
-                            carry_count=row['carry_count'],
-                        ))
+                        entry.append(ClanBattleReportEntry(**row))
                     return entry
 
                 return []
@@ -1390,13 +1217,7 @@ class ClanBattleReportMessageRepository:
                 )
                 result = cursor.fetchone()
                 if result:
-                    return ClanBattleReportMessage(
-                        clan_battle_report_message_id=result['clan_battle_report_message_id'],
-                        guild_id=result['guild_id'],
-                        clan_battle_period_id=result['clan_battle_period_id'],
-                        day=result['day'],
-                        message_id=result['message_id']
-                    )
+                    return ClanBattleReportMessage(**result)
 
                 return None
 
@@ -1422,13 +1243,7 @@ class ClanBattleReportMessageRepository:
                 )
                 result = cursor.fetchone()
                 if result:
-                    return ClanBattleReportMessage(
-                        clan_battle_report_message_id=result['clan_battle_report_message_id'],
-                        guild_id=result['guild_id'],
-                        clan_battle_period_id=result['clan_battle_period_id'],
-                        day=result['day'],
-                        message_id=result['message_id']
-                    )
+                    return ClanBattleReportMessage(**result)
 
                 return None
 
@@ -1452,12 +1267,7 @@ class ClanBattleReportMessageRepository:
                         %(message_id)s
                     )
                     """,
-                    {
-                        'guild_id': report.guild_id,
-                        'clan_battle_period_id': report.clan_battle_period_id,
-                        'day': report.day,
-                        'message_id': report.message_id,
-                    }
+                    attrs.asdict(report)
                 )
                 report.clan_battle_report_message_id = cursor.lastrowid
                 return report
@@ -1526,11 +1336,7 @@ class GuildPlayerRepository:
                 entry = []
                 if result:
                     for row in result:
-                        entry.append(GuildPlayer(
-                            guild_id=row['guild_id'],
-                            player_id=row['player_id'],
-                            player_name=row['player_name'],
-                        ))
+                        entry.append(GuildPlayer(**row))
                     return entry
 
                 return []
