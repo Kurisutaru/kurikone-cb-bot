@@ -2,18 +2,14 @@ import asyncio
 import traceback
 import uuid
 
-import discord
 from discord import Embed, Message, TextChannel
 from discord.abc import GuildChannel
 
-import globals
+import utils
 from database import db_pool
 from globals import locale, logger
-
 from repository import *
 from transactional import transactional, transaction_rollback
-
-import utils
 
 l = locale
 log = logger
@@ -128,6 +124,7 @@ class MainService:
             service_result.set_success(None)
 
         except Exception as e:
+            log.error(e)
             transaction_rollback()
             trx_id = _service.gen_id()
             asyncio.create_task(_service.error_log_db(guild_id, e, trx_id))
@@ -149,8 +146,8 @@ class MainService:
 
             service_result.set_success(guild_db)
         except Exception as e:
-            transaction_rollback()
             log.error(e)
+            transaction_rollback()
             raise e
 
         return service_result
@@ -347,8 +344,8 @@ class MainService:
             service_result.set_success(cb_entry)
 
         except Exception as e:
-            transaction_rollback()
             log.error(e)
+            transaction_rollback()
             service_result.set_error(str(e))
 
         return service_result
@@ -383,7 +380,6 @@ class MainService:
             service_result.set_success(embeds)
 
         except Exception as e:
-            log.error(e)
             service_result.set_error(str(e))
 
         return service_result
@@ -438,6 +434,7 @@ class MainService:
 
             service_result.set_success(None)
         except Exception as e:
+            log.error(e)
             transaction_rollback()
             trx_id = _service.gen_id()
             asyncio.create_task(_service.error_log_db(guild_id, e, trx_id))
@@ -495,6 +492,7 @@ class MainService:
 
             service_result.set_success(overall)
         except Exception as e:
+            log.error(e)
             transaction_rollback()
             trx_id = _service.gen_id()
             asyncio.create_task(_service.error_log_db(guild_id, e, trx_id))
@@ -583,8 +581,8 @@ class MainService:
 
             service_result.set_success(boss_entry)
         except Exception as e:
-            transaction_rollback()
             log.error(e)
+            transaction_rollback()
             service_result.set_error(str(e))
             print(e)
 
@@ -621,6 +619,7 @@ class MainService:
             service_result.set_success(result)
 
         except Exception as e:
+            log.error(e)
             transaction_rollback()
             trx_id = _service.gen_id()
             asyncio.create_task(_service.error_log_db(guild_id, e, trx_id))
@@ -646,8 +645,8 @@ class MainService:
             service_result.set_success(None)
 
         except Exception as e:
-            transaction_rollback()
             log.error(e)
+            transaction_rollback()
             service_result.set_error(str(e))
 
         return service_result
@@ -704,6 +703,7 @@ class MainService:
             service_result.set_success(channels)
 
         except Exception as e:
+            log.error(e)
             transaction_rollback()
             trx_id = _service.gen_id()
             asyncio.create_task(_service.error_log_db(guild_id, e, trx_id))
@@ -728,6 +728,7 @@ class MainService:
             service_result.set_success(None)
 
         except Exception as e:
+            log.error(e)
             transaction_rollback()
             trx_id = _service.gen_id()
             asyncio.create_task(_service.error_log_db(guild_id, e, trx_id))
@@ -766,7 +767,6 @@ class MainService:
             service_result.set_success(result)
 
         except Exception as e:
-            log.error(e)
             service_result.set_error(str(e))
 
         return service_result
@@ -881,8 +881,8 @@ class MainService:
 
             service_result.set_success(report_message)
         except Exception as e:
-            transaction_rollback()
             log.error(e)
+            transaction_rollback()
             trx_id = _service.gen_id()
             asyncio.create_task(_service.error_log_db(guild_id, e, trx_id))
             service_result.set_error(l.t(guild_id, "message.unhandled_exception", uuid=trx_id))
@@ -1035,6 +1035,7 @@ class UiService:
             service_result.set_success((disable, utils.reduce_int_ab_non_zero(a=3, b=count), leftover))
 
         except Exception as e:
+            log.error(e)
             transaction_rollback()
             trx_id = _service.gen_id()
             asyncio.create_task(_service.error_log_db(guild_id, e, trx_id))
@@ -1071,6 +1072,33 @@ class UiService:
             service_result.set_success(embeds.result)
 
         except Exception as e:
+            log.error(e)
+            transaction_rollback()
+            trx_id = _service.gen_id()
+            asyncio.create_task(_service.error_log_db(guild_id, e, trx_id))
+            service_result.set_error(l.t(guild_id, "message.unhandled_exception", uuid=trx_id))
+
+        return service_result
+
+    async def entry_button_service(self, interaction: discord.Interaction) -> ServiceResult[None]:
+        service_result = ServiceResult[None]()
+        guild_id = interaction.guild_id
+        try:
+            # Check if ended
+            boss_entry = _service.clan_battle_boss_entry_repo.get_last_active_period_by_message_id(interaction.message.id)
+            if boss_entry is None:
+                service_result.set_error(l.t(guild_id, "ui.status.clan_battle_ended"))
+                return service_result
+
+            book = _service.clan_battle_boss_book_repo.get_player_book_entry(interaction.message.id,
+                                                                              interaction.user.id)
+            if book is None:
+                service_result.set_error(f"## {l.t(interaction.guild_id, "ui.status.not_yet_booked")}")
+                return service_result
+
+            return service_result
+        except Exception as e:
+            log.error(e)
             transaction_rollback()
             trx_id = _service.gen_id()
             asyncio.create_task(_service.error_log_db(guild_id, e, trx_id))
@@ -1118,6 +1146,7 @@ class UiService:
             service_result.set_success(embeds.result)
 
         except Exception as e:
+            log.error(e)
             transaction_rollback()
             trx_id = _service.gen_id()
             asyncio.create_task(_service.error_log_db(guild_id, e, trx_id))
@@ -1200,7 +1229,6 @@ class GuildService:
             service_result.set_success(data)
 
         except Exception as e:
-            log.error(e)
             service_result.set_error(str(e))
 
         return service_result
@@ -1215,8 +1243,8 @@ class GuildService:
             service_result.set_success(data)
 
         except Exception as e:
-            transaction_rollback()
             log.error(e)
+            transaction_rollback()
             service_result.set_error(str(e))
             print(e)
 
@@ -1233,7 +1261,6 @@ class ChannelService:
             service_result.set_success(data)
 
         except Exception as e:
-            log.error(e)
             service_result.set_error(str(e))
             print(e)
 
@@ -1250,8 +1277,8 @@ class ChannelService:
             service_result.set_success(data)
 
         except Exception as e:
-            transaction_rollback()
             log.error(e)
+            transaction_rollback()
             service_result.set_error(str(e))
             print(e)
 
@@ -1267,7 +1294,6 @@ class ClanBattlePeriodService:
             service_result.set_success(data)
 
         except Exception as e:
-            log.error(e)
             service_result.set_error(str(e))
             print(e)
 
@@ -1280,7 +1306,6 @@ class ClanBattlePeriodService:
             service_result.set_success(data)
 
         except Exception as e:
-            log.error(e)
             service_result.set_error(str(e))
             print(e)
 
@@ -1293,7 +1318,6 @@ class ClanBattlePeriodService:
             service_result.set_success(data)
 
         except Exception as e:
-            log.error(e)
             service_result.set_error(str(e))
             print(e)
 
@@ -1310,7 +1334,6 @@ class ClanBattleBossBookService:
                                                                                      player_id=player_id)
             service_result.set_success(cb_book)
         except Exception as e:
-            log.error(e)
             service_result.set_error(str(e))
 
         return service_result
@@ -1324,7 +1347,6 @@ class ClanBattleBossBookService:
             service_result.set_success(cb_book)
 
         except Exception as e:
-            log.error(e)
             service_result.set_error(str(e))
 
         return service_result
@@ -1337,8 +1359,8 @@ class ClanBattleBossBookService:
             service_result.set_success(None)
 
         except Exception as e:
-            transaction_rollback()
             log.error(e)
+            transaction_rollback()
             service_result.set_error(str(e))
 
         return service_result
@@ -1352,8 +1374,8 @@ class ClanBattleBossBookService:
             service_result.set_success(None)
 
         except Exception as e:
-            transaction_rollback()
             log.error(e)
+            transaction_rollback()
             service_result.set_error(str(e))
 
         return service_result
@@ -1369,7 +1391,6 @@ class ClanBattleOverallEntryService:
                 guild_id, player_id)
             service_result.set_success(book_count)
         except Exception as e:
-            log.error(e)
             service_result.set_error(str(e))
 
         return service_result
@@ -1383,7 +1404,6 @@ class ClanBattleOverallEntryService:
                 guild_id, player_id)
             service_result.set_success(leftover_list)
         except Exception as e:
-            log.error(e)
             service_result.set_error(str(e))
 
         return service_result
@@ -1400,8 +1420,8 @@ class ClanBattleBossEntryService:
             result = _service.clan_battle_boss_entry_repo.insert_clan_battle_boss_entry(clan_battle_boss_entry)
             service_result.set_success(result)
         except Exception as e:
-            transaction_rollback()
             log.error(e)
+            transaction_rollback()
             service_result.set_error(str(e))
 
         return service_result
@@ -1413,7 +1433,6 @@ class ClanBattleBossEntryService:
             result = _service.clan_battle_boss_entry_repo.get_last_by_message_id(message_id)
             service_result.set_success(result)
         except Exception as e:
-            log.error(e)
             service_result.set_error(str(e))
 
         return service_result
@@ -1428,7 +1447,6 @@ class ClanBattleBossPeriodService:
             result = _service.clan_battle_period_repo.get_latest_cb_period()
             service_result.set_success(result)
         except Exception as e:
-            log.error(e)
             service_result.set_error(str(e))
 
         return service_result

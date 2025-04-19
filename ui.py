@@ -78,12 +78,10 @@ class EntryButton(Button):
                          row=1)
 
     async def callback(self, interaction: discord.Interaction):
-        book = await _clan_battle_boss_book_service.get_player_book_entry(message_id=interaction.message.id,
-                                                                          player_id=interaction.user.id)
-        if book.is_success and book.result is None:
-            await utils.send_message_short(interaction=interaction,
-                                           content=f"## {l.t(interaction.guild_id, "ui.status.not_yet_booked")}",
-                                           ephemeral=True)
+
+        service = await _ui_service.entry_button_service(interaction)
+        if not service.is_success:
+            await utils.send_message_short(interaction, service.error_messages, True)
             return
 
         modal = EntryInputModal(interaction.guild_id)
@@ -298,6 +296,7 @@ class DeadOkButton(Button):
         if not dead_result.is_success:
             log.error(dead_result.error_messages)
             await interaction.response.defer(ephemeral=True)
+            return
 
         boss_id = dead_result.result.clan_battle_boss_id
         generate = await _main_service.generate_next_boss(interaction, boss_id, message_id,
@@ -305,11 +304,13 @@ class DeadOkButton(Button):
         if not generate.is_success:
             log.error(generate.error_messages)
             await interaction.response.defer(ephemeral=True)
+            return
 
         message = await utils.discord_try_fetch_message(interaction.channel, generate.result.message_id)
         if message is None:
             log.error("Failed to fetch message")
             await interaction.response.defer(ephemeral=True)
+            return
 
         embeds = await _main_service.refresh_clan_battle_boss_embeds(guild_id, message.id)
         if not embeds.is_success:
