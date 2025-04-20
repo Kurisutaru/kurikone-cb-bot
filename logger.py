@@ -4,6 +4,7 @@ import threading
 from dataclasses import field
 from datetime import datetime
 from logging.handlers import TimedRotatingFileHandler
+from typing import re
 
 import attr
 import pytz
@@ -61,8 +62,15 @@ class KuriLogger:
             encoding='utf-8'
         )
         self.file_handler.setLevel(file_level)
-        self.file_handler.suffix = "-%Y-%m-%d.log"  # Format: discord-2023-01-01.log
-        self.file_handler.namer = lambda name: name.replace(".log", "") + ".log"  # Keep base name consistent
+        self.file_handler.suffix = "-%Y-%m-%d.log"
+
+        def custom_namer(default_name):
+            base, ext = os.path.splitext(default_name)
+            base = re.sub(r'\.\d{4}-\d{2}-\d{2}$', '', base)  # Remove any existing date
+            date = datetime.now().strftime("%Y-%m-%d")
+            return f"{base}-{date}{ext}"
+
+        self.file_handler.namer = custom_namer
 
         # Create a console handler
         self.console_handler = logging.StreamHandler()
