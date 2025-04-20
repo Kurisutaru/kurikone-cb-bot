@@ -253,8 +253,8 @@ class MainService:
             cb_entry = _service.clan_battle_boss_entry_repo.get_last_by_message_id(message_id=ch_message.message_id)
             message = await utils.discord_try_fetch_message(channel, ch_message.message_id)
 
-            # Alter if different CB period, set old into viewable only or something and embed color dark
-            if message and cb_entry and period and cb_entry.clan_battle_period_id != period.clan_battle_period_id:
+
+            if message and cb_entry and period and (cb_entry.clan_battle_period_id != period.clan_battle_period_id or cb_entry.clan_battle_boss_id != boss_id):
                 # Set the embed color daaark
                 for embed in message.embeds:
                     embed.colour = discord.Colour.dark_grey()
@@ -357,6 +357,8 @@ class MainService:
             message_id = message_id
             guild_id = guild_id
 
+            active_period = _service.clan_battle_period_repo.get_current_active_cb_period()
+
             # Header
             entry = _service.clan_battle_boss_entry_repo.get_last_by_message_id(message_id=message_id)
 
@@ -364,9 +366,10 @@ class MainService:
 
             # Entry
             cb_overall_repository = ClanBattleOverallEntryRepository()
-            done_entries = cb_overall_repository.get_all_by_guild_id_boss_id_and_round(guild_id=guild_id,
-                                                                                       clan_battle_boss_id=entry.clan_battle_boss_id,
-                                                                                       boss_round=entry.boss_round)
+            done_entries = cb_overall_repository.get_all_by_param_and_round(guild_id,
+                                                                            active_period.clan_battle_period_id,
+                                                                            entry.clan_battle_boss_id,
+                                                                            entry.boss_round)
 
             if len(done_entries) > 0:
                 embeds.append(utils.create_done_embed(guild_id, done_entries))
@@ -510,6 +513,13 @@ class MainService:
             message_id = message_id
             guild_id = interaction.guild_id
             channel_id = interaction.channel.id
+
+            # Get CB Entry
+            active_period = _service.clan_battle_period_repo.get_current_active_cb_period()
+            if active_period is None:
+                service_result.set_error(f"Active Period is None")
+                return service_result
+
             # Get CB Entry
             boss_entry = _service.clan_battle_boss_entry_repo.get_last_by_message_id(message_id)
             if boss_entry is None:
@@ -522,10 +532,11 @@ class MainService:
                 service_result.set_error(f"Previous message is not found")
                 return service_result
 
-            done_entries = _service.clan_battle_overall_entry_repo.get_all_by_guild_id_boss_id_and_round(
-                guild_id=guild_id,
-                clan_battle_boss_id=boss_entry.clan_battle_boss_id,
-                boss_round=boss_entry.boss_round)
+            done_entries = _service.clan_battle_overall_entry_repo.get_all_by_param_and_round(
+                guild_id,
+                active_period.clan_battle_period_id,
+                boss_entry.clan_battle_boss_id,
+                boss_entry.boss_round)
 
             await prev_msg.edit(content="", embeds=[
                 utils.create_header_embed(guild_id=guild_id, cb_boss_entry=boss_entry, include_image=False,

@@ -974,7 +974,7 @@ class ClanBattleBossHealthRepository:
 
 
 class ClanBattleOverallEntryRepository:
-    def get_all_by_guild_id_boss_id_and_round(self, guild_id: int, clan_battle_boss_id: int, boss_round: int) -> list[ClanBattleOverallEntry]:
+    def get_all_by_param_and_round(self, guild_id: int, clan_battle_period_id:int, clan_battle_boss_id: int, boss_round: int) -> list[ClanBattleOverallEntry]:
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
                 cursor.execute(
@@ -993,12 +993,14 @@ class ClanBattleOverallEntryRepository:
                             entry_date
                     FROM clan_battle_overall_entry
                     WHERE guild_id = %(guild_id)s
+                    AND clan_battle_period_id = %(clan_battle_period_id)s
                     AND clan_battle_boss_id = %(clan_battle_boss_id)s
                     AND boss_round = %(boss_round)s
                     ORDER BY entry_date
                     """,
                     {
                         'guild_id' : guild_id,
+                        'clan_battle_period_id' : clan_battle_period_id,
                         'clan_battle_boss_id': clan_battle_boss_id,
                         'boss_round' : boss_round,
                     }
