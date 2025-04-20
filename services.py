@@ -972,8 +972,6 @@ class MainService:
     @transactional
     async def check_clan_battle_period(self) -> ServiceResult[bool]:
         service_result = ServiceResult[bool]()
-        # Current date info
-        current_date = utils.now()
         try:
             # Get CB period mark as active
             active_period = _service.clan_battle_period_repo.get_current_active_cb_period()
@@ -984,7 +982,6 @@ class MainService:
             if active_period and current_period and active_period.clan_battle_period_id == current_period.clan_battle_period_id:
                 service_result.set_success(False)
                 return service_result
-
 
             # If active period is existed copy the mobs only like aoi
             # If not, randomize the boss
@@ -1003,7 +1000,11 @@ class MainService:
                 # Set all other period not active
                 _service.clan_battle_period_repo.set_all_inactive()
                 _service.clan_battle_period_repo.insert(generate_period)
-
+            # If there's created period, set other inactive, set current into active
+            else:
+                # Set all other period not active
+                _service.clan_battle_period_repo.set_all_inactive()
+                _service.clan_battle_period_repo.set_active_by_id(current_period.clan_battle_period_id)
 
             service_result.set_success(True)
         except Exception as e:
