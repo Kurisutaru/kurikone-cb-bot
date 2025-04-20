@@ -1,0 +1,39 @@
+FROM ghcr.io/astral-sh/uv:python3.12-alpine AS builder
+
+ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
+RUN apk add --no-cache build-base mariadb-dev
+
+WORKDIR /app
+
+COPY pyproject.toml uv.lock ./
+
+# No venv needed — install directly into system site-packages
+RUN uv sync
+
+COPY . .
+
+# --- Slim runtime stage ---
+FROM python:3.12-alpine
+
+# Install runtime dependencies
+RUN apk add --no-cache \
+    mariadb-connector-c \
+    tzdata \
+ && rm -rf /var/cache/apk/*
+
+# Set timezone to JST
+ENV TZ=Asia/Tokyo
+RUN ln -sf /usr/share/zoneinfo/Asia/Tokyo /etc/localtime \
+    && echo "Asia/Tokyo" > /etc/timezone
+
+WORKDIR /app
+
+COPY --from=builder /usr/local/bin/uv /usr/local/bin/uv
+COPY --from=builder /app /app
+
+ENV PYTHONUNBUFFERED=1
+
+COPY ./entrypoint.sh ./entrypoint.sh
+RUN chmod +x entrypoint.sh
+ENTRYPOINT ["./entrypoint.sh"]
+CMD ["uv", "run", "python", "main.py"]

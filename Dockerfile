@@ -13,11 +13,11 @@ FROM python:3.12-alpine
 # Install runtime dependencies
 RUN apk add --no-cache \
     mariadb-connector-c \
-    tzdata
+    --update tzdata \
+ && rm -rf /var/cache/apk/*
 
 # Set timezone to JST
 ENV TZ=Asia/Tokyo
-
 RUN ln -sf /usr/share/zoneinfo/Asia/Tokyo /etc/localtime \
     && echo "Asia/Tokyo" > /etc/timezone
 
@@ -30,7 +30,6 @@ ENV PATH=/root/.local/bin:$PATH
 ENV PYTHONUNBUFFERED=1
 ENV LD_LIBRARY_PATH=/usr/lib
 
-# Start chronyd in foreground mode (non-privileged)
 RUN chmod +x entrypoint.sh
 ENTRYPOINT ["./entrypoint.sh"]
 CMD ["python", "main.py"]
