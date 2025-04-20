@@ -20,9 +20,11 @@ class ClanBattleCommands(commands.Cog, name="Clan Battle Commands", description=
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.refresh_clan_battle_report_daily.start()
+        self.check_clan_battle_period.start()
 
     def cog_unload(self) -> None:
         self.refresh_clan_battle_report_daily.cancel()
+        self.check_clan_battle_period.cancel()
 
     @app_commands.command(name="report", description="Report generator")
     @app_commands.describe(year="Clan battle period year", month="Clan battle period month",
@@ -143,7 +145,6 @@ class ClanBattleCommands(commands.Cog, name="Clan Battle Commands", description=
     everyday_cb_time = datetime.time(hour=5, minute=0, tzinfo=jst)
     @tasks.loop(time=everyday_cb_time)
     async def refresh_clan_battle_report_daily(self):
-
         for guild in self.bot.guilds:
             log.info(f"Refresh Bot Daily: {guild.name} - {guild.id}")
             await _main_service.setup_guild_channel_message(guild)

@@ -22,6 +22,7 @@ class DatabasePool:
                     maxconnections=config.MAX_POOL_SIZE,
                     mincached=2,
                     maxcached=10,
+                    maxusage=5,
                     blocking=True,
                     host=config.DB_HOST,
                     user=config.DB_USER,
