@@ -355,11 +355,11 @@ def reduce_int_ab_non_zero(a: int, b: int):
 
 # TL Shifter
 def time_to_seconds(time_str: str) -> int:
-    """Convert time string (MM:SS or SS) to total seconds."""
-    if ":" in time_str:
-        m, s = map(int, time_str.split(":", 1))
-        return m * 60 + s
-    return int(time_str)
+    match = TL_SHIFTER_TIME_FORMAT.match(time_str)
+    if match:
+        return int(match[1]) * 60 + int(match[2])
+    else:
+        return 0
 
 
 def format_time(seconds: int) -> str:
