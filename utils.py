@@ -1,9 +1,8 @@
 import math
 import random
-import traceback
 from datetime import datetime, timedelta
 
-from typing import List, Optional
+from typing import List, Optional, Any
 
 import discord
 from discord import TextChannel, Colour, Message, Embed
@@ -11,7 +10,9 @@ from discord.ui import View
 
 from config import config
 from enums import EmojiEnum, AttackTypeEnum, PeriodType
-from globals import NEW_LINE, locale, logger, jst, PURIKONE_LIVE_SERVICE_DATE
+from globals import jst, PURIKONE_LIVE_SERVICE_DATE, NEW_LINE, TL_SHIFTER_TIME_FORMAT
+from locales import l
+from logger import log
 
 from models import (
     ClanBattleBossEntry,
@@ -21,13 +22,8 @@ from models import (
     ClanBattlePeriod,
 )
 
-l = locale
-log = logger
-
 
 ### DISCORD STUFF UTILS
-
-
 async def discord_try_fetch_message(
     channel: TextChannel, message_id: int
 ) -> Optional[Message]:
@@ -261,7 +257,7 @@ def create_header_embed(
     cb_boss_entry: ClanBattleBossEntry,
     include_image: bool = True,
     default_color: Colour = discord.Color.red(),
-):
+) -> Embed:
     embed = discord.Embed(
         title=f"{cb_boss_entry.name} ({l.t(guild_id, "ui.status.round", round=cb_boss_entry.boss_round)})",
         description=(
@@ -318,6 +314,7 @@ def generate_done_attack_list(
 
 
 def generate_book_list(guild_id: int, datas: List[ClanBattleBossBook]) -> str:
+
     lines = [
         f"========== {EmojiEnum.ENTRY.value} {l.t(guild_id, "ui.label.book_list")} =========="
     ]
@@ -394,7 +391,9 @@ def ordinal(n):
     return f"{n}{suffix}"
 
 
-def check_season_status(current_date=None):
+def check_season_status(
+    current_date: datetime = None,
+) -> dict[str, PeriodType | datetime]:
     if current_date is None:
         current_date = now()
 

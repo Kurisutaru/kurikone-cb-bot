@@ -5,13 +5,19 @@ from discord import ButtonStyle, TextStyle
 from discord.ui import View, Button, Modal, TextInput
 
 from enums import EmojiEnum, AttackTypeEnum
-from globals import logger, locale
 from models import ClanBattleLeftover
 from services import MainService, UiService, ClanBattleBossBookService
-import utils
+from locales import l
+from logger import log
+from utils import (
+    send_message_short,
+    send_message_medium,
+    discord_try_fetch_message,
+    send_message_long,
+    discord_close_response,
+    send_channel_message_short,
+)
 
-l = locale
-log = logger
 _main_service = MainService()
 _ui_service = UiService()
 _clan_battle_boss_book_service = ClanBattleBossBookService()
@@ -29,7 +35,7 @@ class BookButton(Button):
 
         service = await _ui_service.book_button_service(interaction)
         if not service.is_success:
-            await utils.send_message_short(interaction, service.error_messages, True)
+            await send_message_short(interaction, service.error_messages, True)
             return
 
         disable, count_left, leftover = service.result
@@ -45,7 +51,7 @@ class BookButton(Button):
         for left_data in leftover:
             view.add_item(BookLeftoverButton(left_data, interaction))
 
-        await utils.send_message_medium(
+        await send_message_medium(
             interaction=interaction,
             content=f"## {l.t(guild_id, "ui.prompts.choose_entry_type", count_left=count_left )}",
             view=view,
@@ -65,13 +71,13 @@ class CancelButton(Button):
 
         service = await _ui_service.cancel_button_service(interaction)
         if not service.is_success:
-            await utils.send_message_short(interaction, service.error_messages, True)
+            await send_message_short(interaction, service.error_messages, True)
             return
 
         embeds = service.result
 
         await interaction.message.edit(embeds=embeds, view=ButtonView(guild_id))
-        await utils.send_message_short(
+        await send_message_short(
             interaction, l.t(guild_id, "ui.events.removed_from_booking_list"), True
         )
 
@@ -87,7 +93,7 @@ class EntryButton(Button):
 
         service = await _ui_service.entry_button_service(interaction)
         if not service.is_success:
-            await utils.send_message_short(interaction, service.error_messages, True)
+            await send_message_short(interaction, service.error_messages, True)
             return
 
         modal = EntryInputModal(interaction.guild_id)
@@ -119,13 +125,13 @@ class EntryInputModal(Modal):
             interaction, self.user_input.value
         )
         if not service.is_success:
-            await utils.send_message_short(interaction, service.error_messages, True)
+            await send_message_short(interaction, service.error_messages, True)
             return
 
         embeds = service.result
 
         # Refresh Messages
-        message = await utils.discord_try_fetch_message(interaction.channel, message_id)
+        message = await discord_try_fetch_message(interaction.channel, message_id)
         if message:
             await interaction.message.edit(embeds=embeds, view=ButtonView(guild_id))
 
@@ -145,14 +151,14 @@ class DoneButton(Button):
 
         service = await _ui_service.done_button_service(interaction)
         if not service.is_success:
-            await utils.send_message_short(interaction, service.error_messages, True)
+            await send_message_short(interaction, service.error_messages, True)
             return
 
         view = View(timeout=None)
         view.add_item(DoneOkButton(message_id=message_id))
         view.add_item(ConfirmationNoCancelButton(emoji_param=EmojiEnum.NO))
 
-        await utils.send_message_long(
+        await send_message_long(
             interaction=interaction,
             content=f"## {l.t(guild_id, "ui.prompts.confirm_mark_as_done")}",
             view=view,
@@ -181,12 +187,12 @@ class DoneOkButton(Button):
             guild_id, message_id, user_id, display_name
         )
         if not done_service.is_success:
-            await utils.discord_close_response(interaction=interaction)
+            await discord_close_response(interaction=interaction)
             log.error(done_service.error_messages)
             return
 
         # Refresh Messages
-        message = await utils.discord_try_fetch_message(
+        message = await discord_try_fetch_message(
             channel=interaction.channel, message_id=message_id
         )
         if message:
@@ -204,7 +210,7 @@ class DoneOkButton(Button):
             _main_service.refresh_report_channel_message(interaction.guild)
         )
 
-        await utils.discord_close_response(interaction=interaction)
+        await discord_close_response(interaction=interaction)
 
 
 # Dead Button
@@ -220,7 +226,7 @@ class DeadButton(Button):
 
         service = await _ui_service.dead_button_service(interaction)
         if not service.is_success:
-            await utils.send_message_short(interaction, service.error_messages, True)
+            await send_message_short(interaction, service.error_messages, True)
             return
 
         book = service.result
@@ -237,7 +243,7 @@ class DeadButton(Button):
             )
             view.add_item(ConfirmationNoCancelButton(emoji_param=EmojiEnum.NO))
 
-            await utils.send_message_long(
+            await send_message_long(
                 interaction=interaction,
                 content=f"## {l.t(guild_id, "ui.prompts.confirm_mark_as_boss_kill")}",
                 view=view,
@@ -270,7 +276,7 @@ class LeftoverModal(Modal):
         guild_id = interaction.guild.id
         # Handle the submitted input
         if not self.user_input.value.isdigit():
-            await utils.send_message_short(
+            await send_message_short(
                 interaction=interaction,
                 content=f"## {l.t(guild_id, "ui.validation.only_numbers_allowed")}",
                 ephemeral=True,
@@ -280,7 +286,7 @@ class LeftoverModal(Modal):
         leftover_time = int(self.user_input.value)
 
         if leftover_time < 20 or leftover_time > 90:
-            await utils.send_message_short(
+            await send_message_short(
                 interaction=interaction,
                 content=f"## {l.t(guild_id, "ui.validation.leftover_time_range_invalid")}",
                 ephemeral=True,
@@ -291,7 +297,7 @@ class LeftoverModal(Modal):
         view.add_item(DeadOkButton(message_id=message_id, leftover_time=leftover_time))
         view.add_item(ConfirmationNoCancelButton(emoji_param=EmojiEnum.NO))
 
-        await utils.send_message_long(
+        await send_message_long(
             interaction=interaction,
             content=f"## {l.t(guild_id, "ui.prompts.boss_kill_confirmation", leftover_time=leftover_time)}",
             view=view,
@@ -318,7 +324,7 @@ class DeadOkButton(Button):
         guild_id = interaction.guild_id
         leftover_time = self.leftover_time
 
-        await utils.discord_close_response(interaction=interaction)
+        await discord_close_response(interaction=interaction)
 
         dead_result = await _main_service.dead_ok(
             guild_id, message_id, user_id, display_name, leftover_time
@@ -341,7 +347,7 @@ class DeadOkButton(Button):
             await interaction.response.defer(ephemeral=True)
             return
 
-        message = await utils.discord_try_fetch_message(
+        message = await discord_try_fetch_message(
             interaction.channel, generate.result.message_id
         )
         if message is None:
@@ -404,8 +410,8 @@ class BookPatkButton(Button):
         await self.parent_interaction.message.edit(
             embeds=embeds.result, view=ButtonView(guild_id)
         )
-        await utils.discord_close_response(interaction=interaction)
-        await utils.send_channel_message_short(
+        await discord_close_response(interaction=interaction)
+        await send_channel_message_short(
             interaction=interaction,
             content=f"{l.t(guild_id, "ui.events.user_added_to_booking_list", user=display_name, emoji=self.local_emoji.value)}",
         )
@@ -451,8 +457,8 @@ class BookMatkButton(Button):
         await self.parent_interaction.message.edit(
             embeds=embeds.result, view=ButtonView(guild_id)
         )
-        await utils.discord_close_response(interaction=interaction)
-        await utils.send_channel_message_short(
+        await discord_close_response(interaction=interaction)
+        await send_channel_message_short(
             interaction=interaction,
             content=f"{l.t(guild_id, "ui.events.user_added_to_booking_list", user=display_name, emoji=self.local_emoji.value)}",
         )
@@ -504,7 +510,7 @@ class BookLeftoverButton(Button):
             log.error(insert_result.error_messages)
             return
 
-        message = await utils.discord_try_fetch_message(interaction.channel, message_id)
+        message = await discord_try_fetch_message(interaction.channel, message_id)
         if message is None:
             await interaction.response.defer(ephemeral=True)
             log.error("Could not fetch message")
@@ -521,8 +527,8 @@ class BookLeftoverButton(Button):
         await self.parent_interaction.message.edit(
             embeds=embeds.result, view=ButtonView(guild_id)
         )
-        await utils.discord_close_response(interaction=interaction)
-        await utils.send_channel_message_short(
+        await discord_close_response(interaction=interaction)
+        await send_channel_message_short(
             interaction=interaction,
             content=f"{l.t(guild_id, "ui.events.user_added_to_booking_list", user=display_name, emoji=self.local_emoji.value)}",
         )
@@ -550,7 +556,7 @@ class ConfirmationNoCancelButton(Button):
         )
 
     async def callback(self, interaction: discord.Interaction):
-        await utils.discord_close_response(interaction=interaction)
+        await discord_close_response(interaction=interaction)
 
 
 class ButtonView(View):

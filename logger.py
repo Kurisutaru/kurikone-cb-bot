@@ -1,10 +1,10 @@
 import logging
 import os
+import re
 import threading
 from dataclasses import field
 from datetime import datetime
 from logging.handlers import TimedRotatingFileHandler
-from typing import re
 
 import attr
 import pytz
@@ -172,3 +172,6 @@ class AnsiColorFormatter(logging.Formatter):
         }.get(record.levelname, no_style)
         end_style = no_style
         return f"{start_style}{super().format(record)}{end_style}"
+
+
+log = KuriLogger(timezone="Asia/Tokyo")

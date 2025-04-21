@@ -4,9 +4,9 @@ import sys
 from dbutils.pooled_db import PooledDB
 import mariadb
 from config import config
-from globals import logger
+from logger import KuriLogger
 
-log = logger
+log = KuriLogger()
 
 
 class DatabasePool:

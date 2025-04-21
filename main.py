@@ -1,13 +1,12 @@
-import asyncio
-
+import discord
 from discord.ext import commands
 from discord.ext.commands import Bot
 
-from config import check_env_vars
-import globals
-from globals import TL_SHIFTER_CHANNEL, logger, locale
+from config import check_env_vars, config
+from globals import TL_SHIFTER_CHANNEL
 from locales import guild_locale
-from repository import *
+from logger import log
+
 from services import MainService, ClanBattlePeriodService
 
 _main_service = MainService()
@@ -18,9 +17,6 @@ intents.message_content = True
 intents.members = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
-
-log = logger
-l = locale
 
 
 @bot.event

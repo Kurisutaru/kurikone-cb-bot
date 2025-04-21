@@ -3,18 +3,14 @@ from datetime import datetime
 
 import pytz
 
-from locales import Locale
-from logger import KuriLogger
-
-NEW_LINE = "\n"
 TL_SHIFTER_CHANNEL = {}
+NEW_LINE = "\n"
+
 
 SPACE_PATTERN = re.compile(r"[ \t　]+")
 NON_DIGIT = re.compile(r"\D")
+TL_SHIFTER_TIME_FORMAT = re.compile(r"(\d{1,2}):(\d{1,2})")
 jst = pytz.timezone("Asia/Tokyo")
 datetime_format = "%Y-%m-%d %H:%M:%S %Z"
-
-locale = Locale()
-logger = KuriLogger(timezone=jst.zone)
 
 PURIKONE_LIVE_SERVICE_DATE = datetime(year=2018, month=2, day=15)

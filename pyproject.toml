@@ -8,6 +8,7 @@ dependencies = [
     "dbutils>=3.1.0",
     "discord.py>=2.5.2",
     "envier>=0.6.1",
+    "freezegun>=1.5.1",
     "i18nice[yaml]>=0.15.5",
     "mariadb>=1.1.12",
     "pytest>=8.3.5",

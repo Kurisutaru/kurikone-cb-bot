@@ -1,9 +1,10 @@
 from datetime import datetime
+from enum import Enum
 from typing import TypeVar, Generic, Union
 
 from attrs import field, define, fields
 
-from enums import *
+from enums import ChannelEnum, AttackTypeEnum, PeriodType
 
 T = TypeVar("T")
 
@@ -16,7 +17,7 @@ class EnumSerializerMixin:
 
             # Handle Enums
             if isinstance(value, Enum):
-                data[var.name] = value.value
+                data[var.name] = value.name
             # Default case
             else:
                 data[var.name] = value
@@ -67,9 +68,7 @@ class ClanBattleBossBook(EnumSerializerMixin):
     player_id: int = field(default=None)
     player_name: str = field(default=None)
     attack_type: AttackTypeEnum = field(
-        converter=lambda x: (
-            AttackTypeEnum[x] if isinstance(x, str) else AttackTypeEnum(x)
-        ),
+        converter=lambda x: (AttackTypeEnum[x] if isinstance(x, str) else x),
         default=None,
     )
     damage: int = field(default=None)
@@ -101,7 +100,7 @@ class ClanBattlePeriod(EnumSerializerMixin):
     clan_battle_period_id: int = field(default=None)
     clan_battle_period_name: str = field(default=None)
     period_type: PeriodType = field(
-        converter=lambda x: PeriodType[x] if isinstance(x, str) else PeriodType(x),
+        converter=lambda x: PeriodType[x] if isinstance(x, str) else x,
         default=None,
     )
     date_from: datetime = field(default=None)

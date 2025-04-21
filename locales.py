@@ -22,9 +22,7 @@ class Locale:
             i18n.set("filename_format", "{locale}.{format}")
             i18n.set("file_format", "yaml")
             i18n.load_everything()
-
             cls._locale = i18n
-
         return cls._instance
 
     def get_text(self, guild_id: int, text: str, **kwargs) -> str:
@@ -84,3 +82,6 @@ class DiscordTranslator(app_commands.Translator):
     #     command = context.data.command.name
     #     parameter = context.data.name
     #     return i18n.t(f"commands.{command}.params.{parameter}", locale=lang) or string
+
+
+l = Locale()

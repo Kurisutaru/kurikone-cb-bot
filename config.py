@@ -4,10 +4,10 @@ import sys
 from dotenv import load_dotenv
 from envier import Env
 
-from globals import logger
+from logger import KuriLogger
 
 load_dotenv()
-log = logger
+log = KuriLogger()
 
 
 class GlobalConfig(Env):

@@ -10,15 +10,13 @@ from globals import (
     SPACE_PATTERN,
     NON_DIGIT,
     NEW_LINE,
-    locale,
-    logger,
     datetime_format,
 )
+from locales import l
+from logger import log
 from models import GuildPlayer
 from services import MainService, ClanBattlePeriodService
 
-l = locale
-log = logger
 _main_service = MainService()
 _clan_battle_period_service = ClanBattlePeriodService()
 

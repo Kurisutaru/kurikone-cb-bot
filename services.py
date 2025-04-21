@@ -2,17 +2,27 @@ import asyncio
 import traceback
 import uuid
 
+import discord
 from discord import Embed, Message, TextChannel
 from discord.abc import GuildChannel
 
-import utils
 from database import db_pool
-from globals import locale, logger
+from globals import NEW_LINE
+from locales import l
+from logger import log
 from repository import *
 from transactional import transactional, transaction_rollback
-
-l = locale
-log = logger
+from utils import (
+    discord_try_fetch_message,
+    create_header_embed,
+    create_done_embed,
+    create_book_embed,
+    reduce_int_ab_non_zero,
+    send_channel_message,
+    generate_random_boss_period,
+    generate_current_cb_period,
+    now,
+)
 
 
 class Services:
@@ -304,9 +314,7 @@ class MainService:
             cb_entry = _service.clan_battle_boss_entry_repo.get_last_by_message_id(
                 message_id=ch_message.message_id
             )
-            message = await utils.discord_try_fetch_message(
-                channel, ch_message.message_id
-            )
+            message = await discord_try_fetch_message(channel, ch_message.message_id)
 
             if (
                 message
@@ -452,7 +460,7 @@ class MainService:
                 message_id=message_id
             )
 
-            embeds.append(utils.create_header_embed(guild_id, entry))
+            embeds.append(create_header_embed(guild_id, entry))
 
             # Entry
             cb_overall_repository = ClanBattleOverallEntryRepository()
@@ -464,7 +472,7 @@ class MainService:
             )
 
             if len(done_entries) > 0:
-                embeds.append(utils.create_done_embed(guild_id, done_entries))
+                embeds.append(create_done_embed(guild_id, done_entries))
 
             # Book
             book_entries = _service.clan_battle_boss_book_repo.get_all_by_message_id(
@@ -472,7 +480,7 @@ class MainService:
             )
 
             if len(book_entries) > 0:
-                embeds.append(utils.create_book_embed(guild_id, book_entries))
+                embeds.append(create_book_embed(guild_id, book_entries))
 
             service_result.set_success(embeds)
 
@@ -536,7 +544,7 @@ class MainService:
             # Update Boss Entry
             _service.clan_battle_boss_entry_repo.update_on_attack(
                 clan_battle_boss_entry_id=boss_entry.clan_battle_boss_entry_id,
-                current_health=utils.reduce_int_ab_non_zero(
+                current_health=reduce_int_ab_non_zero(
                     boss_entry.current_health, book.damage
                 ),
             )
@@ -611,7 +619,7 @@ class MainService:
             # Update Boss Entry
             _service.clan_battle_boss_entry_repo.update_on_attack(
                 clan_battle_boss_entry_id=boss_entry.clan_battle_boss_entry_id,
-                current_health=utils.reduce_int_ab_non_zero(
+                current_health=reduce_int_ab_non_zero(
                     boss_entry.current_health, book.damage
                 ),
             )
@@ -667,7 +675,7 @@ class MainService:
                 return service_result
 
             # Edit Old one
-            prev_msg = await utils.discord_try_fetch_message(
+            prev_msg = await discord_try_fetch_message(
                 channel=interaction.channel, message_id=message_id
             )
             if prev_msg is None:
@@ -686,13 +694,13 @@ class MainService:
             await prev_msg.edit(
                 content="",
                 embeds=[
-                    utils.create_header_embed(
+                    create_header_embed(
                         guild_id=guild_id,
                         cb_boss_entry=boss_entry,
                         include_image=False,
                         default_color=discord.Color.dark_grey(),
                     ),
-                    utils.create_done_embed(
+                    create_done_embed(
                         guild_id=guild_id,
                         list_cb_overall_entry=done_entries,
                         default_color=discord.Color.dark_grey(),
@@ -702,7 +710,7 @@ class MainService:
             )
 
             # Generate New One
-            await utils.send_channel_message(
+            await send_channel_message(
                 interaction=interaction,
                 content=f"{l.t(guild_id, "ui.events.boss_killed", user=interaction.user.display_name, attack_type=attack_type.value, leftover_time=leftover_time)}",
             )
@@ -991,7 +999,7 @@ class MainService:
         service_result = ServiceResult[Optional[Message]]()
         guild_id = guild.id
         # Current date info
-        current_date = utils.now()
+        current_date = now()
         try:
             # Get current CB period once
             cur_period = (
@@ -1029,7 +1037,7 @@ class MainService:
                 )
                 _service.channel_message_repo.insert_channel_message(channel_message)
             else:
-                report_message = await utils.discord_try_fetch_message(
+                report_message = await discord_try_fetch_message(
                     channel, report_message_data.message_id
                 )
                 if report_message is None:
@@ -1183,7 +1191,7 @@ class MainService:
                     service_result.set_error("Channel Message not found in guild")
                     return service_result
 
-                cur_msg = await utils.discord_try_fetch_message(
+                cur_msg = await discord_try_fetch_message(
                     channel, ch_message.message_id
                 )
                 if cur_msg:
@@ -1256,12 +1264,12 @@ class MainService:
             if current_period is None:
                 if active_period is None:
                     bosses = _service.clan_battle_boss_repo.get_all()
-                    rand_boss = utils.generate_random_boss_period(bosses)
-                    generate_period = utils.generate_current_cb_period()
+                    rand_boss = generate_random_boss_period(bosses)
+                    generate_period = generate_current_cb_period()
                     # Append the generated random boss
                     generate_period.merge_bosses(rand_boss)
                 else:
-                    generate_period = utils.generate_current_cb_period()
+                    generate_period = generate_current_cb_period()
                     generate_period.merge_bosses(active_period)
 
                 # Set all other period not active
@@ -1324,7 +1332,7 @@ class UiService:
             )
 
             service_result.set_success(
-                (disable, utils.reduce_int_ab_non_zero(a=3, b=count), leftover)
+                (disable, reduce_int_ab_non_zero(a=3, b=count), leftover)
             )
 
         except Exception as e:
