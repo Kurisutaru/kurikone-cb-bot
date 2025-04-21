@@ -126,11 +126,11 @@ class MainService:
 
             guild_db = await self.guild_setup(guild_id=guild_id, guild_name=guild.name)
             if not guild_db.is_success:
-                raise guild_db.error_messages
+                raise Exception(guild_db.error_messages)
 
             channel_result = await self.setup_channel(guild)
             if not channel_result.is_success:
-                raise channel_result.error_messages
+                raise Exception(channel_result.error_messages)
 
             for enum, channel in channel_result.result:
                 # Category doing nothing, pass
@@ -146,7 +146,7 @@ class MainService:
                 if enum == ChannelEnum.REPORT and channel:
                     message = await self.setup_channel_report_message(channel)
                     if not message.is_success:
-                        raise message.error_messages
+                        raise Exception(message.error_messages)
                     continue
 
                 # Boss Channel
@@ -154,7 +154,7 @@ class MainService:
                 if "boss" in enum.name.lower():
                     message = await self.setup_channel_boss_message(enum, channel)
                     if not message.is_success:
-                        raise message.error_messages
+                        raise Exception(message.error_messages)
 
             service_result.set_success(None)
 
@@ -184,7 +184,6 @@ class MainService:
             service_result.set_success(guild_db)
         except Exception as e:
             log.error(e)
-            transaction_rollback()
             raise e
 
         return service_result
@@ -255,6 +254,7 @@ class MainService:
             service_result.set_success(processed_channel)
 
         except Exception as e:
+            log.error(e)
             raise e
 
         return service_result
@@ -276,6 +276,7 @@ class MainService:
             service_result.set_success(result.result)
 
         except Exception as e:
+            log.error(e)
             raise e
 
         return service_result
@@ -384,6 +385,7 @@ class MainService:
             service_result.set_success(message)
 
         except Exception as e:
+            log.error(e)
             raise e
 
         return service_result
@@ -511,7 +513,7 @@ class MainService:
                 service_result.set_error(f"Boss entry is None")
                 return service_result
 
-            period = _service.clan_battle_period_repo.get_current_active_cb_period()
+            period = _service.clan_battle_period_repo.get_current_active_cb_period_day()
             if period is None:
                 service_result.set_error(f"Period is None")
                 return service_result
@@ -530,6 +532,7 @@ class MainService:
                     player_id=user_id,
                     player_name=display_name,
                     boss_round=boss_entry.boss_round,
+                    day=period.current_day,
                     attack_type=book.attack_type,
                     damage=book.damage,
                 )
@@ -588,7 +591,7 @@ class MainService:
                 service_result.set_error(f"Boss entry is None")
                 return service_result
 
-            period = _service.clan_battle_period_repo.get_current_active_cb_period()
+            period = _service.clan_battle_period_repo.get_current_active_cb_period_day()
             if period is None:
                 service_result.set_error(f"Period is None")
                 return service_result
@@ -606,6 +609,7 @@ class MainService:
                     player_id=user_id,
                     player_name=display_name,
                     boss_round=boss_entry.boss_round,
+                    day=period.current_day,
                     attack_type=book.attack_type,
                     damage=book.damage,
                     leftover_time=(
@@ -958,7 +962,7 @@ class MainService:
             else:
                 header = _service.clan_battle_period_repo.get_by_id_day(period_id)
                 entries = _service.clan_battle_overall_entry_repo.get_report_entry_by_guild_and_period_id(
-                    guild_id, period_id
+                    guild_id, period_id, day
                 )
 
             result = f"# {header.clan_battle_period_name} - {l.t(guild_id, "ui.status.day", day=day)}{NEW_LINE}"
@@ -988,6 +992,7 @@ class MainService:
             service_result.set_success(result)
 
         except Exception as e:
+            log.error(e)
             service_result.set_error(str(e))
 
         return service_result
@@ -1417,7 +1422,7 @@ class UiService:
                 )
                 return service_result
 
-            return service_result
+            service_result.set_success(None)
         except Exception as e:
             log.error(e)
             transaction_rollback()

@@ -1015,6 +1015,7 @@ class ClanBattleOverallEntryRepository:
                             player_id,
                             player_name,
                             boss_round,
+                            day,
                             attack_type,
                             damage,
                             leftover_time,
@@ -1050,6 +1051,7 @@ class ClanBattleOverallEntryRepository:
                         player_id, 
                         player_name, 
                         boss_round, 
+                        day,
                         damage, 
                         attack_type, 
                         leftover_time, 
@@ -1064,6 +1066,7 @@ class ClanBattleOverallEntryRepository:
                         %(player_id)s,
                         %(player_name)s,
                         %(boss_round)s,
+                        %(day)s,
                         %(damage)s,
                         %(attack_type)s,
                         %(leftover_time)s,
@@ -1137,7 +1140,7 @@ class ClanBattleOverallEntryRepository:
                     """
                     SELECT CBOE.clan_battle_overall_entry_id,
                            CBOE.clan_battle_boss_id,
-                           CBB.name,
+                           CBB.name AS clan_battle_boss_name,
                            CBOE.player_id,
                            CBOE.attack_type,
                            CBOE.leftover_time
@@ -1190,11 +1193,7 @@ class ClanBattleOverallEntryRepository:
                                     WHERE date_from <= LAST_DAY(CONCAT(%(year)s, '-', LPAD(%(month)s, 2, '0'), '-01'))
                                       AND date_to >= CONCAT(%(year)s, '-', LPAD(%(month)s, 2, '0'), '-01')
                                     LIMIT 1)
-                       , ENTRY AS (SELECT DATEDIFF(
-                                                  IF(HOUR(CBOE.entry_date) < 5, DATE_SUB(CBOE.entry_date, INTERVAL 1 DAY),
-                                                     CBOE.entry_date),
-                                                  CBP.date_from
-                                          ) + 1                                                                          AS day,
+                       , ENTRY AS (SELECT CBOE.day                                                                       AS day,
                                           CBOE.guild_id,
                                           CBOE.player_id                                                                 AS player_id,
                                           CBOE.player_name                                                               AS player_name,
@@ -1209,12 +1208,7 @@ class ClanBattleOverallEntryRepository:
                                         clan_battle_boss CBB ON CBOE.clan_battle_boss_id = CBB.clan_battle_boss_id
                                    WHERE CBOE.entry_date BETWEEN CBP.date_from AND CBP.date_to
                                      AND CBOE.guild_id = %(guild_id)s
-                                   GROUP BY DATEDIFF(
-                                                    IF(HOUR(CBOE.entry_date) < 5,
-                                                       DATE_SUB(CBOE.entry_date, INTERVAL 1 DAY),
-                                                       CBOE.entry_date),
-                                                    CBP.date_from
-                                            ) + 1,
+                                   GROUP BY CBOE.day,
                                             CBOE.guild_id,
                                             CBOE.player_id,
                                             CBOE.player_name)
@@ -1232,17 +1226,13 @@ class ClanBattleOverallEntryRepository:
                 return fetch_all_to_model(cursor, ClanBattleReportEntry)
 
     def get_report_entry_by_guild_and_period_id(
-        self, guild_id: int, period_id: int
+        self, guild_id: int, period_id: int, day: int
     ) -> list[ClanBattleReportEntry]:
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
                 cursor.execute(
                     """
-                        WITH ENTRY AS (SELECT DATEDIFF(
-                                                  IF(HOUR(CBOE.entry_date) < 5, DATE_SUB(CBOE.entry_date, INTERVAL 1 DAY),
-                                                     CBOE.entry_date),
-                                                  CBP.date_from
-                                          ) + 1                                                                          AS day,
+                        WITH ENTRY AS (SELECT CBOE.day                                                                   AS day,
                                           CBOE.guild_id,
                                           CBOE.player_id                                                                 AS player_id,
                                           CBOE.player_name                                                               AS player_name,
@@ -1256,14 +1246,10 @@ class ClanBattleOverallEntryRepository:
                                             JOIN
                                         clan_battle_boss CBB ON CBOE.clan_battle_boss_id = CBB.clan_battle_boss_id
                                    WHERE CBOE.entry_date BETWEEN CBP.date_from AND CBP.date_to
-                                     AND CBP.clan_battle_period_id = %(guild_id)s
+                                     AND CBP.clan_battle_period_id = %(clan_battle_period_id)s
                                      AND CBOE.guild_id = %(guild_id)s
-                                   GROUP BY DATEDIFF(
-                                                    IF(HOUR(CBOE.entry_date) < 5,
-                                                       DATE_SUB(CBOE.entry_date, INTERVAL 1 DAY),
-                                                       CBOE.entry_date),
-                                                    CBP.date_from
-                                            ) + 1,
+                                     and CBOE.day = %(day)s
+                                   GROUP BY CBOE.day,
                                             CBOE.guild_id,
                                             CBOE.player_id,
                                             CBOE.player_name)
@@ -1278,7 +1264,8 @@ class ClanBattleOverallEntryRepository:
                     """,
                     {
                         "guild_id": guild_id,
-                        "period_id": period_id,
+                        "clan_battle_period_id": period_id,
+                        "day": day,
                     },
                 )
 
