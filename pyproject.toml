@@ -6,7 +6,7 @@ requires-python = ">=3.12"
 dependencies = [
     "attrs>=25.3.0",
     "dbutils>=3.1.0",
-    "discord-py>=2.5.2",
+    "discord.py>=2.5.2",
     "envier>=0.6.1",
     "i18nice[yaml]>=0.15.5",
     "mariadb>=1.1.12",
@@ -22,8 +22,7 @@ test = [
     "pytest>=7.0",
     "pytest-asyncio",
     "pytest-mock",
-    "pytest-cov",
-    "freezegun"
+    "pytest-cov"
 ]
 
 [tool.pytest.ini_options]
