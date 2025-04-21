@@ -5,7 +5,15 @@ from discord import app_commands
 from discord.ext import commands, tasks
 
 import utils
-from globals import TL_SHIFTER_CHANNEL, SPACE_PATTERN, NON_DIGIT, NEW_LINE, locale, logger, datetime_format
+from globals import (
+    TL_SHIFTER_CHANNEL,
+    SPACE_PATTERN,
+    NON_DIGIT,
+    NEW_LINE,
+    locale,
+    logger,
+    datetime_format,
+)
 from models import GuildPlayer
 from services import MainService, ClanBattlePeriodService
 
@@ -15,7 +23,11 @@ _main_service = MainService()
 _clan_battle_period_service = ClanBattlePeriodService()
 
 
-class ClanBattleCommands(commands.Cog, name="Clan Battle Commands", description="Collection of Clan Battle Commands"):
+class ClanBattleCommands(
+    commands.Cog,
+    name="Clan Battle Commands",
+    description="Collection of Clan Battle Commands",
+):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.refresh_clan_battle_report_daily.start()
@@ -26,19 +38,31 @@ class ClanBattleCommands(commands.Cog, name="Clan Battle Commands", description=
         self.check_clan_battle_period.cancel()
 
     @app_commands.command(name="report", description="Report generator")
-    @app_commands.describe(year="Clan battle period year", month="Clan battle period month",
-                           day="Clan battle period day")
-    async def sc_report(self, interaction: discord.Interaction, year: int, month: int, day: int):
+    @app_commands.describe(
+        year="Clan battle period year",
+        month="Clan battle period month",
+        day="Clan battle period day",
+    )
+    async def sc_report(
+        self, interaction: discord.Interaction, year: int, month: int, day: int
+    ):
         guild_id = interaction.guild_id
         if not interaction.user.guild_permissions.administrator:
-            return await utils.send_message_medium(interaction, l.t(guild_id, "system.not_administrator",
-                                                                    user=interaction.user.display_name))
+            return await utils.send_message_medium(
+                interaction,
+                l.t(
+                    guild_id,
+                    "system.not_administrator",
+                    user=interaction.user.display_name,
+                ),
+            )
 
         await interaction.response.defer(thinking=True, ephemeral=True)
 
         msg_content = l.t(guild_id, "message.not_found", input="Report")
-        report_result = await _main_service.generate_report_text(guild_id=interaction.guild_id, year=year, month=month,
-                                                                 day=day)
+        report_result = await _main_service.generate_report_text(
+            guild_id=interaction.guild_id, year=year, month=month, day=day
+        )
         if report_result.is_success:
             msg_content = report_result.result
 
@@ -48,24 +72,39 @@ class ClanBattleCommands(commands.Cog, name="Clan Battle Commands", description=
 
         return None
 
-    @app_commands.command(name="sync_user_role", description="Sync user with selected role for Clan Battle Report")
+    @app_commands.command(
+        name="sync_user_role",
+        description="Sync user with selected role for Clan Battle Report",
+    )
     @app_commands.describe(role="Discord Role")
-    async def sc_sync_user_role(self, interaction: discord.Interaction, role: discord.Role):
+    async def sc_sync_user_role(
+        self, interaction: discord.Interaction, role: discord.Role
+    ):
         guild_id = interaction.guild_id
         if not interaction.user.guild_permissions.administrator:
-            return await utils.send_message_medium(interaction, l.t(guild_id, "system.not_administrator",
-                                                                    user=interaction.user.display_name))
+            return await utils.send_message_medium(
+                interaction,
+                l.t(
+                    guild_id,
+                    "system.not_administrator",
+                    user=interaction.user.display_name,
+                ),
+            )
 
         await interaction.response.defer(thinking=True, ephemeral=True)
 
-        members = [GuildPlayer(
-            guild_id=interaction.guild_id,
-            player_id=member.id,
-            player_name=member.display_name
-        )
-            for member in role.members]
+        members = [
+            GuildPlayer(
+                guild_id=interaction.guild_id,
+                player_id=member.id,
+                player_name=member.display_name,
+            )
+            for member in role.members
+        ]
 
-        service_result = await _main_service.sync_user_role(guild_id=guild_id, members=members)
+        service_result = await _main_service.sync_user_role(
+            guild_id=guild_id, members=members
+        )
         msg_content = l.t(guild_id, "message.done_sync")
         if not service_result.is_success:
             msg_content = service_result.error_messages
@@ -92,15 +131,15 @@ class ClanBattleCommands(commands.Cog, name="Clan Battle Commands", description=
             return
 
         content = message.content
-        lines = content.split('\n', 1)  # Split only once if possible
+        lines = content.split("\n", 1)  # Split only once if possible
         if not lines:
             await bot.process_commands(message)
             return
 
         # Process first line
-        first_line, *rest = lines[0].split('\n')  # Handle potential multi-split
+        first_line, *rest = lines[0].split("\n")  # Handle potential multi-split
         first_segment = SPACE_PATTERN.split(first_line.strip(), 1)[0]
-        second_str = NON_DIGIT.sub('', first_segment)
+        second_str = NON_DIGIT.sub("", first_segment)
 
         if not second_str.isdigit():
             await bot.process_commands(message)
@@ -112,13 +151,10 @@ class ClanBattleCommands(commands.Cog, name="Clan Battle Commands", description=
             return
 
         sec_reduction = 90 - second
-        result_lines = [
-            f"TL Shift for {second}s",
-            "```powershell"
-        ]
+        result_lines = [f"TL Shift for {second}s", "```powershell"]
 
         # Process remaining lines
-        for line in (lines[1].split('\n') if len(lines) > 1 else []):
+        for line in lines[1].split("\n") if len(lines) > 1 else []:
             parts = SPACE_PATTERN.split(line.strip(), 1)
             if len(parts) < 2:
                 continue
@@ -142,6 +178,7 @@ class ClanBattleCommands(commands.Cog, name="Clan Battle Commands", description=
 
     # Background task
     everyday_cb_time = datetime.time(hour=20, minute=0)
+
     @tasks.loop(time=everyday_cb_time)
     async def refresh_clan_battle_report_daily(self):
         for guild in self.bot.guilds:
@@ -149,10 +186,14 @@ class ClanBattleCommands(commands.Cog, name="Clan Battle Commands", description=
             await _main_service.setup_guild_channel_message(guild, TL_SHIFTER_CHANNEL)
 
     everyday_cb_end_time = datetime.time(hour=15, minute=0)
+
     @tasks.loop(time=everyday_cb_end_time, reconnect=True)
     async def check_clan_battle_period(self):
-        log.info(f"Check Clan Battle Period daily @{utils.now().strftime(datetime_format)}")
+        log.info(
+            f"Check Clan Battle Period daily @{utils.now().strftime(datetime_format)}"
+        )
         await _main_service.check_clan_battle_period()
+
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(ClanBattleCommands(bot))

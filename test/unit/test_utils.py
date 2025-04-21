@@ -6,17 +6,32 @@ from discord import TextChannel, Interaction, Embed
 from discord.ui import View
 
 # Patch all problematic imports before importing the module
-with patch.dict('sys.modules', {
-    'config': MagicMock(),
-    'globals': MagicMock(),
-    'enums': MagicMock(),
-    'models': MagicMock()
-}):
+with patch.dict(
+    "sys.modules",
+    {
+        "config": MagicMock(),
+        "globals": MagicMock(),
+        "enums": MagicMock(),
+        "models": MagicMock(),
+    },
+):
     import utils
-    from utils import discord_try_fetch_message, discord_close_response, send_message, send_message_short, \
-    send_message_medium, send_message_long, create_message_param, send_channel_message, send_channel_message_medium, \
-    send_channel_message_long, send_channel_message_short, send_followup_short, send_followup_medium, \
-    send_followup_long
+    from utils import (
+        discord_try_fetch_message,
+        discord_close_response,
+        send_message,
+        send_message_short,
+        send_message_medium,
+        send_message_long,
+        create_message_param,
+        send_channel_message,
+        send_channel_message_medium,
+        send_channel_message_long,
+        send_channel_message_short,
+        send_followup_short,
+        send_followup_medium,
+        send_followup_long,
+    )
 
 
 @pytest.mark.asyncio
@@ -53,7 +68,6 @@ async def test_discord_close_response_success():
     mock_interaction.response.defer.assert_awaited_once_with(ephemeral=True)
     mock_interaction.delete_original_response.assert_awaited_once()
     utils.log.error.assert_not_called()
-
 
 
 @pytest.mark.asyncio
@@ -104,6 +118,7 @@ async def test_discord_send_channel_messages():
     await send_channel_message_long(mock_interaction, "", False, None, None, None)
     mock_interaction.channel.send.assert_called()
 
+
 @pytest.mark.asyncio
 async def test_discord_send_followup_messages(mock_message):
     mock_interaction = AsyncMock(spec=Interaction)
@@ -118,8 +133,6 @@ async def test_discord_send_followup_messages(mock_message):
 
     await send_followup_long(mock_interaction, "", False)
     mock_interaction.followup.send.assert_called()
-
-
 
 
 def test_create_message_param():

@@ -25,8 +25,10 @@ class Locale:
             cls._instance = super().__new__(cls)
             for locale in discord.enums.Locale:
                 available_locales.append(locale.value.lower())
-            loader : PyI18nYamlLoader = PyI18nYamlLoader()
-            i18n: PyI18n = PyI18n(available_locales=tuple(available_locales), loader=loader)
+            loader: PyI18nYamlLoader = PyI18nYamlLoader()
+            i18n: PyI18n = PyI18n(
+                available_locales=tuple(available_locales), loader=loader
+            )
             cls._locale = i18n.gettext
 
         return cls._instance
@@ -47,13 +49,20 @@ class DiscordTranslator(app_commands.Translator):
     def __init__(self):
         self.locale = Locale()
 
-    async def translate(self, string: locale_str, locale: discord.Locale, context: app_commands.TranslationContext):
+    async def translate(
+        self,
+        string: locale_str,
+        locale: discord.Locale,
+        context: app_commands.TranslationContext,
+    ):
         # Handle different translation contexts
         if context.location == TranslationContextLocation.command_name:
             return self._translate_command(context, string, locale.value.lower())
 
         elif context.location == TranslationContextLocation.command_description:
-            return self._translate_command_description(context, string, locale.value.lower())
+            return self._translate_command_description(
+                context, string, locale.value.lower()
+            )
 
         # elif context.location == TranslationContextLocation.parameter_name:
         #     return self._translate_parameter(context, string, locale.value.lower())
@@ -74,4 +83,3 @@ class DiscordTranslator(app_commands.Translator):
     #     command = context.data.command.name
     #     parameter = context.data.name
     #     return i18n.t(f"commands.{command}.params.{parameter}", locale=lang) or string
-

@@ -5,7 +5,13 @@ from contextlib import contextmanager
 import attrs
 
 from models import *
-from database import get_connection, reset_connection_context, set_connection_context, db_connection_context
+from database import (
+    get_connection,
+    reset_connection_context,
+    set_connection_context,
+    db_connection_context,
+)
+
 
 @contextmanager
 def connection_context():
@@ -25,7 +31,9 @@ def connection_context():
             conn.close()
             reset_connection_context()
 
-T = TypeVar('T')
+
+T = TypeVar("T")
+
 
 def fetch_all_to_model(cursor, model_class: Type[T]) -> List[T]:
     """Convert all fetched rows to instances of the given model class."""
@@ -34,12 +42,14 @@ def fetch_all_to_model(cursor, model_class: Type[T]) -> List[T]:
         return [model_class(**row) for row in result]
     return []
 
+
 def fetch_one_to_model(cursor, model_class: Type[T]) -> Optional[T]:
     """Convert a single fetched row to an instance of the given model class."""
     result = cursor.fetchone()
     if result:
         return model_class(**result)
     return None
+
 
 class GenericRepository:
     def get_connection_id(self) -> int:
@@ -49,12 +59,14 @@ class GenericRepository:
                 result = cursor.fetchone()
                 if result is None:
                     raise ValueError("Failed to retrieve connection ID")
-                return int(result['CONNECTION_ID'])
+                return int(result["CONNECTION_ID"])
 
     def set_session_read_uncommited(self):
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
-                cursor.execute("SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED")
+                cursor.execute(
+                    "SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED"
+                )
 
     def get_session_transaction_isolation(self):
         with connection_context() as conn:
@@ -63,7 +75,7 @@ class GenericRepository:
                 result = cursor.fetchone()
                 if result is None:
                     raise ValueError("Failed to retrieve transaction Isolation")
-                return str(result['TI'])
+                return str(result["TI"])
 
     def get_session_autocommit(self):
         with connection_context() as conn:
@@ -72,17 +84,18 @@ class GenericRepository:
                 result = cursor.fetchone()
                 if result is None:
                     raise ValueError("Failed to retrieve transaction Isolation")
-                return bool(result['TI'])
+                return bool(result["TI"])
 
     def get_session_transaction_id(self):
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
-                cursor.execute("SELECT trx_id FROM information_schema.innodb_trx WHERE trx_mysql_thread_id = CONNECTION_ID()")
+                cursor.execute(
+                    "SELECT trx_id FROM information_schema.innodb_trx WHERE trx_mysql_thread_id = CONNECTION_ID()"
+                )
                 result = cursor.fetchone()
                 if result is None:
                     return "None"
-                return result['trx_id']
-
+                return result["trx_id"]
 
 
 class GuildRepository:
@@ -97,8 +110,8 @@ class GuildRepository:
                     WHERE guild_id = %(guild_id)s
                     """,
                     {
-                        "guild_id" : guild_id,
-                    }
+                        "guild_id": guild_id,
+                    },
                 )
                 return fetch_one_to_model(cursor, Guild)
 
@@ -113,11 +126,10 @@ class GuildRepository:
                         )
                     VALUES (%(guild_id)s, %(guild_name)s)
                     """,
-                    attrs.asdict(guild)
+                    attrs.asdict(guild),
                 )
 
                 return guild
-
 
     def delete_by_guild_id(self, guild_id: int) -> bool:
         with connection_context() as conn:
@@ -128,8 +140,8 @@ class GuildRepository:
                     WHERE guild_id = %(guild_id)s
                     """,
                     {
-                        'guild_id': guild_id,
-                    }
+                        "guild_id": guild_id,
+                    },
                 )
 
                 return True
@@ -149,8 +161,8 @@ class ChannelRepository:
                     WHERE guild_id = %(guild_id)s
                     """,
                     {
-                        'guild_id' : guild_id,
-                    }
+                        "guild_id": guild_id,
+                    },
                 )
                 return fetch_all_to_model(cursor, Channel)
 
@@ -166,12 +178,14 @@ class ChannelRepository:
                     WHERE guild_id = %(guild_id)s AND UPPER(channel_type) like '%BOSS%'
                     """,
                     {
-                        'guild_id' : guild_id,
-                    }
+                        "guild_id": guild_id,
+                    },
                 )
                 return fetch_all_to_model(cursor, Channel)
 
-    def get_all_by_guild_id_and_type(self, guild_id: int, channel_type: str) -> Optional[Channel]:
+    def get_all_by_guild_id_and_type(
+        self, guild_id: int, channel_type: str
+    ) -> Optional[Channel]:
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
                 cursor.execute(
@@ -183,10 +197,7 @@ class ChannelRepository:
                     WHERE guild_id = %(guild_id)s
                     AND channel_type = %(channel_type)s
                     """,
-                    {
-                        'guild_id' : guild_id,
-                        'channel_type' : channel_type
-                    }
+                    {"guild_id": guild_id, "channel_type": channel_type},
                 )
                 return fetch_one_to_model(cursor, Channel)
 
@@ -203,10 +214,10 @@ class ChannelRepository:
                     VALUES (%(channel_id)s, %(guild_id)s, %(channel_type)s)
                     """,
                     {
-                        'channel_id' : channel.channel_id,
-                        'guild_id' : channel.guild_id,
-                        'channel_type' : channel.channel_type.name,
-                    }
+                        "channel_id": channel.channel_id,
+                        "guild_id": channel.guild_id,
+                        "channel_type": channel.channel_type.name,
+                    },
                 )
                 channel.channel_id = cursor.lastrowid
 
@@ -222,10 +233,10 @@ class ChannelRepository:
                     WHERE guild_id = %(guild_id)s and channel_type = %(channel_type)s
                     """,
                     {
-                        'channel_id' : channel.channel_id,
-                        'guild_id' : channel.guild_id,
-                        'channel_type' : channel.channel_type.name,
-                    }
+                        "channel_id": channel.channel_id,
+                        "guild_id": channel.guild_id,
+                        "channel_type": channel.channel_type.name,
+                    },
                 )
                 channel.channel_id = cursor.lastrowid
 
@@ -239,8 +250,8 @@ class ChannelRepository:
                     DELETE FROM channel WHERE guild_id = %(guild_id)s
                     """,
                     {
-                        'guild_id' : guild_id,
-                    }
+                        "guild_id": guild_id,
+                    },
                 )
             return True
 
@@ -256,9 +267,9 @@ class ChannelMessageRepository:
                     VALUES (%(channel_id)s, %(message_id)s)
                     """,
                     {
-                        'channel_id' : channel_message.channel_id,
-                        'message_id' : channel_message.message_id,
-                    }
+                        "channel_id": channel_message.channel_id,
+                        "message_id": channel_message.message_id,
+                    },
                 )
 
                 return channel_message
@@ -273,14 +284,16 @@ class ChannelMessageRepository:
                     WHERE channel_id = %(channel_id)s
                     """,
                     {
-                        'channel_id' : channel_message.channel_id,
-                        'message_id' : channel_message.message_id,
-                    }
+                        "channel_id": channel_message.channel_id,
+                        "message_id": channel_message.message_id,
+                    },
                 )
 
                 return channel_message
 
-    def update_self_channel_message(self, old_channel_id: int, new_channel_id: int) -> bool:
+    def update_self_channel_message(
+        self, old_channel_id: int, new_channel_id: int
+    ) -> bool:
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
                 cursor.execute(
@@ -290,14 +303,16 @@ class ChannelMessageRepository:
                     WHERE channel_id = %(old_channel_id)s
                     """,
                     {
-                        'new_channel_id' : new_channel_id,
-                        'old_channel_id' : old_channel_id,
-                    }
+                        "new_channel_id": new_channel_id,
+                        "old_channel_id": old_channel_id,
+                    },
                 )
 
                 return True
 
-    def get_channel_message_by_channel_id(self, channel_id: int) -> Optional[ChannelMessage]:
+    def get_channel_message_by_channel_id(
+        self, channel_id: int
+    ) -> Optional[ChannelMessage]:
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
                 cursor.execute(
@@ -308,8 +323,8 @@ class ChannelMessageRepository:
                     WHERE channel_id = %(channel_id)s
                     """,
                     {
-                        'channel_id' : channel_id,
-                    }
+                        "channel_id": channel_id,
+                    },
                 )
                 return fetch_one_to_model(cursor, ChannelMessage)
 
@@ -326,8 +341,8 @@ class ChannelMessageRepository:
                     WHERE G.guild_id = %(guild_id)s
                     """,
                     {
-                        'guild_id' : guild_id,
-                    }
+                        "guild_id": guild_id,
+                    },
                 )
                 return fetch_all_to_model(cursor, ChannelMessage)
 
@@ -340,13 +355,15 @@ class ChannelMessageRepository:
                     WHERE channel_id IN (SELECT channel_id from channel WHERE guild_id = %(guild_id)s)
                     """,
                     {
-                        'guild_id' : guild_id,
-                    }
+                        "guild_id": guild_id,
+                    },
                 )
 
                 return True
 
-    def get_message_by_guild_id_and_channel_type(self, guild_id, channel_type) -> Optional[ChannelMessage]:
+    def get_message_by_guild_id_and_channel_type(
+        self, guild_id, channel_type
+    ) -> Optional[ChannelMessage]:
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
                 cursor.execute(
@@ -358,17 +375,16 @@ class ChannelMessageRepository:
                       AND C.channel_type = %(channel_type)s
 
                     """,
-                    {
-                        'guild_id': guild_id,
-                        'channel_type' : channel_type
-                    }
+                    {"guild_id": guild_id, "channel_type": channel_type},
                 )
                 return fetch_one_to_model(cursor, ChannelMessage)
 
 
 class ClanBattleBossEntryRepository:
 
-    def insert_clan_battle_boss_entry(self, clan_battle_boss_entry: ClanBattleBossEntry) -> ClanBattleBossEntry:
+    def insert_clan_battle_boss_entry(
+        self, clan_battle_boss_entry: ClanBattleBossEntry
+    ) -> ClanBattleBossEntry:
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
                 cursor.execute(
@@ -395,7 +411,7 @@ class ClanBattleBossEntryRepository:
                          %(current_health)s,
                          %(max_health)s)
                     """,
-                    attrs.asdict(clan_battle_boss_entry)
+                    attrs.asdict(clan_battle_boss_entry),
                 )
                 clan_battle_boss_entry.clan_battle_boss_entry_id = cursor.lastrowid
 
@@ -423,12 +439,14 @@ class ClanBattleBossEntryRepository:
                     LIMIT 1
                     """,
                     {
-                        'message_id' : message_id,
-                    }
+                        "message_id": message_id,
+                    },
                 )
                 return fetch_one_to_model(cursor, ClanBattleBossEntry)
 
-    def get_last_active_period_by_message_id(self, message_id: int) -> Optional[ClanBattleBossEntry]:
+    def get_last_active_period_by_message_id(
+        self, message_id: int
+    ) -> Optional[ClanBattleBossEntry]:
         with connection_context() as conn:
 
             with conn.cursor(dictionary=True) as cursor:
@@ -451,13 +469,13 @@ class ClanBattleBossEntryRepository:
                     ORDER BY boss_round, clan_battle_boss_entry_id DESC
                     LIMIT 1
                     """,
-                    {
-                        'message_id' : message_id
-                    }
+                    {"message_id": message_id},
                 )
                 return fetch_one_to_model(cursor, ClanBattleBossEntry)
 
-    def update_on_attack(self, clan_battle_boss_entry_id: int, current_health: int) -> bool:
+    def update_on_attack(
+        self, clan_battle_boss_entry_id: int, current_health: int
+    ) -> bool:
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
                 cursor.execute(
@@ -467,14 +485,16 @@ class ClanBattleBossEntryRepository:
                     WHERE clan_battle_boss_entry_id = %(clan_battle_boss_entry_id)s
                     """,
                     {
-                        'clan_battle_boss_entry_id': clan_battle_boss_entry_id,
-                        'current_health' : current_health,
-                    }
+                        "clan_battle_boss_entry_id": clan_battle_boss_entry_id,
+                        "current_health": current_health,
+                    },
                 )
 
                 return True
 
-    def update_message_id(self, clan_battle_boss_entry_id: int, message_id: int) -> bool:
+    def update_message_id(
+        self, clan_battle_boss_entry_id: int, message_id: int
+    ) -> bool:
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
                 cursor.execute(
@@ -484,13 +504,12 @@ class ClanBattleBossEntryRepository:
                     WHERE clan_battle_boss_entry_id = %(clan_battle_boss_entry_id)s
                     """,
                     {
-                        'clan_battle_boss_entry_id': clan_battle_boss_entry_id,
-                        'message_id' : message_id,
-                    }
+                        "clan_battle_boss_entry_id": clan_battle_boss_entry_id,
+                        "message_id": message_id,
+                    },
                 )
 
                 return True
-
 
     def delete_by_guild_id(self, guild_id: int) -> bool:
         with connection_context() as conn:
@@ -501,8 +520,8 @@ class ClanBattleBossEntryRepository:
                     WHERE guild_id = %(guild_id)s
                     """,
                     {
-                        'guild_id' : guild_id,
-                    }
+                        "guild_id": guild_id,
+                    },
                 )
 
                 return True
@@ -530,12 +549,14 @@ class ClanBattleBossBookRepository:
                     WHERE CBE.message_id = %(message_id)s
                     """,
                     {
-                        'message_id' : message_id,
-                    }
+                        "message_id": message_id,
+                    },
                 )
                 return fetch_all_to_model(cursor, ClanBattleBossBook)
 
-    def get_player_book_entry(self, message_id: int, player_id: int) -> Optional[ClanBattleBossBook]:
+    def get_player_book_entry(
+        self, message_id: int, player_id: int
+    ) -> Optional[ClanBattleBossBook]:
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
                 cursor.execute(
@@ -556,9 +577,9 @@ class ClanBattleBossBookRepository:
                           AND CBBE.message_id = %(message_id)s
                     """,
                     {
-                        'player_id' : player_id,
-                        'message_id' : message_id,
-                    }
+                        "player_id": player_id,
+                        "message_id": message_id,
+                    },
                 )
                 return fetch_one_to_model(cursor, ClanBattleBossBook)
 
@@ -583,13 +604,13 @@ class ClanBattleBossBookRepository:
                                        CONCAT(DATE_ADD(CURDATE(), INTERVAL 1 DAY), ' 05:00:00'))
                     """,
                     {
-                        'guild_id' : guild_id,
-                        'player_id' : player_id,
-                    }
+                        "guild_id": guild_id,
+                        "player_id": player_id,
+                    },
                 )
                 result = cursor.fetchone()
                 if result:
-                    return int(result['Book_Count'])
+                    return int(result["Book_Count"])
                 return 0
 
     def delete_book_by_id(self, clan_battle_boss_book_id: int) -> bool:
@@ -602,13 +623,15 @@ class ClanBattleBossBookRepository:
                     WHERE clan_battle_boss_book_id = %(clan_battle_boss_book_id)s
                     """,
                     {
-                        'clan_battle_boss_book_id': clan_battle_boss_book_id,
-                    }
+                        "clan_battle_boss_book_id": clan_battle_boss_book_id,
+                    },
                 )
 
                 return True
 
-    def insert_boss_book_entry(self, clan_battle_boss_book: ClanBattleBossBook) -> ClanBattleBossBook:
+    def insert_boss_book_entry(
+        self, clan_battle_boss_book: ClanBattleBossBook
+    ) -> ClanBattleBossBook:
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
                 cursor.execute(
@@ -638,13 +661,15 @@ class ClanBattleBossBookRepository:
                         SYSDATE()
                     )
                     """,
-                    clan_battle_boss_book.to_db_dict()
+                    clan_battle_boss_book.to_db_dict(),
                 )
                 clan_battle_boss_book.clan_battle_boss_book_id = cursor.lastrowid
 
             return clan_battle_boss_book
 
-    def update_damage_boss_book_by_id(self, clan_battle_boss_book_id: int, damage: int) -> bool:
+    def update_damage_boss_book_by_id(
+        self, clan_battle_boss_book_id: int, damage: int
+    ) -> bool:
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
                 cursor.execute(
@@ -654,13 +679,12 @@ class ClanBattleBossBookRepository:
                     WHERE clan_battle_boss_book_id = %(clan_battle_boss_book_id)s
                     """,
                     {
-                        'clan_battle_boss_book_id': clan_battle_boss_book_id,
-                        'damage' : damage
-                    }
+                        "clan_battle_boss_book_id": clan_battle_boss_book_id,
+                        "damage": damage,
+                    },
                 )
 
                 return True
-
 
     def delete_by_guild_id(self, guild_id: int) -> bool:
         with connection_context() as conn:
@@ -671,15 +695,16 @@ class ClanBattleBossBookRepository:
                     WHERE guild_id = %(guild_id)s
                     """,
                     {
-                        'guild_id' : guild_id,
-                    }
+                        "guild_id": guild_id,
+                    },
                 )
 
                 return True
 
+
 class ClanBattlePeriodRepository:
 
-    def insert(self, clan_battle_period: ClanBattlePeriod) -> ClanBattlePeriod :
+    def insert(self, clan_battle_period: ClanBattlePeriod) -> ClanBattlePeriod:
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
                 cursor.execute(
@@ -711,13 +736,13 @@ class ClanBattlePeriodRepository:
                         %(boss5_id)s
                     )
                     """,
-                    clan_battle_period.to_db_dict()
+                    clan_battle_period.to_db_dict(),
                 )
                 clan_battle_period.clan_battle_overall_entry_id = cursor.lastrowid
 
             return clan_battle_period
 
-    def get_latest_cb_period(self) -> Optional[ClanBattlePeriod] :
+    def get_latest_cb_period(self) -> Optional[ClanBattlePeriod]:
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
                 cursor.execute(
@@ -741,7 +766,7 @@ class ClanBattlePeriodRepository:
                 )
                 return fetch_one_to_model(cursor, ClanBattlePeriod)
 
-    def get_current_active_cb_period(self) -> Optional[ClanBattlePeriod] :
+    def get_current_active_cb_period(self) -> Optional[ClanBattlePeriod]:
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
                 cursor.execute(
@@ -765,7 +790,7 @@ class ClanBattlePeriodRepository:
                 )
                 return fetch_one_to_model(cursor, ClanBattlePeriod)
 
-    def get_by_id(self, clan_battle_period_id:int) -> Optional[ClanBattlePeriod] :
+    def get_by_id(self, clan_battle_period_id: int) -> Optional[ClanBattlePeriod]:
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
                 cursor.execute(
@@ -786,13 +811,11 @@ class ClanBattlePeriodRepository:
                     ORDER BY clan_battle_period_id DESC
                     LIMIT 1
                     """,
-                    {
-                        'clan_battle_period_id': clan_battle_period_id
-                    }
+                    {"clan_battle_period_id": clan_battle_period_id},
                 )
                 return fetch_one_to_model(cursor, ClanBattlePeriod)
 
-    def get_by_param(self, year: int, month:int) -> Optional[ClanBattlePeriod]:
+    def get_by_param(self, year: int, month: int) -> Optional[ClanBattlePeriod]:
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
                 cursor.execute(
@@ -815,13 +838,13 @@ class ClanBattlePeriodRepository:
                         LIMIT 1
                     """,
                     {
-                        'year' : year,
-                        'month' : month,
-                    }
+                        "year": year,
+                        "month": month,
+                    },
                 )
                 return fetch_one_to_model(cursor, ClanBattlePeriod)
 
-    def get_by_id_day(self, clan_battle_period_id:int) -> Optional[ClanBattlePeriod] :
+    def get_by_id_day(self, clan_battle_period_id: int) -> Optional[ClanBattlePeriod]:
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
                 cursor.execute(
@@ -847,14 +870,11 @@ class ClanBattlePeriodRepository:
                     ORDER BY clan_battle_period_id DESC
                     LIMIT 1
                     """,
-                    {
-                        'clan_battle_period_id': clan_battle_period_id
-                    }
+                    {"clan_battle_period_id": clan_battle_period_id},
                 )
                 return fetch_one_to_model(cursor, ClanBattlePeriodDay)
 
-
-    def get_current_active_cb_period_day(self) -> Optional[ClanBattlePeriodDay] :
+    def get_current_active_cb_period_day(self) -> Optional[ClanBattlePeriodDay]:
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
                 cursor.execute(
@@ -885,7 +905,7 @@ class ClanBattlePeriodRepository:
                 )
                 return fetch_one_to_model(cursor, ClanBattlePeriodDay)
 
-    def set_all_inactive(self) -> bool :
+    def set_all_inactive(self) -> bool:
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
                 cursor.execute(
@@ -897,7 +917,7 @@ class ClanBattlePeriodRepository:
                 )
                 return True
 
-    def set_active_by_id(self, clan_battle_period_id:int) -> bool :
+    def set_active_by_id(self, clan_battle_period_id: int) -> bool:
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
                 cursor.execute(
@@ -906,15 +926,16 @@ class ClanBattlePeriodRepository:
                     SET is_active = 1
                     WHERE clan_battle_period_id = %(clan_battle_period_id)s
                     """,
-                    {
-                        'clan_battle_period_id': clan_battle_period_id
-                    }
+                    {"clan_battle_period_id": clan_battle_period_id},
                 )
                 return True
 
+
 class ClanBattleBossRepository:
 
-    def fetch_clan_battle_boss_by_id(self, clan_battle_boss_id: int) -> Optional[ClanBattleBoss]:
+    def fetch_clan_battle_boss_by_id(
+        self, clan_battle_boss_id: int
+    ) -> Optional[ClanBattleBoss]:
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
                 cursor.execute(
@@ -928,8 +949,8 @@ class ClanBattleBossRepository:
                     WHERE clan_battle_boss_id = %(clan_battle_boss_id)s
                     """,
                     {
-                        'clan_battle_boss_id': clan_battle_boss_id,
-                    }
+                        "clan_battle_boss_id": clan_battle_boss_id,
+                    },
                 )
                 return fetch_one_to_model(cursor, ClanBattleBoss)
 
@@ -951,7 +972,9 @@ class ClanBattleBossRepository:
 
 class ClanBattleBossHealthRepository:
 
-    def get_one_by_position_and_round(self, position: int, boss_round: int) -> Optional[ClanBattleBossHealth]:
+    def get_one_by_position_and_round(
+        self, position: int, boss_round: int
+    ) -> Optional[ClanBattleBossHealth]:
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
                 cursor.execute(
@@ -966,15 +989,21 @@ class ClanBattleBossHealthRepository:
                     AND %(boss_round)s BETWEEN round_from AND round_to
                     """,
                     {
-                        'position' : position,
-                        'boss_round' : boss_round,
-                    }
+                        "position": position,
+                        "boss_round": boss_round,
+                    },
                 )
                 return fetch_one_to_model(cursor, ClanBattleBossHealth)
 
 
 class ClanBattleOverallEntryRepository:
-    def get_all_by_param_and_round(self, guild_id: int, clan_battle_period_id:int, clan_battle_boss_id: int, boss_round: int) -> list[ClanBattleOverallEntry]:
+    def get_all_by_param_and_round(
+        self,
+        guild_id: int,
+        clan_battle_period_id: int,
+        clan_battle_boss_id: int,
+        boss_round: int,
+    ) -> list[ClanBattleOverallEntry]:
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
                 cursor.execute(
@@ -999,15 +1028,17 @@ class ClanBattleOverallEntryRepository:
                     ORDER BY entry_date
                     """,
                     {
-                        'guild_id' : guild_id,
-                        'clan_battle_period_id' : clan_battle_period_id,
-                        'clan_battle_boss_id': clan_battle_boss_id,
-                        'boss_round' : boss_round,
-                    }
+                        "guild_id": guild_id,
+                        "clan_battle_period_id": clan_battle_period_id,
+                        "clan_battle_boss_id": clan_battle_boss_id,
+                        "boss_round": boss_round,
+                    },
                 )
                 return fetch_all_to_model(cursor, ClanBattleOverallEntry)
 
-    def insert(self, cb_overall_entry: ClanBattleOverallEntry) -> ClanBattleOverallEntry:
+    def insert(
+        self, cb_overall_entry: ClanBattleOverallEntry
+    ) -> ClanBattleOverallEntry:
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
                 cursor.execute(
@@ -1040,13 +1071,15 @@ class ClanBattleOverallEntryRepository:
                         SYSDATE()
                     )
                     """,
-                    cb_overall_entry.to_db_dict()
+                    cb_overall_entry.to_db_dict(),
                 )
                 cb_overall_entry.clan_battle_overall_entry_id = cursor.lastrowid
 
             return cb_overall_entry
 
-    def update_overall_link(self, cb_overall_entry_id: int, overall_leftover_entry_id: int) -> bool:
+    def update_overall_link(
+        self, cb_overall_entry_id: int, overall_leftover_entry_id: int
+    ) -> bool:
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
                 cursor.execute(
@@ -1057,9 +1090,9 @@ class ClanBattleOverallEntryRepository:
     
                     """,
                     {
-                        'overall_leftover_entry_id': overall_leftover_entry_id,
-                        'cb_overall_entry_id': cb_overall_entry_id,
-                    }
+                        "overall_leftover_entry_id": overall_leftover_entry_id,
+                        "cb_overall_entry_id": cb_overall_entry_id,
+                    },
                 )
 
                 return True
@@ -1086,16 +1119,18 @@ class ClanBattleOverallEntryRepository:
 
                     """,
                     {
-                        'guild_id': guild_id,
-                        'player_id': player_id,
-                    }
+                        "guild_id": guild_id,
+                        "player_id": player_id,
+                    },
                 )
                 result = cursor.fetchone()
                 if result:
-                    return result['entry_count']
+                    return result["entry_count"]
                 return 0
 
-    def get_leftover_by_guild_id_and_player_id(self, guild_id: int, player_id: int) -> List[ClanBattleLeftover]:
+    def get_leftover_by_guild_id_and_player_id(
+        self, guild_id: int, player_id: int
+    ) -> List[ClanBattleLeftover]:
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
                 cursor.execute(
@@ -1122,9 +1157,9 @@ class ClanBattleOverallEntryRepository:
                                        CONCAT(DATE_ADD(CURDATE(), INTERVAL 1 DAY), ' 05:00:00'));
                     """,
                     {
-                        'guild_id': guild_id,
-                        'player_id': player_id,
-                    }
+                        "guild_id": guild_id,
+                        "player_id": player_id,
+                    },
                 )
                 return fetch_all_to_model(cursor, ClanBattleLeftover)
 
@@ -1137,13 +1172,15 @@ class ClanBattleOverallEntryRepository:
                     WHERE guild_id = %(guild_id)s
                     """,
                     {
-                        'guild_id': guild_id,
-                    }
+                        "guild_id": guild_id,
+                    },
                 )
 
                 return True
 
-    def get_report_entry_by_param(self, guild_id:int, year:int, month: int, day: int) -> list[ClanBattleReportEntry]:
+    def get_report_entry_by_param(
+        self, guild_id: int, year: int, month: int, day: int
+    ) -> list[ClanBattleReportEntry]:
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
                 cursor.execute(
@@ -1190,16 +1227,13 @@ class ClanBattleOverallEntryRepository:
                              LEFT JOIN ENTRY E on GP.player_id = E.player_id AND E.day = %(day)s
                     WHERE GP.guild_id = %(guild_id)s
                     """,
-                    {
-                        'guild_id': guild_id,
-                        'year': year,
-                        'month': month,
-                        'day': day
-                    }
+                    {"guild_id": guild_id, "year": year, "month": month, "day": day},
                 )
                 return fetch_all_to_model(cursor, ClanBattleReportEntry)
 
-    def get_report_entry_by_guild_and_period_id(self, guild_id:int, period_id: int) -> list[ClanBattleReportEntry]:
+    def get_report_entry_by_guild_and_period_id(
+        self, guild_id: int, period_id: int
+    ) -> list[ClanBattleReportEntry]:
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
                 cursor.execute(
@@ -1243,15 +1277,18 @@ class ClanBattleOverallEntryRepository:
                     WHERE GP.guild_id = %(guild_id)s
                     """,
                     {
-                        'guild_id': guild_id,
-                        'period_id': period_id,
-                    }
+                        "guild_id": guild_id,
+                        "period_id": period_id,
+                    },
                 )
 
                 return fetch_all_to_model(cursor, ClanBattleReportEntry)
 
+
 class ClanBattleReportMessageRepository:
-    def get_by_guild_period_and_days(self, guild_id: int, clan_battle_period_id: int, day : int) -> Optional[ClanBattleReportMessage]:
+    def get_by_guild_period_and_days(
+        self, guild_id: int, clan_battle_period_id: int, day: int
+    ) -> Optional[ClanBattleReportMessage]:
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
                 cursor.execute(
@@ -1267,15 +1304,17 @@ class ClanBattleReportMessageRepository:
                       AND day = %(day)s
                     """,
                     {
-                        'guild_id': guild_id,
-                        'clan_battle_period_id': clan_battle_period_id,
-                        'day': day
-                    }
+                        "guild_id": guild_id,
+                        "clan_battle_period_id": clan_battle_period_id,
+                        "day": day,
+                    },
                 )
 
                 return fetch_one_to_model(cursor, ClanBattleReportMessage)
 
-    def get_last_by_guild_period(self, guild_id: int, clan_battle_period_id: int, day: int) -> Optional[ClanBattleReportMessage]:
+    def get_last_by_guild_period(
+        self, guild_id: int, clan_battle_period_id: int, day: int
+    ) -> Optional[ClanBattleReportMessage]:
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
                 cursor.execute(
@@ -1292,10 +1331,10 @@ class ClanBattleReportMessageRepository:
                     ORDER BY clan_battle_report_message_id DESC
                     """,
                     {
-                        'guild_id': guild_id,
-                        'clan_battle_period_id': clan_battle_period_id,
-                        'day': day
-                    }
+                        "guild_id": guild_id,
+                        "clan_battle_period_id": clan_battle_period_id,
+                        "day": day,
+                    },
                 )
 
                 return fetch_one_to_model(cursor, ClanBattleReportMessage)
@@ -1320,7 +1359,7 @@ class ClanBattleReportMessageRepository:
                         %(message_id)s
                     )
                     """,
-                    attrs.asdict(report)
+                    attrs.asdict(report),
                 )
                 report.clan_battle_report_message_id = cursor.lastrowid
                 return report
@@ -1334,13 +1373,11 @@ class ClanBattleReportMessageRepository:
                     WHERE guild_id = %(guild_id)s
                     """,
                     {
-                        'guild_id': guild_id,
-                    }
+                        "guild_id": guild_id,
+                    },
                 )
 
                 return True
-
-
 
 
 class GuildPlayerRepository:
@@ -1352,7 +1389,7 @@ class GuildPlayerRepository:
                     INSERT INTO guild_player (guild_id, player_id, player_name) 
                     VALUES (?, ?, ?)
                     """,
-                    data
+                    data,
                 )
 
                 return True
@@ -1366,8 +1403,8 @@ class GuildPlayerRepository:
                     WHERE guild_id = %(guild_id)s
                     """,
                     {
-                        'guild_id': guild_id,
-                    }
+                        "guild_id": guild_id,
+                    },
                 )
 
                 return True
@@ -1376,35 +1413,37 @@ class GuildPlayerRepository:
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
                 cursor.execute(
-                """
+                    """
                     SELECT guild_id, player_id, player_name 
                     FROM guild_player
                     WHERE guild_id = %(guild_id)s
                 """,
                     {
-                        'guild_id': guild_id,
-                    }
+                        "guild_id": guild_id,
+                    },
                 )
 
                 return fetch_all_to_model(cursor, GuildPlayer)
 
 
 class ErrorLogRepository:
-    def insert(self, guild_id: int, identifier: str, exception: str,stacktrace: str) -> bool:
+    def insert(
+        self, guild_id: int, identifier: str, exception: str, stacktrace: str
+    ) -> bool:
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
                 cursor.execute(
-                """
+                    """
                     INSERT INTO error_log
                     (guild_id, identifier, exception, stacktrace) VALUES 
                     (%(guild_id)s, %(identifier)s,  %(exception)s, %(stacktrace)s)
                 """,
                     {
-                        'guild_id': guild_id,
-                        'identifier': identifier,
-                        'exception': exception,
-                        'stacktrace': stacktrace,
-                    }
+                        "guild_id": guild_id,
+                        "identifier": identifier,
+                        "exception": exception,
+                        "stacktrace": stacktrace,
+                    },
                 )
                 return True
 
@@ -1412,12 +1451,12 @@ class ErrorLogRepository:
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
                 cursor.execute(
-                """
+                    """
                     DELETE FROM error_log
                     WHERE guild_id = %(guild_id)s
                 """,
                     {
-                        'guild_id': guild_id,
-                    }
+                        "guild_id": guild_id,
+                    },
                 )
                 return True

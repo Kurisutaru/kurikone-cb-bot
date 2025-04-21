@@ -1,13 +1,19 @@
 import asyncio
 from functools import wraps
 
-from database import rollback_flag_context, get_connection, reset_connection_context, set_connection_context, \
-    db_connection_context
+from database import (
+    rollback_flag_context,
+    get_connection,
+    reset_connection_context,
+    set_connection_context,
+    db_connection_context,
+)
 
 
 def transaction_rollback():
     """Java equivalent of TransactionAspectSupport.currentTransactionStatus().setRollbackOnly()"""
     rollback_flag_context.set(True)
+
 
 def transaction_reset():
     rollback_flag_context.set(False)

@@ -9,6 +9,7 @@ guild_locale = {}
 available_locales = []
 default_locale = discord.enums.Locale.american_english.value.lower()
 
+
 @define
 class Locale:
     _instance = None
@@ -18,8 +19,8 @@ class Locale:
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             i18n.load_path.append("locales")
-            i18n.set('filename_format', '{locale}.{format}')
-            i18n.set('file_format', 'yaml')
+            i18n.set("filename_format", "{locale}.{format}")
+            i18n.set("file_format", "yaml")
             i18n.load_everything()
 
             cls._locale = i18n
@@ -46,13 +47,20 @@ class DiscordTranslator(app_commands.Translator):
     def __init__(self):
         self.locale = Locale()
 
-    async def translate(self, string: locale_str, locale: discord.Locale, context: app_commands.TranslationContext):
+    async def translate(
+        self,
+        string: locale_str,
+        locale: discord.Locale,
+        context: app_commands.TranslationContext,
+    ):
         # Handle different translation contexts
         if context.location == TranslationContextLocation.command_name:
             return self._translate_command(context, string, locale.value.lower())
 
         elif context.location == TranslationContextLocation.command_description:
-            return self._translate_command_description(context, string, locale.value.lower())
+            return self._translate_command_description(
+                context, string, locale.value.lower()
+            )
 
         # elif context.location == TranslationContextLocation.parameter_name:
         #     return self._translate_parameter(context, string, locale.value.lower())
@@ -63,11 +71,14 @@ class DiscordTranslator(app_commands.Translator):
 
     def _translate_command(self, context, string, lang):
         command = context.data.name
-        return self.locale.text(text=f"commands.{command}.name", lang= lang) or string
+        return self.locale.text(text=f"commands.{command}.name", lang=lang) or string
 
     def _translate_command_description(self, context, string, lang):
         command = context.data.name
-        return self.locale.text(text=f"commands.{command}.description", lang= lang) or string
+        return (
+            self.locale.text(text=f"commands.{command}.description", lang=lang)
+            or string
+        )
 
     # def _translate_parameter(self, context, string, lang):
     #     command = context.data.command.name

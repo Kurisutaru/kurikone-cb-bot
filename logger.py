@@ -26,9 +26,15 @@ class KuriLogger:
                     cls._instance.init(*args, **kwargs)
         return cls._instance
 
-    def init(self, name='discord', log_file='discord.log', max_days=7,
-             file_level=logging.DEBUG, console_level=logging.INFO,
-             timezone='UTC'):
+    def init(
+        self,
+        name="discord",
+        log_file="discord.log",
+        max_days=7,
+        file_level=logging.DEBUG,
+        console_level=logging.INFO,
+        timezone="UTC",
+    ):
         """
         Initialize the logger with daily rotation and max retention of 7 days.
 
@@ -56,17 +62,17 @@ class KuriLogger:
         # Create a timed rotating file handler that rotates at midnight
         self.file_handler = TimedRotatingFileHandler(
             full_log_path,
-            when='midnight',
+            when="midnight",
             interval=1,
             backupCount=max_days,
-            encoding='utf-8'
+            encoding="utf-8",
         )
         self.file_handler.setLevel(file_level)
         self.file_handler.suffix = "-%Y-%m-%d.log"
 
         def custom_namer(default_name):
             base, ext = os.path.splitext(default_name)
-            base = re.sub(r'\.\d{4}-\d{2}-\d{2}$', '', base)  # Remove any existing date
+            base = re.sub(r"\.\d{4}-\d{2}-\d{2}$", "", base)  # Remove any existing date
             date = datetime.now().strftime("%Y-%m-%d")
             return f"{base}-{date}{ext}"
 
@@ -78,15 +84,15 @@ class KuriLogger:
 
         # Create formatters and attach them to the handlers
         self.file_formatter = TimezoneFormatter(
-            '%(asctime)s [%(levelname)s] %(name)s: %(message)s',
-            datefmt='%Y-%m-%d %H:%M:%S %Z',
-            tz=self._timezone
+            "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S %Z",
+            tz=self._timezone,
         )
 
         self.console_formatter = AnsiColorFormatter(
-            '%(asctime)s [%(levelname)s] %(name)-20s: %(message)s',
-            datefmt='%Y-%m-%d %H:%M:%S %Z',
-            tz=self._timezone
+            "%(asctime)s [%(levelname)s] %(name)-20s: %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S %Z",
+            tz=self._timezone,
         )
         self.file_handler.setFormatter(self.file_formatter)
         self.console_handler.setFormatter(self.console_formatter)
@@ -150,19 +156,19 @@ class AnsiColorFormatter(logging.Formatter):
         return dt.isoformat()
 
     def format(self, record: logging.LogRecord):
-        no_style = '\033[0m'
-        bold = '\033[91m'
-        grey = '\033[90m'
-        yellow = '\033[93m'
-        red = '\033[31m'
-        red_light = '\033[91m'
-        green = '\033[32m'
+        no_style = "\033[0m"
+        bold = "\033[91m"
+        grey = "\033[90m"
+        yellow = "\033[93m"
+        red = "\033[31m"
+        red_light = "\033[91m"
+        green = "\033[32m"
         start_style = {
-            'DEBUG': grey,
-            'INFO': green,
-            'WARNING': yellow,
-            'ERROR': red,
-            'CRITICAL': red_light + bold,
+            "DEBUG": grey,
+            "INFO": green,
+            "WARNING": yellow,
+            "ERROR": red,
+            "CRITICAL": red_light + bold,
         }.get(record.levelname, no_style)
         end_style = no_style
-        return f'{start_style}{super().format(record)}{end_style}'
+        return f"{start_style}{super().format(record)}{end_style}"

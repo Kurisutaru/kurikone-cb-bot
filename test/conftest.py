@@ -10,6 +10,7 @@ guild_id = 1
 channel_id = 1
 message_id = 1
 
+
 @pytest.fixture
 def mock_ctx():
     """Mock Discord context"""
@@ -18,12 +19,14 @@ def mock_ctx():
     ctx.guild.id = guild_id
     return ctx
 
+
 @pytest.fixture
 def mock_channel():
     """Standardized mock channel for message tests"""
     channel = AsyncMock(spec=TextChannel)
     channel.id = channel_id
     return channel
+
 
 @pytest.fixture
 def mock_message():

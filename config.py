@@ -9,6 +9,7 @@ from globals import logger
 load_dotenv()
 log = logger
 
+
 class GlobalConfig(Env):
     DB_HOST = Env.var(type=str, name="DB_HOST")
     DB_USER = Env.var(type=str, name="DB_USER")
@@ -25,9 +26,15 @@ class GlobalConfig(Env):
     BOSS4_CHANNEL_NAME = Env.var(type=str, name="BOSS4_CHANNEL_NAME")
     BOSS5_CHANNEL_NAME = Env.var(type=str, name="BOSS5_CHANNEL_NAME")
     TL_SHIFTER_CHANNEL_NAME = Env.var(type=str, name="TL_SHIFTER_CHANNEL_NAME")
-    MESSAGE_DEFAULT_DELETE_AFTER_SHORT = Env.var(type=int, name="MESSAGE_DEFAULT_DELETE_AFTER_SHORT", default=3)
-    MESSAGE_DEFAULT_DELETE_AFTER_MEDIUM = Env.var(type=int, name="MESSAGE_DEFAULT_DELETE_AFTER_MEDIUM", default=15)
-    MESSAGE_DEFAULT_DELETE_AFTER_LONG = Env.var(type=int, name="MESSAGE_DEFAULT_DELETE_AFTER_LONG", default=30)
+    MESSAGE_DEFAULT_DELETE_AFTER_SHORT = Env.var(
+        type=int, name="MESSAGE_DEFAULT_DELETE_AFTER_SHORT", default=3
+    )
+    MESSAGE_DEFAULT_DELETE_AFTER_MEDIUM = Env.var(
+        type=int, name="MESSAGE_DEFAULT_DELETE_AFTER_MEDIUM", default=15
+    )
+    MESSAGE_DEFAULT_DELETE_AFTER_LONG = Env.var(
+        type=int, name="MESSAGE_DEFAULT_DELETE_AFTER_LONG", default=30
+    )
 
 
 config = GlobalConfig()

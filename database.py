@@ -8,10 +8,10 @@ from globals import logger
 
 log = logger
 
+
 class DatabasePool:
     _instance = None
     _pool = None
-
 
     def __new__(cls):
         if cls._instance is None:
@@ -34,7 +34,9 @@ class DatabasePool:
                     failures=None,
                     ping=7,
                 )
-                log.info(f"Connection pool initialized with size: {config.MAX_POOL_SIZE}")
+                log.info(
+                    f"Connection pool initialized with size: {config.MAX_POOL_SIZE}"
+                )
             except Exception as e:
                 log.critical(f"Failed to establish a database connection")
                 sys.exit(1)
@@ -59,8 +61,8 @@ db_pool = DatabasePool()
 # Context Management
 # --------------------------------------------
 # Context var for async-safe connection tracking
-db_connection_context  = contextvars.ContextVar('db_connection', default=None)
-rollback_flag_context = contextvars.ContextVar('rollback_flag', default=False)
+db_connection_context = contextvars.ContextVar("db_connection", default=None)
+rollback_flag_context = contextvars.ContextVar("rollback_flag", default=False)
 
 
 def get_connection():
