@@ -17,5 +17,4 @@ datetime_format = '%Y-%m-%d %H:%M:%S %Z'
 locale = Locale()
 logger = KuriLogger(timezone=jst.zone)
 
-CURRENT_CB_PERIOD_ID = -1
 PURIKONE_LIVE_SERVICE_DATE = datetime(year=2018, month=2, day=15)

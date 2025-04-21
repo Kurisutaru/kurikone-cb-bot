@@ -34,7 +34,6 @@ async def discord_close_response(interaction: discord.Interaction):
         await interaction.delete_original_response()
     except Exception as e:
         log.error(e)
-        log.error(traceback.print_exc())
 
 async def send_message(interaction: discord.Interaction, content: str, ephemeral: bool = False, silent: bool = None, embed: Embed = None,
                              embeds: list[Embed] = None, view: View = None):

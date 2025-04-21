@@ -47,8 +47,8 @@ class Services:
                     cursor.execute(
                         """
                             INSERT INTO error_log
-                            (guild_id, identifier, exception, stacktrace) VALUES 
-                            (%(guild_id)s, %(identifier)s,  %(exception)s, %(stacktrace)s)
+                            (guild_id, identifier, exception, stacktrace, error_date) VALUES 
+                            (%(guild_id)s, %(identifier)s,  %(exception)s, %(stacktrace)s, SYSDATE())
                         """,
                         {
                             'guild_id': guild_id,

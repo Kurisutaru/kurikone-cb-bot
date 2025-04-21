@@ -5,8 +5,7 @@ from discord import app_commands
 from discord.ext import commands, tasks
 
 import utils
-from globals import TL_SHIFTER_CHANNEL, SPACE_PATTERN, NON_DIGIT, NEW_LINE, locale, logger, jst, CURRENT_CB_PERIOD_ID, \
-    datetime_format
+from globals import TL_SHIFTER_CHANNEL, SPACE_PATTERN, NON_DIGIT, NEW_LINE, locale, logger, datetime_format
 from models import GuildPlayer
 from services import MainService, ClanBattlePeriodService
 
@@ -142,15 +141,15 @@ class ClanBattleCommands(commands.Cog, name="Clan Battle Commands", description=
             await message.reply(NEW_LINE.join(result_lines))
 
     # Background task
-    everyday_cb_time = datetime.time(hour=5, minute=0, tzinfo=jst)
+    everyday_cb_time = datetime.time(hour=20, minute=0)
     @tasks.loop(time=everyday_cb_time)
     async def refresh_clan_battle_report_daily(self):
         for guild in self.bot.guilds:
             log.info(f"Refresh Bot Daily: {guild.name} - {guild.id}")
-            await _main_service.setup_guild_channel_message(guild)
+            await _main_service.setup_guild_channel_message(guild, TL_SHIFTER_CHANNEL)
 
-    everyday_cb_end_time = datetime.time(hour=0, minute=0, tzinfo=jst)
-    @tasks.loop(time=everyday_cb_end_time)
+    everyday_cb_end_time = datetime.time(hour=15, minute=0)
+    @tasks.loop(time=everyday_cb_end_time, reconnect=True)
     async def check_clan_battle_period(self):
         log.info(f"Check Clan Battle Period daily @{utils.now().strftime(datetime_format)}")
         await _main_service.check_clan_battle_period()
