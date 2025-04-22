@@ -1,8 +1,12 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from dependency_injector import providers
 from discord import Message, TextChannel, Guild
 
+from config import GlobalConfig
+from dependency import Container
+from locales import Locale
 from logger import KuriLogger
 
 author_id = 1
@@ -34,3 +38,18 @@ def mock_message():
     message = AsyncMock(spec=Message)
     message.id = message_id  # Consistent test ID
     return message
+
+
+@pytest.fixture
+def mock_container():
+    container = Container()
+
+    container.wire(
+        modules=[__name__, "database", "services", "ui", "utils", "cogs.base_cog"],
+        packages=["cogs"],
+    )
+
+    yield container
+    # Recommended cleanup sequence
+    container.unwire()
+    container.reset_override()  # Explicitly clear any overrides

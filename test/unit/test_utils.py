@@ -1,15 +1,16 @@
 from datetime import datetime
+from unittest.mock import AsyncMock, patch, MagicMock
 
 import discord
 import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
-
+from dependency_injector import providers
 from discord import TextChannel, Interaction, Embed
 from discord.ui import View
 from freezegun import freeze_time
 
 from enums import EmojiEnum, PeriodType, AttackTypeEnum
-from globals import jst
+from locales import Locale
+from logger import KuriLogger
 from models import (
     ClanBattleBossEntry,
     ClanBattleBoss,
@@ -52,34 +53,36 @@ async def test_discord_try_fetch_message_not_found():
 
 
 @pytest.mark.asyncio
-async def test_discord_close_response_success():
+async def test_discord_close_response_success(mock_container):
     mock_interaction = AsyncMock(spec=Interaction)
     mock_interaction.response.defer = AsyncMock()
     mock_interaction.delete_original_response = AsyncMock()
 
-    utils.log = AsyncMock()
+    mock_logger = MagicMock()
+    mock_container.logger.override(providers.Object(mock_logger))
 
     await utils.discord_close_response(mock_interaction)
     mock_interaction.response.defer.assert_awaited_once_with(ephemeral=True)
     mock_interaction.delete_original_response.assert_awaited_once()
-    utils.log.error.assert_not_called()
+    mock_logger.error.assert_not_called()
 
 
 @pytest.mark.asyncio
-async def test_discord_close_response_failure():
+async def test_discord_close_response_failure(mock_container):
     mock_interaction = AsyncMock(spec=Interaction)
     mock_interaction.response.defer = AsyncMock(side_effect=Exception("Test error"))
     mock_interaction.delete_original_response = AsyncMock()
 
-    utils.log = AsyncMock()
+    mock_logger = MagicMock(spec=KuriLogger)
+    mock_container.logger.override(providers.Object(mock_logger))
 
     await utils.discord_close_response(mock_interaction)
-    utils.log.error.assert_called_once()
+    mock_logger.error.assert_called()
     mock_interaction.delete_original_response.assert_not_awaited()
 
 
 @pytest.mark.asyncio
-async def test_discord_send_messages():
+async def test_discord_send_messages(mock_container):
     mock_interaction = AsyncMock(spec=Interaction)
     mock_interaction.response.send_message = AsyncMock()
 
@@ -97,9 +100,12 @@ async def test_discord_send_messages():
 
 
 @pytest.mark.asyncio
-async def test_discord_send_channel_messages():
+async def test_discord_send_channel_messages(mock_container):
     mock_interaction = AsyncMock(spec=Interaction)
     mock_interaction.channel.send = AsyncMock()
+
+    mock_config = MagicMock()
+    mock_container.config.override(mock_config)
 
     await utils.send_channel_message(mock_interaction, "", False, None, None, None)
     mock_interaction.channel.send.assert_called()
@@ -119,7 +125,7 @@ async def test_discord_send_channel_messages():
 
 
 @pytest.mark.asyncio
-async def test_discord_send_followup_messages(mock_message):
+async def test_discord_send_followup_messages(mock_container, mock_message):
     mock_interaction = AsyncMock(spec=Interaction)
     mock_interaction.followup.send = AsyncMock()
     mock_interaction.followup.send.return_value = mock_message
@@ -162,7 +168,10 @@ def test_create_message_param():
     assert param["silent"] is True
 
 
-def test_create_header_embed():
+def test_create_header_embed(mock_container):
+
+    mock_container.locale.override(MagicMock(spec=Locale))
+
     mock_clan_battle_boss_entry = ClanBattleBossEntry(
         guild_id=1,
         clan_battle_boss_entry_id=1,
@@ -175,8 +184,6 @@ def test_create_header_embed():
         current_health=1,
         max_health=10,
     )
-
-    utils.l = MagicMock()
 
     embed = utils.create_header_embed(
         1,
@@ -389,7 +396,10 @@ def test_generate_random_boss_period():
     assert random["boss5_id"] == 5
 
 
-def test_create_done_embed():
+def test_create_done_embed(mock_container):
+
+    mock_container.locale.override(MagicMock(spec=Locale))
+
     list_cb_overall_entry = [
         ClanBattleOverallEntry(
             clan_battle_overall_entry_id=1,
@@ -414,7 +424,9 @@ def test_create_done_embed():
     assert embeds is not None
 
 
-def test_create_book_embed():
+def test_create_book_embed(mock_container):
+    mock_container.locale.override(MagicMock(spec=Locale))
+
     list_boss_cb_player_entries = [
         ClanBattleBossBook(
             clan_battle_overall_entry_id=1,

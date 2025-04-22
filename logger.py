@@ -1,20 +1,17 @@
 import logging
 import os
 import threading
-from dataclasses import field
 from datetime import datetime
 from logging.handlers import TimedRotatingFileHandler
 
 import attr
 import pytz
-from attrs import define
 
 
-@define
 class KuriLogger:
-    _instance = field(default=None, init=False)
-    _lock = field(default=None, init=False)
-    _timezone: datetime.tzinfo = field(default=None, init=False)
+    _instance = None
+    _lock = None
+    _timezone: datetime.tzinfo = None
 
     def __new__(cls, *args, **kwargs):
         if cls._instance is None:

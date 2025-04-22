@@ -1,15 +1,14 @@
 import discord
 import i18n
-from attrs import define
 from discord import app_commands
 from discord.app_commands import locale_str, TranslationContextLocation
+
 from globals import GUILD_LOCALE
 
 available_locales = []
 default_locale = discord.enums.Locale.american_english.value.lower()
 
 
-@define
 class Locale:
     _instance = None
     _locale = None
