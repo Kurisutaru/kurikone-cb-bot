@@ -1,10 +1,12 @@
 import datetime
 
 import discord
+from dependency_injector.wiring import inject
 from discord import app_commands
 from discord.ext import commands, tasks
 
 import utils
+from cogs.base_cog import BaseCog
 from globals import (
     TL_SHIFTER_CHANNEL,
     SPACE_PATTERN,
@@ -12,21 +14,17 @@ from globals import (
     NEW_LINE,
     datetime_format,
 )
-from locales import l
-from logger import log
 from models import GuildPlayer
-from services import MainService, ClanBattlePeriodService
-
-_main_service = MainService()
-_clan_battle_period_service = ClanBattlePeriodService()
 
 
 class ClanBattleCommands(
-    commands.Cog,
+    BaseCog,
     name="Clan Battle Commands",
     description="Collection of Clan Battle Commands",
 ):
+    @inject
     def __init__(self, bot: commands.Bot):
+        super().__init__(bot)
         self.bot = bot
         self.refresh_clan_battle_report_daily.start()
         self.check_clan_battle_period.start()
@@ -42,13 +40,17 @@ class ClanBattleCommands(
         day="Clan battle period day",
     )
     async def sc_report(
-        self, interaction: discord.Interaction, year: int, month: int, day: int
+        self,
+        interaction: discord.Interaction,
+        year: int,
+        month: int,
+        day: int,
     ):
         guild_id = interaction.guild_id
         if not interaction.user.guild_permissions.administrator:
             return await utils.send_message_medium(
                 interaction,
-                l.t(
+                self.l.t(
                     guild_id,
                     "system.not_administrator",
                     user=interaction.user.display_name,
@@ -57,8 +59,8 @@ class ClanBattleCommands(
 
         await interaction.response.defer(thinking=True, ephemeral=True)
 
-        msg_content = l.t(guild_id, "message.not_found", input="Report")
-        report_result = await _main_service.generate_report_text(
+        msg_content = self.l.t(guild_id, "message.not_found", input="Report")
+        report_result = await self.main_service.generate_report_text(
             guild_id=interaction.guild_id, year=year, month=month, day=day
         )
         if report_result.is_success:
@@ -76,13 +78,15 @@ class ClanBattleCommands(
     )
     @app_commands.describe(role="Discord Role")
     async def sc_sync_user_role(
-        self, interaction: discord.Interaction, role: discord.Role
+        self,
+        interaction: discord.Interaction,
+        role: discord.Role,
     ):
         guild_id = interaction.guild_id
         if not interaction.user.guild_permissions.administrator:
             return await utils.send_message_medium(
                 interaction,
-                l.t(
+                self.l.t(
                     guild_id,
                     "system.not_administrator",
                     user=interaction.user.display_name,
@@ -100,14 +104,14 @@ class ClanBattleCommands(
             for member in role.members
         ]
 
-        service_result = await _main_service.sync_user_role(
+        service_result = await self.main_service.sync_user_role(
             guild_id=guild_id, members=members
         )
-        msg_content = l.t(guild_id, "message.done_sync")
+        msg_content = self.l.t(guild_id, "message.done_sync")
         if not service_result.is_success:
             msg_content = service_result.error_messages
 
-        await _main_service.refresh_report_channel_message(interaction.guild)
+        await self.main_service.refresh_report_channel_message(interaction.guild)
 
         msg = await interaction.followup.send(content=msg_content, ephemeral=True)
         if msg:
@@ -180,17 +184,19 @@ class ClanBattleCommands(
     @tasks.loop(time=everyday_cb_time)
     async def refresh_clan_battle_report_daily(self):
         for guild in self.bot.guilds:
-            log.info(f"Refresh Bot Daily: {guild.name} - {guild.id}")
-            await _main_service.setup_guild_channel_message(guild, TL_SHIFTER_CHANNEL)
+            self.log.info(f"Refresh Bot Daily: {guild.name} - {guild.id}")
+            await self.main_service.setup_guild_channel_message(
+                guild, TL_SHIFTER_CHANNEL
+            )
 
     everyday_cb_end_time = datetime.time(hour=15, minute=0)
 
     @tasks.loop(time=everyday_cb_end_time, reconnect=True)
     async def check_clan_battle_period(self):
-        log.info(
+        self.log.info(
             f"Check Clan Battle Period daily @{utils.now().strftime(datetime_format)}"
         )
-        await _main_service.check_clan_battle_period()
+        await self.main_service.check_clan_battle_period()
 
 
 async def setup(bot: commands.Bot):

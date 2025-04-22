@@ -1,14 +1,15 @@
 import asyncio
 
 import discord
+from dependency_injector.wiring import inject, Provide
 from discord import ButtonStyle, TextStyle
 from discord.ui import View, Button, Modal, TextInput
 
 from enums import EmojiEnum, AttackTypeEnum
 from models import ClanBattleLeftover
-from services import MainService, UiService, ClanBattleBossBookService
-from locales import l
-from logger import log
+from services import MainService, UiService
+from locales import Locale
+from logger import KuriLogger
 from utils import (
     send_message_short,
     send_message_medium,
@@ -18,10 +19,6 @@ from utils import (
     send_channel_message_short,
 )
 
-_main_service = MainService()
-_ui_service = UiService()
-_clan_battle_boss_book_service = ClanBattleBossBookService()
-
 
 # Book Button
 class BookButton(Button):
@@ -30,7 +27,14 @@ class BookButton(Button):
             label=text, style=ButtonStyle.primary, emoji=EmojiEnum.BOOK.value, row=0
         )
 
-    async def callback(self, interaction: discord.Interaction):
+    @inject
+    async def callback(
+        self,
+        interaction: discord.Interaction,
+        _ui_service: UiService = Provide["ui_service"],
+        l: Locale = Provide["locale"],
+        log: KuriLogger = Provide["logger"],
+    ):
         guild_id = interaction.guild_id
 
         service = await _ui_service.book_button_service(interaction)
@@ -66,7 +70,14 @@ class CancelButton(Button):
             label=text, style=ButtonStyle.danger, emoji=EmojiEnum.CANCEL.value, row=0
         )
 
-    async def callback(self, interaction: discord.Interaction):
+    @inject
+    async def callback(
+        self,
+        interaction: discord.Interaction,
+        _ui_service: UiService = Provide["ui_service"],
+        l: Locale = Provide["locale"],
+        log: KuriLogger = Provide["logger"],
+    ):
         guild_id = interaction.guild_id
 
         service = await _ui_service.cancel_button_service(interaction)
@@ -89,7 +100,14 @@ class EntryButton(Button):
             label=text, style=ButtonStyle.primary, emoji=EmojiEnum.ENTRY.value, row=1
         )
 
-    async def callback(self, interaction: discord.Interaction):
+    @inject
+    async def callback(
+        self,
+        interaction: discord.Interaction,
+        _ui_service: UiService = Provide["ui_service"],
+        l: Locale = Provide["locale"],
+        log: KuriLogger = Provide["logger"],
+    ):
 
         service = await _ui_service.entry_button_service(interaction)
         if not service.is_success:
@@ -102,7 +120,13 @@ class EntryButton(Button):
 
 # Entry Input
 class EntryInputModal(Modal):
-    def __init__(self, guild_id: int) -> None:
+    @inject
+    def __init__(
+        self,
+        guild_id: int,
+        _ui_service: UiService = Provide["ui_service"],
+        l: Locale = Provide["locale"],
+    ) -> None:
         super().__init__(title=l.t(guild_id, "ui.popup.entry_input.title"))
         self.user_input.label = l.t(guild_id, "ui.popup.entry_input.label")
         self.user_input.placeholder = l.t(guild_id, "ui.popup.entry_input.placeholder")
@@ -117,7 +141,14 @@ class EntryInputModal(Modal):
         max_length=10,
     )
 
-    async def on_submit(self, interaction: discord.Interaction):
+    @inject
+    async def on_submit(
+        self,
+        interaction: discord.Interaction,
+        _ui_service: UiService = Provide["ui_service"],
+        l: Locale = Provide["locale"],
+        log: KuriLogger = Provide["logger"],
+    ):
         guild_id = interaction.guild_id
         message_id = interaction.message.id
 
@@ -145,7 +176,14 @@ class DoneButton(Button):
             label=text, style=ButtonStyle.green, emoji=EmojiEnum.DONE.value, row=1
         )
 
-    async def callback(self, interaction: discord.Interaction):
+    @inject
+    async def callback(
+        self,
+        interaction: discord.Interaction,
+        _ui_service: UiService = Provide["ui_service"],
+        l: Locale = Provide["locale"],
+        log: KuriLogger = Provide["logger"],
+    ):
         guild_id = interaction.guild_id
         message_id = interaction.message.id
 
@@ -177,7 +215,15 @@ class DoneOkButton(Button):
         )
         self.message_id = message_id
 
-    async def callback(self, interaction: discord.Interaction):
+    @inject
+    async def callback(
+        self,
+        interaction: discord.Interaction,
+        _main_service: MainService = Provide["main_service"],
+        _ui_service: UiService = Provide["ui_service"],
+        l: Locale = Provide["locale"],
+        log: KuriLogger = Provide["logger"],
+    ):
         user_id = interaction.user.id
         display_name = interaction.user.display_name
         message_id = self.message_id
@@ -220,7 +266,14 @@ class DeadButton(Button):
             label=text, style=ButtonStyle.gray, emoji=EmojiEnum.FINISH.value, row=1
         )
 
-    async def callback(self, interaction: discord.Interaction):
+    @inject
+    async def callback(
+        self,
+        interaction: discord.Interaction,
+        _ui_service: UiService = Provide["ui_service"],
+        l: Locale = Provide["locale"],
+        log: KuriLogger = Provide["logger"],
+    ):
         guild_id = interaction.guild_id
         message_id = interaction.message.id
 
@@ -253,7 +306,13 @@ class DeadButton(Button):
 
 # Leftover Modal
 class LeftoverModal(Modal):
-    def __init__(self, guild_id: int):
+    @inject
+    def __init__(
+        self,
+        guild_id: int,
+        _ui_service: UiService = Provide["ui_service"],
+        l: Locale = Provide["locale"],
+    ):
         super().__init__(title=l.t(guild_id, "ui.popup.leftover_input.title"))
         self.guild_id = guild_id
         self.user_input.label = l.t(guild_id, "ui.popup.leftover_input.label")
@@ -271,7 +330,14 @@ class LeftoverModal(Modal):
         max_length=2,
     )
 
-    async def on_submit(self, interaction: discord.Interaction):
+    @inject
+    async def on_submit(
+        self,
+        interaction: discord.Interaction,
+        _ui_service: UiService = Provide["ui_service"],
+        l: Locale = Provide["locale"],
+        log: KuriLogger = Provide["logger"],
+    ):
         message_id = interaction.message.id
         guild_id = interaction.guild.id
         # Handle the submitted input
@@ -317,7 +383,15 @@ class DeadOkButton(Button):
         self.message_id = message_id
         self.leftover_time = leftover_time
 
-    async def callback(self, interaction: discord.Interaction):
+    @inject
+    async def callback(
+        self,
+        interaction: discord.Interaction,
+        _main_service: MainService = Provide["main_service"],
+        _ui_service: UiService = Provide["ui_service"],
+        l: Locale = Provide["locale"],
+        log: KuriLogger = Provide["logger"],
+    ):
         user_id = interaction.user.id
         display_name = interaction.user.display_name
         message_id = self.message_id
@@ -372,7 +446,15 @@ class DeadOkButton(Button):
 
 # PATK Button
 class BookPatkButton(Button):
-    def __init__(self, interaction: discord.Interaction, disable: bool):
+    @inject
+    def __init__(
+        self,
+        interaction: discord.Interaction,
+        disable: bool,
+        _main_service: MainService = Provide["main_service"],
+        _ui_service: UiService = Provide["ui_service"],
+        l: Locale = Provide["locale"],
+    ):
         self.local_emoji = EmojiEnum.PATK
         self.attack_type = AttackTypeEnum.PATK
         self.parent_interaction = interaction
@@ -385,14 +467,26 @@ class BookPatkButton(Button):
             row=0,
         )
 
-    async def callback(self, interaction: discord.Interaction):
+    @inject
+    async def callback(
+        self,
+        interaction: discord.Interaction,
+        _main_service: MainService = Provide["main_service"],
+        _ui_service: UiService = Provide["ui_service"],
+        l: Locale = Provide["locale"],
+        log: KuriLogger = Provide["logger"],
+    ):
         user_id = interaction.user.id
         display_name = interaction.user.display_name
         guild_id = interaction.guild_id
         message_id = self.parent_interaction.message.id
 
         insert_result = await _main_service.insert_boss_book_entry(
-            guild_id, message_id, user_id, display_name, self.attack_type
+            guild_id=guild_id,
+            message_id=message_id,
+            user_id=user_id,
+            display_name=display_name,
+            attack_type=self.attack_type,
         )
         if not insert_result.is_success:
             await interaction.response.defer(ephemeral=True)
@@ -419,7 +513,15 @@ class BookPatkButton(Button):
 
 # MATK Button
 class BookMatkButton(Button):
-    def __init__(self, interaction: discord.Interaction, disable: bool):
+    @inject
+    def __init__(
+        self,
+        interaction: discord.Interaction,
+        disable: bool,
+        _main_service: MainService = Provide["main_service"],
+        _ui_service: UiService = Provide["ui_service"],
+        l: Locale = Provide["locale"],
+    ):
         self.local_emoji = EmojiEnum.MATK
         self.attack_type = AttackTypeEnum.MATK
         self.parent_interaction = interaction
@@ -432,14 +534,26 @@ class BookMatkButton(Button):
             row=0,
         )
 
-    async def callback(self, interaction: discord.Interaction):
+    @inject
+    async def callback(
+        self,
+        interaction: discord.Interaction,
+        _main_service: MainService = Provide["main_service"],
+        _ui_service: UiService = Provide["ui_service"],
+        l: Locale = Provide["locale"],
+        log: KuriLogger = Provide["logger"],
+    ):
         user_id = interaction.user.id
         display_name = interaction.user.display_name
         guild_id = interaction.guild_id
         message_id = self.parent_interaction.message.id
 
         insert_result = await _main_service.insert_boss_book_entry(
-            guild_id, message_id, user_id, display_name, self.attack_type
+            guild_id=guild_id,
+            message_id=message_id,
+            user_id=user_id,
+            display_name=display_name,
+            attack_type=self.attack_type,
         )
         if not insert_result.is_success:
             await interaction.response.defer(ephemeral=True)
@@ -466,7 +580,15 @@ class BookMatkButton(Button):
 
 # Leftover Button
 class BookLeftoverButton(Button):
-    def __init__(self, leftover: ClanBattleLeftover, interaction: discord.Interaction):
+    @inject
+    def __init__(
+        self,
+        leftover: ClanBattleLeftover,
+        interaction: discord.Interaction,
+        _main_service: MainService = Provide["main_service"],
+        _ui_service: UiService = Provide["ui_service"],
+        l: Locale = Provide["locale"],
+    ):
         self.local_emoji = EmojiEnum.CARRY
         self.attack_type = AttackTypeEnum.CARRY
         self.parent_interaction = interaction
@@ -487,7 +609,15 @@ class BookLeftoverButton(Button):
             row=1,
         )
 
-    async def callback(self, interaction: discord.Interaction):
+    @inject
+    async def callback(
+        self,
+        interaction: discord.Interaction,
+        _main_service: MainService = Provide["main_service"],
+        _ui_service: UiService = Provide["ui_service"],
+        l: Locale = Provide["locale"],
+        log: KuriLogger = Provide["logger"],
+    ):
         user_id = interaction.user.id
         display_name = interaction.user.display_name
         guild_id = interaction.guild_id
@@ -497,13 +627,13 @@ class BookLeftoverButton(Button):
         parent_overall_id = self.parent_overall_id
 
         insert_result = await _main_service.insert_boss_book_entry(
-            guild_id,
-            message_id,
-            user_id,
-            display_name,
-            attack_type,
-            parent_overall_id,
-            leftover_time,
+            guild_id=guild_id,
+            message_id=message_id,
+            user_id=user_id,
+            display_name=display_name,
+            attack_type=attack_type,
+            parent_overall_id=parent_overall_id,
+            leftover_time=leftover_time,
         )
         if not insert_result.is_success:
             await interaction.response.defer(ephemeral=True)
@@ -560,7 +690,12 @@ class ConfirmationNoCancelButton(Button):
 
 
 class ButtonView(View):
-    def __init__(self, guild_id: int):
+    @inject
+    def __init__(
+        self,
+        guild_id: int,
+        l: Locale = Provide["locale"],
+    ):
         super().__init__(timeout=None)
         self.add_item(BookButton(text=l.t(guild_id, "ui.button.book")))
         self.add_item(CancelButton(text=l.t(guild_id, "ui.button.cancel")))
@@ -570,9 +705,13 @@ class ButtonView(View):
 
 
 class ConfirmationButtonView(View):
+    @inject
     def __init__(
         self,
         guild_id: int,
+        _main_service: MainService = Provide["main_service"],
+        _ui_service: UiService = Provide["ui_service"],
+        l: Locale = Provide["locale"],
         yes_emoji: EmojiEnum = EmojiEnum.YES,
         no_emoji: EmojiEnum = EmojiEnum.NO,
         yes_callback=None,

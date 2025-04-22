@@ -4,6 +4,7 @@ from datetime import datetime
 import pytz
 
 TL_SHIFTER_CHANNEL = {}
+GUILD_LOCALE = {}
 NEW_LINE = "\n"
 
 

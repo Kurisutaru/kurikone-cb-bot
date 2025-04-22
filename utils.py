@@ -2,17 +2,18 @@ import math
 import random
 from datetime import datetime, timedelta
 
-from typing import List, Optional, Any
+from typing import List, Optional
 
 import discord
+from dependency_injector.wiring import inject, Provide
 from discord import TextChannel, Colour, Message, Embed
 from discord.ui import View
 
-from config import config
+from config import GlobalConfig
 from enums import EmojiEnum, AttackTypeEnum, PeriodType
 from globals import jst, PURIKONE_LIVE_SERVICE_DATE, NEW_LINE, TL_SHIFTER_TIME_FORMAT
-from locales import l
-from logger import log
+from locales import Locale
+from logger import KuriLogger
 
 from models import (
     ClanBattleBossEntry,
@@ -33,7 +34,10 @@ async def discord_try_fetch_message(
         return None
 
 
-async def discord_close_response(interaction: discord.Interaction):
+@inject
+async def discord_close_response(
+    interaction: discord.Interaction, log: KuriLogger = Provide["logger"]
+):
     try:
         await interaction.response.defer(ephemeral=True)
         await interaction.delete_original_response()
@@ -61,6 +65,7 @@ async def send_message(
     await interaction.response.send_message(**param)
 
 
+@inject
 async def send_message_short(
     interaction: discord.Interaction,
     content: str,
@@ -69,6 +74,7 @@ async def send_message_short(
     embed: Embed = None,
     embeds: list[Embed] = None,
     view: View = None,
+    config: GlobalConfig = Provide["config"],
 ):
     param = create_message_param(
         content=content,
@@ -82,6 +88,7 @@ async def send_message_short(
     await interaction.response.send_message(**param)
 
 
+@inject
 async def send_message_medium(
     interaction: discord.Interaction,
     content: str,
@@ -90,6 +97,7 @@ async def send_message_medium(
     embed: Embed = None,
     embeds=None,
     view: View = None,
+    config: GlobalConfig = Provide["config"],
 ):
     param = create_message_param(
         content=content,
@@ -103,6 +111,7 @@ async def send_message_medium(
     await interaction.response.send_message(**param)
 
 
+@inject
 async def send_message_long(
     interaction: discord.Interaction,
     content: str,
@@ -111,6 +120,7 @@ async def send_message_long(
     embed: Embed = None,
     embeds=None,
     view: View = None,
+    config: GlobalConfig = Provide["config"],
 ):
     param = create_message_param(
         content=content,
@@ -138,6 +148,7 @@ async def send_channel_message(
     await interaction.channel.send(**param)
 
 
+@inject
 async def send_channel_message_short(
     interaction: discord.Interaction,
     content: str,
@@ -145,6 +156,7 @@ async def send_channel_message_short(
     embed: Embed = None,
     embeds: list[Embed] = None,
     view: View = None,
+    config: GlobalConfig = Provide["config"],
 ):
     param = create_message_param(
         content=content,
@@ -157,6 +169,7 @@ async def send_channel_message_short(
     await interaction.channel.send(**param)
 
 
+@inject
 async def send_channel_message_medium(
     interaction: discord.Interaction,
     content: str,
@@ -164,6 +177,7 @@ async def send_channel_message_medium(
     embed: Embed = None,
     embeds: list[Embed] = None,
     view: View = None,
+    config: GlobalConfig = Provide["config"],
 ):
     param = create_message_param(
         content=content,
@@ -176,6 +190,7 @@ async def send_channel_message_medium(
     await interaction.channel.send(**param)
 
 
+@inject
 async def send_channel_message_long(
     interaction: discord.Interaction,
     content: str,
@@ -183,6 +198,7 @@ async def send_channel_message_long(
     embed: Embed = None,
     embeds: list[Embed] = None,
     view: View = None,
+    config: GlobalConfig = Provide["config"],
 ):
     param = create_message_param(
         content=content,
@@ -195,8 +211,12 @@ async def send_channel_message_long(
     await interaction.channel.send(**param)
 
 
+@inject
 async def send_followup_short(
-    interaction: discord.Interaction, content: str, ephemeral: bool = None
+    interaction: discord.Interaction,
+    content: str,
+    ephemeral: bool = None,
+    config: GlobalConfig = Provide["config"],
 ):
     param = create_message_param(content=content, ephemeral=ephemeral)
     msg = await interaction.followup.send(**param)
@@ -204,8 +224,12 @@ async def send_followup_short(
         await msg.delete(delay=config.MESSAGE_DEFAULT_DELETE_AFTER_SHORT)
 
 
+@inject
 async def send_followup_medium(
-    interaction: discord.Interaction, content: str, ephemeral: bool = None
+    interaction: discord.Interaction,
+    content: str,
+    ephemeral: bool = None,
+    config: GlobalConfig = Provide["config"],
 ):
     param = create_message_param(content=content, ephemeral=ephemeral)
     msg = await interaction.followup.send(**param)
@@ -213,8 +237,12 @@ async def send_followup_medium(
         await msg.delete(delay=config.MESSAGE_DEFAULT_DELETE_AFTER_MEDIUM)
 
 
+@inject
 async def send_followup_long(
-    interaction: discord.Interaction, content: str, ephemeral: bool = None
+    interaction: discord.Interaction,
+    content: str,
+    ephemeral: bool = None,
+    config: GlobalConfig = Provide["config"],
 ):
     param = create_message_param(content=content, ephemeral=ephemeral)
     msg = await interaction.followup.send(**param)
@@ -232,6 +260,7 @@ def create_message_param(
     silent: bool = None,
 ):
     param = {}
+
     if embeds is None:
         embeds = []
     if embed:
@@ -252,11 +281,13 @@ def create_message_param(
     return param
 
 
+@inject
 def create_header_embed(
     guild_id: int,
     cb_boss_entry: ClanBattleBossEntry,
     include_image: bool = True,
     default_color: Colour = discord.Color.red(),
+    l: Locale = Provide["locale"],
 ) -> Embed:
     embed = discord.Embed(
         title=f"{cb_boss_entry.name} ({l.t(guild_id, "ui.status.round", round=cb_boss_entry.boss_round)})",
@@ -297,8 +328,9 @@ def create_book_embed(
     return embed
 
 
+@inject
 def generate_done_attack_list(
-    guild_id: int, datas: List[ClanBattleOverallEntry]
+    guild_id: int, datas: List[ClanBattleOverallEntry], l: Locale = Provide["locale"]
 ) -> str:
     lines = [
         f"========== {EmojiEnum.DONE.value} {l.t(guild_id, "ui.label.done_list")} =========="
@@ -313,7 +345,10 @@ def generate_done_attack_list(
     return f"```powershell{NEW_LINE}" + "".join(lines) + "```"
 
 
-def generate_book_list(guild_id: int, datas: List[ClanBattleBossBook]) -> str:
+@inject
+def generate_book_list(
+    guild_id: int, datas: List[ClanBattleBossBook], l: Locale = Provide["locale"]
+) -> str:
 
     lines = [
         f"========== {EmojiEnum.ENTRY.value} {l.t(guild_id, "ui.label.book_list")} =========="

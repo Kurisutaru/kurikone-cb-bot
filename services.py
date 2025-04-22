@@ -3,13 +3,14 @@ import traceback
 import uuid
 
 import discord
+from dependency_injector.wiring import inject, Provide
 from discord import Embed, Message, TextChannel
 from discord.abc import GuildChannel
 
-from database import db_pool
+# from database import db_pool
 from globals import NEW_LINE
-from locales import l
-from logger import log
+from locales import Locale
+from logger import KuriLogger
 from repository import *
 from transactional import transactional, transaction_rollback
 from utils import (
@@ -26,34 +27,43 @@ from utils import (
 
 
 class Services:
-    _instance = None
+    def __init__(
+        self,
+        guild_repo: GuildRepository,
+        channel_repo: ChannelRepository,
+        channel_message_repo: ChannelMessageRepository,
+        clan_battle_boss_entry_repo: ClanBattleBossEntryRepository,
+        clan_battle_boss_book_repo: ClanBattleBossBookRepository,
+        clan_battle_period_repo: ClanBattlePeriodRepository,
+        clan_battle_boss_repo: ClanBattleBossRepository,
+        clan_battle_boss_health_repo: ClanBattleBossHealthRepository,
+        clan_battle_overall_entry_repo: ClanBattleOverallEntryRepository,
+        guild_player_repo: GuildPlayerRepository,
+        clan_battle_report_message_repo: ClanBattleReportMessageRepository,
+        generic_repo: GenericRepository,
+        error_log_repo: ErrorLogRepository,
+    ):
+        self.guild_repo = guild_repo
+        self.channel_repo = channel_repo
+        self.channel_message_repo = channel_message_repo
+        self.clan_battle_boss_entry_repo = clan_battle_boss_entry_repo
+        self.clan_battle_boss_book_repo = clan_battle_boss_book_repo
+        self.clan_battle_period_repo = clan_battle_period_repo
+        self.clan_battle_boss_repo = clan_battle_boss_repo
+        self.clan_battle_boss_health_repo = clan_battle_boss_health_repo
+        self.clan_battle_overall_entry_repo = clan_battle_overall_entry_repo
+        self.guild_player_repo = guild_player_repo
+        self.clan_battle_report_message_repo = clan_battle_report_message_repo
+        self.generic_repo = generic_repo
+        self.error_log_repo = error_log_repo
 
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super(Services, cls).__new__(cls)
-            cls._instance.guild_repo = GuildRepository()
-            cls._instance.channel_repo = ChannelRepository()
-            cls._instance.channel_message_repo = ChannelMessageRepository()
-            cls._instance.clan_battle_boss_entry_repo = ClanBattleBossEntryRepository()
-            cls._instance.clan_battle_boss_book_repo = ClanBattleBossBookRepository()
-            cls._instance.clan_battle_period_repo = ClanBattlePeriodRepository()
-            cls._instance.clan_battle_boss_repo = ClanBattleBossRepository()
-            cls._instance.clan_battle_boss_health_repo = (
-                ClanBattleBossHealthRepository()
-            )
-            cls._instance.clan_battle_overall_entry_repo = (
-                ClanBattleOverallEntryRepository()
-            )
-            cls._instance.guild_player_repo = GuildPlayerRepository()
-            cls._instance.clan_battle_report_message_repo = (
-                ClanBattleReportMessageRepository()
-            )
-            cls._instance.generic_repo = GenericRepository()
-            cls._instance.error_log_repo = ErrorLogRepository()
-        return cls._instance
-
+    @inject
     async def error_log_db(
-        self, guild_id: int, exception: Exception, transaction_id: str
+        self,
+        guild_id: int,
+        exception: Exception,
+        transaction_id: str,
+        log: KuriLogger = Provide["logger"],
     ):
         """Logs errors to the database with a UUID reference.
         Guarantees the log is written even if the main transaction fails.
@@ -65,23 +75,8 @@ class Services:
                     type(exception), exception, exception.__traceback__
                 )
             ).rstrip()
-            with db_pool as conn:
-                with conn.cursor(dictionary=True) as cursor:
-                    cursor.execute(
-                        """
-                            INSERT INTO error_log
-                            (guild_id, identifier, exception, stacktrace, error_date) VALUES 
-                            (%(guild_id)s, %(identifier)s,  %(exception)s, %(stacktrace)s, SYSDATE())
-                        """,
-                        {
-                            "guild_id": guild_id,
-                            "identifier": transaction_id,
-                            "exception": exception,
-                            "stacktrace": stacktrace,
-                        },
-                    )
-                    conn.commit()
-            # log.error(f"[{transaction_id}] Error: {exception}")
+            self.error_log_repo.insert(guild_id, transaction_id, stacktrace)
+            log.error(f"[{transaction_id}] Error: {exception}")
         except Exception as e:
             # Critical fallback: If DB logging fails, log to console + external service (e.g., Sentry)
             log.critical(
@@ -97,21 +92,18 @@ class Services:
         return trx_id
 
 
-_service = Services()
-
-
 class MainService:
     @transactional
+    @inject
     async def setup_guild_channel_message(
-        self, guild: discord.Guild, tl_shifter_channel: dict
+        self,
+        guild: discord.Guild,
+        tl_shifter_channel: dict,
+        _service: Services = Provide["services"],
+        log: KuriLogger = Provide["logger"],
+        l: Locale = Provide["locale"],
     ) -> ServiceResult[None]:
-        """
-        Main flow of Setup, from Guild to the Message
-        :rtype: ServiceResult[None]
-        :param guild: Discord Guild
-        :param tl_shifter_channel: Global variable
-        :return:
-        """
+
         service_result = ServiceResult[None]()
         guild_id = guild.id
         try:
@@ -170,7 +162,15 @@ class MainService:
         return service_result
 
     # Guild Setup
-    async def guild_setup(self, guild_id: int, guild_name: str) -> ServiceResult[Guild]:
+    @inject
+    async def guild_setup(
+        self,
+        guild_id: int,
+        guild_name: str,
+        _service: Services = Provide["services"],
+        log: KuriLogger = Provide["logger"],
+        l: Locale = Provide["locale"],
+    ) -> ServiceResult[Guild]:
         service_result = ServiceResult[Guild]()
         try:
             # logger.warning(f"Session Connection ID @guild_setup : {_service.generic_repo.get_connection_id()}")
@@ -189,8 +189,12 @@ class MainService:
         return service_result
 
     # Channel Setup
+    @inject
     async def setup_channel(
-        self, guild: discord.Guild
+        self,
+        guild: discord.Guild,
+        _service: Services = Provide["services"],
+        log: KuriLogger = Provide["logger"],
     ) -> ServiceResult[list[tuple[ChannelEnum, GuildChannel]]]:
         service_result = ServiceResult[list[tuple[ChannelEnum, GuildChannel]]]()
         try:
@@ -260,8 +264,12 @@ class MainService:
         return service_result
 
     # Channel Report to Message Setup
+    @inject
     async def setup_channel_report_message(
-        self, channel: GuildChannel
+        self,
+        channel: GuildChannel,
+        _service: Services = Provide["services"],
+        log: KuriLogger = Provide["logger"],
     ) -> ServiceResult[Optional[Message]]:
         service_result = ServiceResult[Optional[Message]]()
         try:
@@ -282,8 +290,14 @@ class MainService:
         return service_result
 
     # Channel Boss to Message Setup
+    @inject
     async def setup_channel_boss_message(
-        self, enum: ChannelEnum, channel: GuildChannel
+        self,
+        enum: ChannelEnum,
+        channel: GuildChannel,
+        _service: Services = Provide["services"],
+        log: KuriLogger = Provide["logger"],
+        l: Locale = Provide["locale"],
     ) -> ServiceResult[Optional[Message]]:
         service_result = ServiceResult[Optional[Message]]()
         try:
@@ -390,6 +404,7 @@ class MainService:
 
         return service_result
 
+    @inject
     async def insert_clan_battle_entry_by_round(
         self,
         guild_id: int,
@@ -397,6 +412,8 @@ class MainService:
         boss_id: int,
         period_id: int,
         boss_round: int,
+        _service: Services = Provide["services"],
+        log: KuriLogger = Provide["logger"],
     ) -> ServiceResult[ClanBattleBossEntry]:
         service_result = ServiceResult[ClanBattleBossEntry]()
 
@@ -444,8 +461,13 @@ class MainService:
 
         return service_result
 
+    @inject
     async def refresh_clan_battle_boss_embeds(
-        self, guild_id: int, message_id: int
+        self,
+        guild_id: int,
+        message_id: int,
+        _service: Services = Provide["services"],
+        log: KuriLogger = Provide["logger"],
     ) -> ServiceResult[list[Embed]]:
         service_result = ServiceResult[list[Embed]]()
         try:
@@ -487,13 +509,22 @@ class MainService:
             service_result.set_success(embeds)
 
         except Exception as e:
+            log.error(e)
             service_result.set_error(str(e))
 
         return service_result
 
     @transactional
+    @inject
     async def done_entry(
-        self, guild_id: int, message_id: int, user_id: int, display_name: str
+        self,
+        guild_id: int,
+        message_id: int,
+        user_id: int,
+        display_name: str,
+        _service: Services = Provide["services"],
+        log: KuriLogger = Provide["logger"],
+        l: Locale = Provide["locale"],
     ) -> ServiceResult[None]:
         service_result = ServiceResult[None]()
 
@@ -565,6 +596,7 @@ class MainService:
         return service_result
 
     @transactional
+    @inject
     async def dead_ok(
         self,
         guild_id: int,
@@ -572,6 +604,9 @@ class MainService:
         user_id: int,
         display_name: str,
         leftover_time: int,
+        _service: Services = Provide["services"],
+        log: KuriLogger = Provide["logger"],
+        l: Locale = Provide["locale"],
     ) -> ServiceResult[ClanBattleOverallEntry]:
         service_result = ServiceResult[ClanBattleOverallEntry]()
         try:
@@ -647,6 +682,7 @@ class MainService:
         return service_result
 
     @transactional
+    @inject
     async def generate_next_boss(
         self,
         interaction: discord.interactions.Interaction,
@@ -654,6 +690,9 @@ class MainService:
         message_id: int,
         attack_type: AttackTypeEnum,
         leftover_time: int,
+        _service: Services = Provide["services"],
+        log: KuriLogger = Provide["logger"],
+        l: Locale = Provide["locale"],
     ) -> ServiceResult[ClanBattleBossEntry]:
         service_result = ServiceResult[ClanBattleBossEntry]()
 
@@ -777,6 +816,7 @@ class MainService:
         return service_result
 
     @transactional
+    @inject
     async def insert_boss_book_entry(
         self,
         guild_id: int,
@@ -784,6 +824,9 @@ class MainService:
         user_id: int,
         display_name: str,
         attack_type: AttackTypeEnum,
+        _service: Services = Provide["services"],
+        log: KuriLogger = Provide["logger"],
+        l: Locale = Provide["locale"],
         parent_overall_id: int = None,
         leftover_time: int = None,
     ) -> ServiceResult[ClanBattleBossBook]:
@@ -829,8 +872,14 @@ class MainService:
         return service_result
 
     @transactional
+    @inject
     async def install_bot_command(
-        self, guild: discord.Guild, tl_shifter_channel: dict
+        self,
+        guild: discord.Guild,
+        tl_shifter_channel: dict,
+        _service: Services = Provide["services"],
+        log: KuriLogger = Provide["logger"],
+        l: Locale = Provide["locale"],
     ) -> ServiceResult[None]:
         service_result = ServiceResult[None]()
         try:
@@ -854,8 +903,14 @@ class MainService:
         return service_result
 
     @transactional
+    @inject
     async def uninstall_bot_command(
-        self, guild: discord.Guild, tl_shifter_channel: dict
+        self,
+        guild: discord.Guild,
+        tl_shifter_channel: dict,
+        _service: Services = Provide["services"],
+        log: KuriLogger = Provide["logger"],
+        l: Locale = Provide["locale"],
     ) -> ServiceResult[list[int]]:
         service_result = ServiceResult[list[int]]()
         guild_id = guild.id
@@ -918,8 +973,14 @@ class MainService:
         return service_result
 
     @transactional
+    @inject
     async def sync_user_role(
-        self, guild_id: int, members: list[GuildPlayer]
+        self,
+        guild_id: int,
+        members: list[GuildPlayer],
+        _service: Services = Provide["services"],
+        log: KuriLogger = Provide["logger"],
+        l: Locale = Provide["locale"],
     ) -> ServiceResult[None]:
         service_result = ServiceResult[None]()
 
@@ -946,8 +1007,17 @@ class MainService:
 
         return service_result
 
+    @inject
     async def generate_report_text(
-        self, guild_id: int, year: int, month: int, day: int, period_id: int = None
+        self,
+        guild_id: int,
+        year: int,
+        month: int,
+        day: int,
+        period_id: int = None,
+        _service: Services = Provide["services"],
+        log: KuriLogger = Provide["logger"],
+        l: Locale = Provide["locale"],
     ) -> ServiceResult[str]:
         service_result = ServiceResult[str]()
 
@@ -998,8 +1068,13 @@ class MainService:
         return service_result
 
     @transactional
+    @inject
     async def refresh_report_channel_message(
-        self, guild: discord.Guild
+        self,
+        guild: discord.Guild,
+        _service: Services = Provide["services"],
+        log: KuriLogger = Provide["logger"],
+        l: Locale = Provide["locale"],
     ) -> ServiceResult[Optional[Message]]:
         service_result = ServiceResult[Optional[Message]]()
         guild_id = guild.id
@@ -1151,8 +1226,13 @@ class MainService:
         return service_result
 
     @transactional
+    @inject
     async def check_cb_period_message(
-        self, guild: discord.Guild
+        self,
+        guild: discord.Guild,
+        _service: Services = Provide["services"],
+        log: KuriLogger = Provide["logger"],
+        l: Locale = Provide["locale"],
     ) -> ServiceResult[None]:
         service_result = ServiceResult[None]()
         guild_id = guild.id
@@ -1243,7 +1323,12 @@ class MainService:
         return service_result
 
     @transactional
-    async def check_clan_battle_period(self) -> ServiceResult[bool]:
+    @inject
+    async def check_clan_battle_period(
+        self,
+        log: KuriLogger = Provide["logger"],
+        _service: Services = Provide["services"],
+    ) -> ServiceResult[bool]:
         service_result = ServiceResult[bool]()
         try:
             # Get CB period mark as active
@@ -1297,8 +1382,14 @@ class MainService:
 
 
 class UiService:
+
+    @inject
     async def book_button_service(
-        self, interaction: discord.Interaction
+        self,
+        interaction: discord.Interaction,
+        _service: Services = Provide["services"],
+        log: KuriLogger = Provide["logger"],
+        l: Locale = Provide["locale"],
     ) -> ServiceResult[Tuple[bool, int, list[ClanBattleLeftover]]]:
         service_result = ServiceResult[Tuple[bool, int, list[ClanBattleLeftover]]]()
         guild_id = interaction.guild_id
@@ -1352,8 +1443,13 @@ class UiService:
         return service_result
 
     @transactional
+    @inject
     async def cancel_button_service(
-        self, interaction: discord.Interaction
+        self,
+        interaction: discord.Interaction,
+        _service: Services = Provide["services"],
+        log: KuriLogger = Provide["logger"],
+        l: Locale = Provide["locale"],
     ) -> ServiceResult[list[Embed]]:
         service_result = ServiceResult[list[Embed]]()
         guild_id = interaction.guild_id
@@ -1399,8 +1495,13 @@ class UiService:
 
         return service_result
 
+    @inject
     async def entry_button_service(
-        self, interaction: discord.Interaction
+        self,
+        interaction: discord.Interaction,
+        _service: Services = Provide["services"],
+        log: KuriLogger = Provide["logger"],
+        l: Locale = Provide["locale"],
     ) -> ServiceResult[None]:
         service_result = ServiceResult[None]()
         guild_id = interaction.guild_id
@@ -1435,8 +1536,14 @@ class UiService:
         return service_result
 
     @transactional
+    @inject
     async def entry_input_service(
-        self, interaction: discord.Interaction, user_input: str
+        self,
+        interaction: discord.Interaction,
+        user_input: str,
+        _service: Services = Provide["services"],
+        log: KuriLogger = Provide["logger"],
+        l: Locale = Provide["locale"],
     ) -> ServiceResult[list[Embed]]:
         service_result = ServiceResult[list[Embed]]()
         guild_id = interaction.guild_id
@@ -1493,8 +1600,12 @@ class UiService:
 
         return service_result
 
+    @inject
     async def done_button_service(
-        self, interaction: discord.Interaction
+        self,
+        interaction: discord.Interaction,
+        _service: Services = Provide["services"],
+        l: Locale = Provide["locale"],
     ) -> ServiceResult[None]:
         service_result = ServiceResult[None]()
         guild_id = interaction.guild_id
@@ -1535,8 +1646,12 @@ class UiService:
 
         return service_result
 
+    @inject
     async def dead_button_service(
-        self, interaction: discord.Interaction
+        self,
+        interaction: discord.Interaction,
+        _service: Services = Provide["services"],
+        l: Locale = Provide["locale"],
     ) -> ServiceResult[ClanBattleBossBook]:
         service_result = ServiceResult[ClanBattleBossBook]()
         guild_id = interaction.guild_id
@@ -1589,7 +1704,11 @@ class UiService:
 
 
 class GuildService:
-    async def get_guild_by_id(self, guild_id: int) -> ServiceResult[Guild]:
+
+    @inject
+    async def get_guild_by_id(
+        self, guild_id: int, _service: Services = Provide["services"]
+    ) -> ServiceResult[Guild]:
         service_result = ServiceResult[Guild]()
 
         try:
@@ -1602,8 +1721,13 @@ class GuildService:
         return service_result
 
     @transactional
+    @inject
     async def insert_guild(
-        self, guild_id: int, guild_name: str
+        self,
+        guild_id: int,
+        guild_name: str,
+        _service: Services = Provide["services"],
+        log: KuriLogger = Provide["logger"],
     ) -> ServiceResult[Guild]:
         service_result = ServiceResult[Guild]()
 
@@ -1623,7 +1747,10 @@ class GuildService:
 
 class ChannelService:
 
-    async def get_all_by_guild_id(self, guild_id: int) -> ServiceResult[list[Channel]]:
+    @inject
+    async def get_all_by_guild_id(
+        self, guild_id: int, _service: Services = Provide["services"]
+    ) -> ServiceResult[list[Channel]]:
         service_result = ServiceResult[list[Channel]]()
 
         try:
@@ -1637,8 +1764,14 @@ class ChannelService:
         return service_result
 
     @transactional
+    @inject
     async def insert_channel(
-        self, guild_id: int, channel_id: int, channel_type: ChannelEnum
+        self,
+        guild_id: int,
+        channel_id: int,
+        channel_type: ChannelEnum,
+        _service: Services = Provide["services"],
+        log: KuriLogger = Provide["logger"],
     ) -> ServiceResult[Channel]:
         service_result = ServiceResult[Channel]()
 
@@ -1660,7 +1793,10 @@ class ChannelService:
 
 class ClanBattlePeriodService:
 
-    async def get_latest_cb_period(self) -> ServiceResult[ClanBattlePeriod]:
+    @inject
+    async def get_latest_cb_period(
+        self, _service: Services = Provide["services"]
+    ) -> ServiceResult[ClanBattlePeriod]:
         service_result = ServiceResult[ClanBattlePeriod]()
         try:
             data = _service.clan_battle_period_repo.get_latest_cb_period()
@@ -1672,7 +1808,10 @@ class ClanBattlePeriodService:
 
         return service_result
 
-    async def get_current_active_cb_period(self) -> ServiceResult[ClanBattlePeriod]:
+    @inject
+    async def get_current_active_cb_period(
+        self, _service: Services = Provide["services"]
+    ) -> ServiceResult[ClanBattlePeriod]:
         service_result = ServiceResult[ClanBattlePeriod]()
         try:
             data = _service.clan_battle_period_repo.get_current_active_cb_period()
@@ -1684,7 +1823,10 @@ class ClanBattlePeriodService:
 
         return service_result
 
-    async def get_current_cb_period_day(self) -> ServiceResult[ClanBattlePeriodDay]:
+    @inject
+    async def get_current_cb_period_day(
+        self, _service: Services = Provide["services"]
+    ) -> ServiceResult[ClanBattlePeriodDay]:
         service_result = ServiceResult[ClanBattlePeriodDay]()
         try:
             data = _service.clan_battle_period_repo.get_current_active_cb_period_day()
@@ -1699,8 +1841,9 @@ class ClanBattlePeriodService:
 
 class ClanBattleBossBookService:
 
+    @inject
     async def get_player_book_count(
-        self, guild_id: int, player_id: int
+        self, guild_id: int, player_id: int, _service: Services = Provide["services"]
     ) -> ServiceResult[int]:
         service_result = ServiceResult[int]()
 
@@ -1714,8 +1857,9 @@ class ClanBattleBossBookService:
 
         return service_result
 
+    @inject
     async def get_player_book_entry(
-        self, message_id: int, player_id: int
+        self, message_id: int, player_id: int, _service: Services = Provide["services"]
     ) -> ServiceResult[ClanBattleBossBook]:
         service_result = ServiceResult[ClanBattleBossBook]()
 
@@ -1731,7 +1875,13 @@ class ClanBattleBossBookService:
         return service_result
 
     @transactional
-    async def delete_book_by_id(self, book_id: int) -> ServiceResult[None]:
+    @inject
+    async def delete_book_by_id(
+        self,
+        book_id: int,
+        _service: Services = Provide["services"],
+        log: KuriLogger = Provide["logger"],
+    ) -> ServiceResult[None]:
         service_result = ServiceResult[None]()
         try:
             _service.clan_battle_boss_book_repo.delete_book_by_id(book_id)
@@ -1745,8 +1895,13 @@ class ClanBattleBossBookService:
         return service_result
 
     @transactional
+    @inject
     async def update_damage_boss_book_by_id(
-        self, book_id: int, damage_boss_book_id: int
+        self,
+        book_id: int,
+        damage_boss_book_id: int,
+        _service: Services = Provide["services"],
+        log: KuriLogger = Provide["logger"],
     ) -> ServiceResult[None]:
         service_result = ServiceResult[None]()
         try:
@@ -1765,8 +1920,9 @@ class ClanBattleBossBookService:
 
 class ClanBattleOverallEntryService:
 
+    @inject
     async def get_player_overall_entry_count(
-        self, guild_id: int, player_id: int
+        self, guild_id: int, player_id: int, _service: Services = Provide["services"]
     ) -> ServiceResult[int]:
         service_result = ServiceResult[int]()
 
@@ -1782,8 +1938,9 @@ class ClanBattleOverallEntryService:
 
         return service_result
 
+    @inject
     async def get_leftover_by_guild_id_and_player_id(
-        self, guild_id: int, player_id: int
+        self, guild_id: int, player_id: int, _service: Services = Provide["services"]
     ) -> ServiceResult[list[ClanBattleLeftover]]:
         service_result = ServiceResult[list[ClanBattleLeftover]]()
 
@@ -1801,8 +1958,12 @@ class ClanBattleOverallEntryService:
 class ClanBattleBossEntryService:
 
     @transactional
+    @inject
     async def insert_clan_battle_boss_entry(
-        self, clan_battle_boss_entry: ClanBattleBossEntry
+        self,
+        clan_battle_boss_entry: ClanBattleBossEntry,
+        _service: Services = Provide["services"],
+        log: KuriLogger = Provide["logger"],
     ) -> ServiceResult[ClanBattleBossEntry]:
         service_result = ServiceResult[ClanBattleBossEntry]()
 
@@ -1818,8 +1979,9 @@ class ClanBattleBossEntryService:
 
         return service_result
 
+    @inject
     async def get_last_by_message_id(
-        self, message_id: int
+        self, message_id: int, _service: Services = Provide["services"]
     ) -> ServiceResult[ClanBattleBossEntry]:
         service_result = ServiceResult[ClanBattleBossEntry]()
 
@@ -1836,7 +1998,10 @@ class ClanBattleBossEntryService:
 
 class ClanBattleBossPeriodService:
 
-    async def get_current_cb_period(self) -> ServiceResult[ClanBattlePeriod]:
+    @inject
+    async def get_current_cb_period(
+        self, _service: Services = Provide["services"]
+    ) -> ServiceResult[ClanBattlePeriod]:
         service_result = ServiceResult[ClanBattlePeriod]()
 
         try:

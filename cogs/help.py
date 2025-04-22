@@ -1,18 +1,19 @@
 import discord
+from dependency_injector.wiring import inject, Provider
 from discord import app_commands
 from discord.ext import commands
 
 import utils
+from cogs.base_cog import BaseCog
 from enums import HelpTopic
 from locales import Locale
 
-l = Locale()
-
 
 class HelpCommands(
-    commands.Cog, name="Help Commands", description="Collection of Help Commands"
+    BaseCog, name="Help Commands", description="Collection of Help Commands"
 ):
     def __init__(self, bot: commands.Bot):
+        super().__init__(bot)
         self.bot = bot
 
     @app_commands.command(
@@ -20,13 +21,15 @@ class HelpCommands(
     )
     @app_commands.describe(topic="Topic you want to check")
     async def sc_help(
-        self, interaction: discord.Interaction, topic: HelpTopic().get_keys()
+        self,
+        interaction: discord.Interaction,
+        topic: HelpTopic().get_keys(),
     ):
         guild_id = interaction.guild_id
         if not interaction.user.guild_permissions.administrator:
             return await utils.send_message_medium(
                 interaction,
-                l.t(
+                self.l.t(
                     guild_id,
                     "system.not_administrator",
                     user=interaction.user.display_name,

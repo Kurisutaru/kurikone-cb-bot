@@ -1,6 +1,5 @@
 import logging
 import os
-import re
 import threading
 from dataclasses import field
 from datetime import datetime
@@ -13,9 +12,9 @@ from attrs import define
 
 @define
 class KuriLogger:
-    _instance = None
-    _lock = None
-    _timezone: datetime.tzinfo = field(default=pytz.UTC, init=False)
+    _instance = field(default=None, init=False)
+    _lock = field(default=None, init=False)
+    _timezone: datetime.tzinfo = field(default=None, init=False)
 
     def __new__(cls, *args, **kwargs):
         if cls._instance is None:
@@ -52,54 +51,56 @@ class KuriLogger:
         # Force log file to be in ./logs/ directory
         log_dir = "logs"
         os.makedirs(log_dir, exist_ok=True)  # Create if it doesn't exist
-
         # Full path for the main log file
         full_log_path = os.path.join(log_dir, log_file)  # => logs/discord.log
 
         self.logger = logging.getLogger(name)
         self.logger.setLevel(min(file_level, console_level))
 
-        # Create a timed rotating file handler that rotates at midnight
+        # Try to clean if anything attached
+        self.logger.handlers.clear()
+
+        # Create a console handler
+        self.console_handler = logging.StreamHandler()
+        self.console_handler.setLevel(console_level)
+        # Create formatters and attach them to the handlers
+        self.console_formatter = AnsiColorFormatter(
+            "%(asctime)s [%(levelname)s] %(name)-20s: %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S %Z",
+            tz=self._timezone,
+        )
+        self.console_handler.setFormatter(self.console_formatter)
+        self.logger.addHandler(self.console_handler)
+
+        # File Handler with Daily Rotation
         self.file_handler = TimedRotatingFileHandler(
-            full_log_path,
+            filename=full_log_path,
             when="midnight",
             interval=1,
             backupCount=max_days,
             encoding="utf-8",
         )
         self.file_handler.setLevel(file_level)
-        self.file_handler.suffix = "-%Y-%m-%d.log"
-
-        def custom_namer(default_name):
-            base, ext = os.path.splitext(default_name)
-            base = re.sub(r"\.\d{4}-\d{2}-\d{2}$", "", base)  # Remove any existing date
-            date = datetime.now().strftime("%Y-%m-%d")
-            return f"{base}-{date}{ext}"
-
-        self.file_handler.namer = custom_namer
-
-        # Create a console handler
-        self.console_handler = logging.StreamHandler()
-        self.console_handler.setLevel(console_level)
-
-        # Create formatters and attach them to the handlers
         self.file_formatter = TimezoneFormatter(
-            "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S %Z",
-            tz=self._timezone,
-        )
-
-        self.console_formatter = AnsiColorFormatter(
             "%(asctime)s [%(levelname)s] %(name)-20s: %(message)s",
             datefmt="%Y-%m-%d %H:%M:%S %Z",
             tz=self._timezone,
         )
         self.file_handler.setFormatter(self.file_formatter)
-        self.console_handler.setFormatter(self.console_formatter)
 
-        # Add the handlers to the logger
+        # Custom Namer to format rotated filenames as discord.YYYY-MM-DD.log
+        def namer(default_name):
+            dir_path, file_name = os.path.split(default_name)
+            parts = file_name.split(".")
+            if len(parts) >= 3:
+                new_name = f"{parts[0]}.{parts[-1]}.{'.'.join(parts[1:-1])}"
+                return os.path.join(dir_path, new_name)
+            return default_name
+
+        self.file_handler.namer = namer
         self.logger.addHandler(self.file_handler)
-        self.logger.addHandler(self.console_handler)
+
+        self.logger.propagate = False
 
     file_handler: TimedRotatingFileHandler = attr.field(init=False)
     logger: logging.Logger = attr.field(init=False)
@@ -172,6 +173,3 @@ class AnsiColorFormatter(logging.Formatter):
         }.get(record.levelname, no_style)
         end_style = no_style
         return f"{start_style}{super().format(record)}{end_style}"
-
-
-log = KuriLogger(timezone="Asia/Tokyo")

@@ -1,13 +1,13 @@
 import os
 import sys
 
+from dependency_injector.wiring import inject, Provide
 from dotenv import load_dotenv
 from envier import Env
 
 from logger import KuriLogger
 
 load_dotenv()
-log = KuriLogger()
 
 
 class GlobalConfig(Env):
@@ -45,7 +45,8 @@ REQUIRED_ENV_VARS = {
 }
 
 
-def check_env_vars():
+@inject
+def check_env_vars(log: KuriLogger = Provide["logger"]):
     missing = False
     for var, description in REQUIRED_ENV_VARS.items():
         if not os.getenv(var):

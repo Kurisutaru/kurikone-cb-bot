@@ -1,16 +1,15 @@
 import discord
+from dependency_injector.wiring import inject, Provide
 from discord.ext import commands
 from discord.ext.commands import Bot
 
 from config import check_env_vars, config
-from globals import TL_SHIFTER_CHANNEL
-from locales import guild_locale
-from logger import log
+from dependency import Container
+from globals import GUILD_LOCALE, TL_SHIFTER_CHANNEL
 
-from services import MainService, ClanBattlePeriodService
+from logger import KuriLogger
 
-_main_service = MainService()
-_clan_battle_period_service = ClanBattlePeriodService()
+from services import MainService
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -20,7 +19,11 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 
 
 @bot.event
-async def on_ready():
+@inject
+async def on_ready(
+    log: KuriLogger = Provide["logger"],
+    main_service: MainService = Provide["main_service"],
+):
     await bot.wait_until_ready()
     log.info(f"We have logged in as {bot.user}")
 
@@ -29,12 +32,12 @@ async def on_ready():
     await bot.load_extension("cogs.clan_battle")
 
     await update_presence(bot)
-    await bot.tree.sync()
+    # await bot.tree.sync()
 
-    await _main_service.check_clan_battle_period()
+    await main_service.check_clan_battle_period()
 
     for guild in bot.guilds:
-        guild_locale[guild.id] = guild.preferred_locale.value.lower()
+        GUILD_LOCALE[guild.id] = guild.preferred_locale.value.lower()
         await setup_channel(guild)
 
 
@@ -45,15 +48,24 @@ async def on_guild_join(guild):
 
 
 @bot.event
-async def on_guild_remove(guild):
+@inject
+async def on_guild_remove(
+    guild,
+    log: KuriLogger = Provide["logger"],
+    main_service: MainService = Provide["main_service"],
+):
     log.info(f"Leaving guild {guild.id} - {guild.name}")
     await update_presence(bot)
-    await _main_service.uninstall_bot_command(guild, TL_SHIFTER_CHANNEL)
+    await main_service.uninstall_bot_command(guild, TL_SHIFTER_CHANNEL)
 
 
-async def setup_channel(guild):
+async def setup_channel(
+    guild,
+    log: KuriLogger = Provide["logger"],
+    main_service: MainService = Provide["main_service"],
+):
     log.info(f"Setup for guild {guild.id} - {guild.name}")
-    await _main_service.setup_guild_channel_message(guild, TL_SHIFTER_CHANNEL)
+    await main_service.setup_guild_channel_message(guild, TL_SHIFTER_CHANNEL)
 
 
 async def update_presence(discord_bot: Bot) -> None:
@@ -64,6 +76,15 @@ async def update_presence(discord_bot: Bot) -> None:
 
 
 if __name__ == "__main__":
+    container = Container()
+    container.init_resources()
+
+    bot.container = container
+
+    container.wire(
+        modules=[__name__, "database", "services", "ui", "utils", "cogs.base_cog"],
+        packages=["cogs"],
+    )
     # Check so people don't run away without .env file
     check_env_vars()
     bot.run(config.DISCORD_TOKEN, log_handler=None)

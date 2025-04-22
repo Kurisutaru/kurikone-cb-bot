@@ -3,6 +3,7 @@ from typing import List, Optional, Tuple, Type
 from contextlib import contextmanager
 
 import attrs
+from dependency_injector.wiring import Provide
 
 from models import *
 from database import (
@@ -10,6 +11,7 @@ from database import (
     reset_connection_context,
     set_connection_context,
     db_connection_context,
+    DatabasePool,
 )
 
 
@@ -1417,7 +1419,8 @@ class ErrorLogRepository:
     def insert(
         self, guild_id: int, identifier: str, exception: str, stacktrace: str
     ) -> bool:
-        with connection_context() as conn:
+        db_pool: DatabasePool = Provide["db_pool"]
+        with db_pool as conn:
             with conn.cursor(dictionary=True) as cursor:
                 cursor.execute(
                     """
@@ -1432,6 +1435,7 @@ class ErrorLogRepository:
                         "stacktrace": stacktrace,
                     },
                 )
+                conn.commit()
                 return True
 
     def delete_by_guild_id(self, guild_id: int) -> bool:

@@ -3,17 +3,22 @@ import sys
 
 from dbutils.pooled_db import PooledDB
 import mariadb
-from config import config
-from logger import KuriLogger
+from dependency_injector.wiring import Provide, inject
 
-log = KuriLogger()
+from config import GlobalConfig
+from logger import KuriLogger
 
 
 class DatabasePool:
     _instance = None
     _pool = None
 
-    def __new__(cls):
+    @inject
+    def __new__(
+        cls,
+        log: KuriLogger = Provide["logger"],
+        config: GlobalConfig = Provide["config"],
+    ):
         if cls._instance is None:
             cls._instance = super(DatabasePool, cls).__new__(cls)
             try:
@@ -55,7 +60,7 @@ class DatabasePool:
         pass
 
 
-db_pool = DatabasePool()
+# db_pool = DatabasePool()
 
 # --------------------------------------------
 # Context Management
@@ -65,7 +70,8 @@ db_connection_context = contextvars.ContextVar("db_connection", default=None)
 rollback_flag_context = contextvars.ContextVar("rollback_flag", default=False)
 
 
-def get_connection():
+@inject
+def get_connection(db_pool: DatabasePool = Provide["db_pool"]):
     """
     Returns:
         Tuple[connection, should_close]
