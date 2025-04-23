@@ -25,9 +25,7 @@ from services import MainService, ClanBattlePeriodService, Services, UiService
 
 
 class Container(containers.DeclarativeContainer):
-    wiring_config = containers.WiringConfiguration(
-        modules=["main", "services", "database"],
-    )
+    # Singleton provider for Logger
     logger = providers.Singleton(
         KuriLogger,
         name="discord",
@@ -35,7 +33,7 @@ class Container(containers.DeclarativeContainer):
         max_days=7,
         file_level=logging.DEBUG,
         console_level=logging.INFO,
-        timezone="UTC",
+        timezone="Asia/Tokyo",
     )
     # Singleton provider for Locale
     locale = providers.Singleton(
@@ -44,7 +42,9 @@ class Container(containers.DeclarativeContainer):
         filename_format="{locale}.{format}",
         file_format="yaml",
     )
+    # Singleton provider for Config
     config = providers.Singleton(GlobalConfig)
+    # Singleton provider for db_pool
     db_pool = providers.Singleton(
         DatabasePool,
         log=logger,

@@ -446,6 +446,39 @@ class ClanBattleBossEntryRepository:
                 )
                 return fetch_one_to_model(cursor, ClanBattleBossEntry)
 
+    def get_boss_entry_by_param(
+        self, guild_id: int, clan_battle_period_id: int, clan_battle_boss_id: int
+    ) -> Optional[ClanBattleBossEntry]:
+        with connection_context() as conn:
+
+            with conn.cursor(dictionary=True) as cursor:
+                cursor.execute(
+                    """
+                    SELECT clan_battle_boss_entry_id,
+                           guild_id,
+                           message_id,
+                           clan_battle_period_id,
+                           clan_battle_boss_id,
+                           name,
+                           image_path,
+                           boss_round,
+                           current_health,
+                           max_health
+                    FROM clan_battle_boss_entry
+                    WHERE guild_id = %(guild_id)s
+                    AND clan_battle_period_id = %(clan_battle_period_id)s
+                    AND clan_battle_boss_id = %(clan_battle_boss_id)s
+                    ORDER BY boss_round, clan_battle_boss_entry_id DESC
+                    LIMIT 1
+                    """,
+                    {
+                        "guild_id": guild_id,
+                        "clan_battle_period_id": clan_battle_period_id,
+                        "clan_battle_boss_id": clan_battle_boss_id,
+                    },
+                )
+                return fetch_one_to_model(cursor, ClanBattleBossEntry)
+
     def get_last_active_period_by_message_id(
         self, message_id: int
     ) -> Optional[ClanBattleBossEntry]:

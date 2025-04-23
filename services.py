@@ -75,7 +75,9 @@ class Services:
                     type(exception), exception, exception.__traceback__
                 )
             ).rstrip()
-            self.error_log_repo.insert(guild_id, transaction_id, stacktrace)
+            self.error_log_repo.insert(
+                guild_id, transaction_id, str(exception), stacktrace
+            )
             log.error(f"[{transaction_id}] Error: {exception}")
         except Exception as e:
             # Critical fallback: If DB logging fails, log to console + external service (e.g., Sentry)
@@ -326,8 +328,8 @@ class MainService:
             period = _service.clan_battle_period_repo.get_current_active_cb_period()
             boss_id = getattr(period, f"{enum.value['type'].lower()}_id")
 
-            cb_entry = _service.clan_battle_boss_entry_repo.get_last_by_message_id(
-                message_id=ch_message.message_id
+            cb_entry = _service.clan_battle_boss_entry_repo.get_boss_entry_by_param(
+                guild_id, period.clan_battle_period_id, boss_id
             )
             message = await discord_try_fetch_message(channel, ch_message.message_id)
 
