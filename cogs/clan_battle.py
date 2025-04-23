@@ -13,6 +13,7 @@ from globals import (
     NON_DIGIT,
     NEW_LINE,
     datetime_format,
+    TL_SHIFTER_TIME_FORMAT,
 )
 from models import GuildPlayer
 
@@ -132,51 +133,64 @@ class ClanBattleCommands(
             await bot.process_commands(message)
             return
 
-        content = message.content
-        lines = content.split("\n", 1)  # Split only once if possible
+        lines = message.content.strip().splitlines()
         if not lines:
             await bot.process_commands(message)
             return
 
-        # Process first line
-        first_line, *rest = lines[0].split("\n")  # Handle potential multi-split
-        first_segment = SPACE_PATTERN.split(first_line.strip(), 1)[0]
+        # Get base seconds from the first line
+        first_line = lines[0].strip()
+        first_segment = SPACE_PATTERN.split(first_line, 1)[0]
         second_str = NON_DIGIT.sub("", first_segment)
 
         if not second_str.isdigit():
             await bot.process_commands(message)
             return
 
-        second = int(second_str)
-        if second > 90:
+        base_seconds = int(second_str)
+        if base_seconds > 90:
             await bot.process_commands(message)
             return
 
-        sec_reduction = 90 - second
-        result_lines = [f"TL Shift for {second}s", "```powershell"]
+        sec_reduction = 90 - base_seconds
+        result_lines = [f"TL Shift for {base_seconds}s", "```powershell"]
 
-        # Process remaining lines
-        for line in lines[1].split("\n") if len(lines) > 1 else []:
+        # Process each subsequent line
+        for line in lines[1:]:
             parts = SPACE_PATTERN.split(line.strip(), 1)
             if len(parts) < 2:
                 continue
 
             time_str, desc = parts
-            try:
-                parsed_time = utils.time_to_seconds(time_str)
-            except ValueError:
+            time_str = time_str.strip()
+
+            # Convert to seconds
+            match = TL_SHIFTER_TIME_FORMAT.match(time_str)
+            if match:
+                minutes, seconds = map(int, match.groups())
+                total_seconds = minutes * 60 + seconds
+            elif time_str.isdigit():
+                total_seconds = int(time_str)
+            else:
                 continue
 
-            result_time = parsed_time - sec_reduction
-            if result_time <= 0:
+            # Apply the reduction
+            new_seconds = total_seconds - sec_reduction
+            if new_seconds <= 0:
                 continue
 
-            result_lines.append(f"{utils.format_time(result_time)}  {desc.strip()}")
+            # Format and add
+            minutes, seconds = divmod(new_seconds, 60)
+            formatted_time = f"{minutes}:{seconds:02}"
+            result_lines.append(
+                f"{formatted_time}　 ㅤ{desc.strip()}"
+            )  # Add ideographic space
 
-        # Only send response if we have valid entries
         if len(result_lines) > 2:
             result_lines.append("```")
             await message.reply(NEW_LINE.join(result_lines))
+
+        await bot.process_commands(message)
 
     # Background task
     everyday_cb_time = datetime.time(hour=20, minute=0)
