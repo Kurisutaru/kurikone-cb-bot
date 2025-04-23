@@ -6,40 +6,51 @@
 .git
 .gitignore
 
-# Python compiled files
+# Python artifacts
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
-*.egg-info
+*.py[cod]
+*.egg-info/
 *.egg
+*.pyd
+.mypy_cache/
+.pytest_cache/
 
-# IDE/Editor
+# Build artifacts
+build/
+dist/
+*.log
+*.tmp
+*.bak
+
+# IDEs/Editors
 .DS_Store
-.venv
-.idea
-.vscode
+.idea/
+.vscode/
 *.swp
 *.swo
 
-# Docker/compose
-docker-compose*
-Dockerfile*
+# Docker & Dev
 docker-compose.yml
-Dockerfile
+docker-compose.override.yml
 Dockerfile.dev
 
-# Development
+# Project config & docs
 Makefile
 README.md
-logs/
-tests/
-test/
-docs/
-examples/
 setup.py
 setup.cfg
+Pipfile*
 
-# Cache directories
-.mypy_cache
-.pytest_cache
+# Development resources
+logs/
+tests/
+docs/
+examples/
+
+# Misc
+.cache/
+documents/
+
+# Virtual env
+.venv
+venv

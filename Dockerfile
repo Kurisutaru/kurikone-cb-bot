@@ -1,35 +1,48 @@
 # Stage 1: Build stage
 FROM python:3.12-alpine AS builder
 
-# Install build dependencies
-RUN apk add --no-cache build-base mariadb-dev gcc
+# Install build dependencies only for building wheels
+RUN apk add --no-cache \
+    build-base \
+    mariadb-dev \
+    gcc \
+    libffi-dev \
+    musl-dev
 
 WORKDIR /app
 COPY requirements.txt .
-RUN pip install --user --no-cache-dir -r requirements.txt
 
-# Stage 2: Runtime stage
+# Install dependencies into a temporary location
+RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
+
+# Stage 2: Final runtime stage
 FROM python:3.12-alpine
-# Install runtime dependencies
+
+# Only install runtime dependencies
 RUN apk add --no-cache \
     mariadb-connector-c \
-    --update tzdata \
- && rm -rf /var/cache/apk/*
+    tzdata \
+    && rm -rf /var/cache/apk/*
 
-# Set timezone to JST
+# Timezone setup
 ENV TZ=Asia/Tokyo
-RUN ln -sf /usr/share/zoneinfo/Asia/Tokyo /etc/localtime \
-    && echo "Asia/Tokyo" > /etc/timezone
+RUN ln -sf /usr/share/zoneinfo/$TZ /etc/localtime \
+ && echo $TZ > /etc/timezone
 
 WORKDIR /app
-COPY --from=builder /root/.local /root/.local
+
+# Copy installed python packages
+COPY --from=builder /install /usr/local
+
+# Copy application code
 COPY . .
 
-# Environment variables
-ENV PATH=/root/.local/bin:$PATH
-ENV PYTHONUNBUFFERED=1
-ENV LD_LIBRARY_PATH=/usr/lib
+# Environment optimization
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
 
+# Reduce image size by removing cache and dev files
 RUN chmod +x entrypoint.sh
+
 ENTRYPOINT ["./entrypoint.sh"]
 CMD ["python", "main.py"]

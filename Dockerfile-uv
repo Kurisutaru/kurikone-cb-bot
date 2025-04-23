@@ -1,39 +1,50 @@
+# --- Stage 1: Builder with uv ---
 FROM ghcr.io/astral-sh/uv:python3.12-alpine AS builder
 
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
-RUN apk add --no-cache build-base mariadb-dev
+
+# Install build dependencies for mariadb (required for source build)
+RUN apk add --no-cache \
+    build-base \
+    mariadb-dev \
+    gcc \
+    musl-dev \
+    libffi-dev \
+    python3-dev
 
 WORKDIR /app
 
-COPY pyproject.toml uv.lock ./
+WORKDIR /app
+RUN --mount=type=cache,target=/root/.cache/uv \
+    --mount=type=bind,source=uv.lock,target=uv.lock \
+    --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
+    uv sync --frozen --no-install-project --no-dev
+ADD . /app
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-dev
 
-# No venv needed — install directly into system site-packages
-RUN uv sync
-
-COPY . .
-
-# --- Slim runtime stage ---
+# --- Stage 2: Runtime only ---
 FROM python:3.12-alpine
 
 # Install runtime dependencies
 RUN apk add --no-cache \
     mariadb-connector-c \
     tzdata \
- && rm -rf /var/cache/apk/*
+    && rm -rf /var/cache/apk/*
 
-# Set timezone to JST
 ENV TZ=Asia/Tokyo
-RUN ln -sf /usr/share/zoneinfo/Asia/Tokyo /etc/localtime \
-    && echo "Asia/Tokyo" > /etc/timezone
+RUN ln -sf /usr/share/zoneinfo/$TZ /etc/localtime \
+ && echo $TZ > /etc/timezone
 
 WORKDIR /app
 
-COPY --from=builder /usr/local/bin/uv /usr/local/bin/uv
 COPY --from=builder /app /app
 
-ENV PYTHONUNBUFFERED=1
+# Environment optimization
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
+ENV PATH="/app/.venv/bin:$PATH"
 
-COPY ./entrypoint.sh ./entrypoint.sh
-RUN chmod +x entrypoint.sh
+RUN chmod +x ./entrypoint.sh
 ENTRYPOINT ["./entrypoint.sh"]
-CMD ["uv", "run", "python", "main.py"]
+CMD ["python", "main.py"]
