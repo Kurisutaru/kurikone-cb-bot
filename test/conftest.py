@@ -41,7 +41,15 @@ def mock_container():
     container = Container()
 
     container.wire(
-        modules=[__name__, "database", "services", "ui", "utils", "cogs.base_cog"],
+        modules=[
+            __name__,
+            "config",
+            "database",
+            "services",
+            "ui",
+            "utils",
+            "cogs.base_cog",
+        ],
         packages=["cogs"],
     )
 

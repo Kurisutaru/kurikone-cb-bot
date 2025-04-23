@@ -4,7 +4,7 @@ from discord.ext import commands
 from discord.ext.commands import Bot
 
 from config import check_env_vars, config
-from dependency import Container
+from dependency import Container, container
 from globals import GUILD_LOCALE, TL_SHIFTER_CHANNEL
 
 from logger import KuriLogger
@@ -76,13 +76,18 @@ async def update_presence(discord_bot: Bot) -> None:
 
 
 if __name__ == "__main__":
-    container = Container()
     container.init_resources()
-
     bot.container = container
-
     container.wire(
-        modules=[__name__, "database", "services", "ui", "utils", "cogs.base_cog"],
+        modules=[
+            __name__,
+            "config",
+            "database",
+            "services",
+            "ui",
+            "utils",
+            "cogs.base_cog",
+        ],
         packages=["cogs"],
     )
     # Check so people don't run away without .env file
