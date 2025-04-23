@@ -37,7 +37,7 @@ async def on_ready(
     await main_service.check_clan_battle_period()
 
     for guild in bot.guilds:
-        GUILD_LOCALE[guild.id] = guild.preferred_locale.value.lower()
+        GUILD_LOCALE[guild.id] = guild.preferred_locale.value
         await setup_channel(guild)
 
 

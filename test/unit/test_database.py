@@ -1,11 +1,11 @@
-import pytest
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
+
 import mariadb
-from dbutils.pooled_db import PooledDB
+import pytest
 from dependency_injector import providers
 
 from config import GlobalConfig
-from database import DatabasePool
+from database import DatabasePool, db_connection_context
 from logger import KuriLogger
 
 
@@ -17,49 +17,10 @@ def mock_pool():
         yield mock_pool
 
 
-@pytest.fixture
-def db_pool(mock_container, mock_pool):
-    from database import DatabasePool
-
-    # Bypassing dependency injector for simplicity; directly passing mocks
-    instance = DatabasePool.__new__(DatabasePool)
-    instance._pool = mock_pool
-    DatabasePool._instance = instance
-    return instance
-
-
-def test_singleton_pattern(mock_container):
-    mock_logger = MagicMock(spec=KuriLogger)
-    mock_config = MagicMock(spec=GlobalConfig)
-
-    from database import DatabasePool
-
-    DatabasePool._instance = None  # Reset singleton
-
-    # Mock PooledDB and mariadb.connect to avoid real connections
-    with (
-        patch("database.mariadb.connect") as mock_connect,
-        patch("database.PooledDB") as mock_pooled_db,
-    ):
-        mock_container.logger.override(providers.Object(mock_logger))
-        mock_container.config.override(mock_config)
-
-        # Create instances (should trigger PooledDB initialization)
-        instance1 = DatabasePool()
-        instance2 = DatabasePool()
-
-        # Verify singleton behavior
-        assert instance1 is instance2
-        assert DatabasePool._instance is not None
-
-        # Ensure PooledDB was called with mocked config values
-        mock_pooled_db.assert_called_once()
-
-
 @patch("database.PooledDB")
 def test_pool_initialization(mock_pool_db, mock_container, mock_pool):
-    mock_logger = MagicMock()
-    mock_config = MagicMock()
+    mock_logger = MagicMock(spec=KuriLogger)
+    mock_config = MagicMock(spec=GlobalConfig)
     mock_config.MAX_POOL_SIZE = 5
     mock_config.DB_HOST = "localhost"
     mock_config.DB_USER = "user"
@@ -95,95 +56,159 @@ def test_pool_initialization(mock_pool_db, mock_container, mock_pool):
     )
 
 
-def test_get_connection(db_pool):
-    mock_conn = MagicMock()
-    db_pool._pool.connection.return_value = mock_conn
-    conn = db_pool.get_connection()
-    assert conn == mock_conn
-    db_pool._pool.connection.assert_called_once()
+def test_get_connection(mock_container):
+    # Mock dependencies
+    mock_logger = MagicMock(spec=KuriLogger)
 
+    # Override container dependencies
+    mock_container.logger.override(providers.Object(mock_logger))
 
-def test_context_manager(db_pool):
-    mock_conn = MagicMock()
-    db_pool._pool.connection.return_value = mock_conn
-    with db_pool as conn:
-        assert conn == mock_conn
-    db_pool._pool.connection.assert_called_once()
-
-
-def test_get_connection_function_with_context(mock_container, db_pool):
-    # Create mock db_pool and connection
-    mock_conn = MagicMock()
+    # Mock PooledDB to return a mock pool
     mock_pool = MagicMock()
+    mock_conn = MagicMock()
     mock_pool.connection.return_value = mock_conn
 
-    from database import (
-        DatabasePool,
-        get_connection,
-        set_connection_context,
-        reset_connection_context,
-    )
+    with patch("database.PooledDB", return_value=mock_pool):
+        with patch("mariadb.connect") as mock_connect:
+            mock_connect.return_value = MagicMock()  # Simulate successful connection
+            db_pool = mock_container.db_pool()
 
-    db_pool = MagicMock(spec=DatabasePool)
-    db_pool.get_connection.return_value = mock_conn
-    db_pool._pool = mock_pool
+            # Test get_connection
+            conn = db_pool.get_connection()
+            assert conn == mock_conn
+            mock_pool.connection.assert_called_once()
 
-    mock_container.db_pool.override(providers.Object(db_pool))
+    # Verify logger was called
+    mock_logger.info.assert_called_with("Connection pool initialized with size: 20")
 
-    # --- No context set ---
-    conn, should_close = get_connection()
-    assert conn == mock_conn
-    assert should_close is True
 
-    # --- Context set ---
-    set_connection_context(mock_conn)
-    conn2, should_close2 = get_connection()
-    assert conn2 == mock_conn
-    assert should_close2 is False
+def test_context_manager(mock_container):
+    # Mock dependencies
+    mock_logger = MagicMock(spec=KuriLogger)
 
-    reset_connection_context()
+    # Override container dependencies
+    mock_container.logger.override(providers.Object(mock_logger))
+
+    # Mock PooledDB to return a mock pool
+    mock_pool = MagicMock()
+    mock_conn = MagicMock()
+    mock_pool.connection.return_value = mock_conn
+
+    with patch("database.PooledDB", return_value=mock_pool):
+        with patch("mariadb.connect") as mock_connect:
+            mock_connect.return_value = MagicMock()  # Simulate successful connection
+            db_pool = mock_container.db_pool()
+
+            # Test context manager
+            with db_pool as conn:
+                assert conn == mock_conn
+            mock_pool.connection.assert_called_once()
+
+    # Verify logger was called
+    mock_logger.info.assert_called_with("Connection pool initialized with size: 20")
+
+
+def test_get_connection_function_with_context(mock_container):
+    # Mock dependencies
+    mock_logger = MagicMock(spec=KuriLogger)
+    mock_config = MagicMock(spec=GlobalConfig)
+    mock_config.MAX_POOL_SIZE = 20
+
+    # Override container dependencies
+    mock_container.logger.override(providers.Object(mock_logger))
+    mock_container.config.override(providers.Object(mock_config))
+
+    # Mock PooledDB and connection
+    mock_pool = MagicMock()
+    mock_conn = MagicMock()
+    mock_pool.connection.return_value = mock_conn
+
+    with patch("database.PooledDB", return_value=mock_pool):
+        with patch("mariadb.connect") as mock_connect:
+            mock_connect.return_value = MagicMock()
+            db_pool = mock_container.db_pool()
+
+            from database import (
+                get_connection,
+                set_connection_context,
+                reset_connection_context,
+            )
+
+            # No context set
+            conn, should_close = get_connection()
+            assert conn == mock_conn
+            assert should_close is True
+            mock_pool.connection.assert_called_once()
+
+            # Context set
+            set_connection_context(mock_conn)
+            conn2, should_close2 = get_connection()
+            assert conn2 == mock_conn
+            assert should_close2 is False
+            mock_pool.connection.assert_called_once()  # No new connection
+
+            reset_connection_context()
+            assert db_connection_context.get() is None
+
+    mock_logger.info.assert_called_with("Connection pool initialized with size: 20")
 
 
 def test_connection_failure(mock_container):
-    # Reset the singleton instance
-    DatabasePool._instance = None
+    # Mock dependencies
+    mock_logger = MagicMock(spec=KuriLogger)
 
-    mock_logger = MagicMock()
+    # Override container dependencies
     mock_container.logger.override(providers.Object(mock_logger))
 
-    with patch("database.PooledDB", side_effect=Exception("Connection failed")):
-        with pytest.raises(SystemExit):
-            DatabasePool()
+    # Patch PooledDB in the database module's namespace
+    with patch("database.PooledDB", side_effect=mariadb.Error("Connection failed")):
+        # Also patch mariadb.connect to prevent real connections
+        with patch("mariadb.connect", side_effect=mariadb.Error("Connection failed")):
+            with pytest.raises(mariadb.Error, match="Connection failed"):
+                mock_container.db_pool()  # Instantiate via DI container
 
-    mock_logger.critical.assert_called_with("Failed to establish a database connection")
-
-
-def test_context_manager_exit_clean(mock_container):
-    db_pool = DatabasePool()
-    mock_conn = MagicMock()
-    db_pool.get_connection = MagicMock(return_value=mock_conn)
-
-    with db_pool as conn:
-        assert conn == mock_conn
-
-
-def test_context_exit_called(mock_container):
-    db_pool = DatabasePool()
-
-    with patch.object(DatabasePool, "__exit__", wraps=db_pool.__exit__) as mock_exit:
-        with db_pool:
-            pass
-        mock_exit.assert_called_once()
+    # Verify logger was called
+    mock_logger.critical.assert_called_with(
+        "Failed to establish a database connection: Connection failed"
+    )
 
 
 def test_context_manager_exit_with_exception(mock_container):
-    db_pool = DatabasePool()
+    # Mock dependencies
+    mock_logger = MagicMock(spec=KuriLogger)
+    mock_config = MagicMock(spec=GlobalConfig)
+    mock_container.logger.override(providers.Object(mock_logger))
+    mock_container.config.override(providers.Object(mock_config))
 
-    with patch("builtins.print") as mock_print:
-        try:
-            with db_pool:
-                raise ValueError("boom")
-        except ValueError:
-            pass
+    with patch("database.PooledDB") as mock_pooled_db:
+        with patch("mariadb.connect") as mock_connect:
+            mock_connect.return_value = MagicMock()
+            mock_pooled_db.return_value = MagicMock()
+            db_pool = mock_container.db_pool()
 
-        mock_print.assert_called_with("Exception in context: boom")
+            with patch("builtins.print") as mock_print:
+                try:
+                    with db_pool:
+                        raise ValueError("boom")
+                except ValueError:
+                    pass
+                mock_print.assert_called_with("Exception in context: boom")
+
+
+def test_get_connection_failure(mock_container):
+    mock_logger = MagicMock(spec=KuriLogger)
+    mock_config = MagicMock(spec=GlobalConfig)
+
+    mock_container.logger.override(providers.Object(mock_logger))
+    mock_container.config.override(providers.Object(mock_config))
+
+    mock_pool = MagicMock()
+    mock_pool.connection.side_effect = mariadb.Error("Connection error")
+
+    with patch("database.PooledDB", return_value=mock_pool):
+        with patch("mariadb.connect") as mock_connect:
+            mock_connect.return_value = MagicMock()
+            db_pool = mock_container.db_pool()
+
+            with pytest.raises(mariadb.Error, match="Connection error"):
+                db_pool.get_connection()

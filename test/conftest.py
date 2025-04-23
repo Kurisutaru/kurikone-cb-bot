@@ -1,13 +1,9 @@
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock
 
-from dependency_injector import providers
+import pytest
 from discord import Message, TextChannel, Guild
 
-from config import GlobalConfig
 from dependency import Container
-from locales import Locale
-from logger import KuriLogger
 
 author_id = 1
 guild_id = 1
