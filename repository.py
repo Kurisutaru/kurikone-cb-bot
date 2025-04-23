@@ -421,7 +421,6 @@ class ClanBattleBossEntryRepository:
 
     def get_last_by_message_id(self, message_id: int) -> Optional[ClanBattleBossEntry]:
         with connection_context() as conn:
-
             with conn.cursor(dictionary=True) as cursor:
                 cursor.execute(
                     """

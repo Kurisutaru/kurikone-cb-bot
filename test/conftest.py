@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock
 import pytest
 from discord import Message, TextChannel, Guild
 
+from database import rollback_flag_context
 from dependency import Container
 
 author_id = 1
