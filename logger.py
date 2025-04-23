@@ -1,6 +1,5 @@
 import logging
 import os
-import threading
 from datetime import datetime
 from logging.handlers import TimedRotatingFileHandler
 
@@ -9,20 +8,9 @@ import pytz
 
 
 class KuriLogger:
-    _instance = None
-    _lock = None
     _timezone: datetime.tzinfo = None
 
-    def __new__(cls, *args, **kwargs):
-        if cls._instance is None:
-            cls._lock = threading.Lock()
-            with cls._lock:
-                if cls._instance is None:
-                    cls._instance = super(KuriLogger, cls).__new__(cls)
-                    cls._instance.init(*args, **kwargs)
-        return cls._instance
-
-    def init(
+    def __init__(
         self,
         name="discord",
         log_file="discord.log",

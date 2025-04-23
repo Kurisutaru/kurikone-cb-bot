@@ -1,8 +1,7 @@
 import contextvars
-import sys
 
-from dbutils.pooled_db import PooledDB
 import mariadb
+from dbutils.pooled_db import PooledDB
 from dependency_injector.wiring import Provide, inject
 
 from config import GlobalConfig
@@ -10,42 +9,34 @@ from logger import KuriLogger
 
 
 class DatabasePool:
-    _instance = None
-    _pool = None
-
     @inject
-    def __new__(
-        cls,
+    def __init__(
+        self,
         log: KuriLogger = Provide["logger"],
         config: GlobalConfig = Provide["config"],
     ):
-        if cls._instance is None:
-            cls._instance = super(DatabasePool, cls).__new__(cls)
-            try:
-                cls._pool = PooledDB(
-                    creator=mariadb.connect,
-                    maxconnections=config.MAX_POOL_SIZE,
-                    mincached=2,
-                    maxcached=10,
-                    maxusage=5,
-                    blocking=True,
-                    host=config.DB_HOST,
-                    user=config.DB_USER,
-                    password=config.DB_PASSWORD,
-                    database=config.DB_NAME,
-                    port=config.DB_PORT,
-                    setsession=["SET SESSION time_zone = 'Asia/Tokyo'"],
-                    reset=True,
-                    failures=None,
-                    ping=7,
-                )
-                log.info(
-                    f"Connection pool initialized with size: {config.MAX_POOL_SIZE}"
-                )
-            except Exception as e:
-                log.critical(f"Failed to establish a database connection")
-                sys.exit(1)
-        return cls._instance
+        try:
+            self._pool = PooledDB(
+                creator=mariadb.connect,
+                maxconnections=config.MAX_POOL_SIZE,
+                mincached=2,
+                maxcached=10,
+                maxusage=5,
+                blocking=True,
+                host=config.DB_HOST,
+                user=config.DB_USER,
+                password=config.DB_PASSWORD,
+                database=config.DB_NAME,
+                port=config.DB_PORT,
+                setsession=["SET SESSION time_zone = 'Asia/Tokyo'"],
+                reset=True,
+                failures=None,
+                ping=7,
+            )
+            log.info(f"Connection pool initialized with size: {config.MAX_POOL_SIZE}")
+        except Exception as e:
+            log.critical(f"Failed to establish a database connection: {str(e)}")
+            raise  # Or handle differently, e.g., raise a custom exception
 
     def get_connection(self):
         conn = self._pool.connection()

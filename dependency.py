@@ -1,6 +1,8 @@
+import logging
+
 from dependency_injector import containers, providers
+
 from config import GlobalConfig
-from services import MainService, ClanBattlePeriodService, Services, UiService
 from database import DatabasePool
 from locales import Locale
 from logger import KuriLogger
@@ -19,16 +21,35 @@ from repository import (
     GenericRepository,
     ErrorLogRepository,
 )
+from services import MainService, ClanBattlePeriodService, Services, UiService
 
 
 class Container(containers.DeclarativeContainer):
     wiring_config = containers.WiringConfiguration(
         modules=["main", "services", "database"],
     )
-    logger = providers.Singleton(KuriLogger, timezone="Asia/Tokyo")
-    locale = providers.Singleton(Locale)
+    logger = providers.Singleton(
+        KuriLogger,
+        name="discord",
+        log_file="discord.log",
+        max_days=7,
+        file_level=logging.DEBUG,
+        console_level=logging.INFO,
+        timezone="UTC",
+    )
+    # Singleton provider for Locale
+    locale = providers.Singleton(
+        Locale,
+        load_path="locales",
+        filename_format="{locale}.{format}",
+        file_format="yaml",
+    )
     config = providers.Singleton(GlobalConfig)
-    db_pool = providers.Singleton(DatabasePool)
+    db_pool = providers.Singleton(
+        DatabasePool,
+        log=logger,
+        config=config,
+    )
 
     # Repositories
     guild_repo = providers.Singleton(GuildRepository)
