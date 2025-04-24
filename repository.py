@@ -827,7 +827,7 @@ class ClanBattlePeriodRepository:
                            boss4_id,
                            boss5_id
                     FROM clan_battle_period
-                    WHERE SYSDATE() BETWEEN date_from AND date_to
+                    WHERE DATE_ADD(SYSDATE(), INTERVAL 5 HOUR) BETWEEN date_from AND date_to
                     ORDER BY clan_battle_period_id DESC
                     LIMIT 1
                     """
