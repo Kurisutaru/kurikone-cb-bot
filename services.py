@@ -633,8 +633,14 @@ class MainService:
                 service_result.set_error(f"Period is None")
                 return service_result
 
-            _service.clan_battle_boss_book_repo.delete_book_by_id(
-                book.clan_battle_boss_book_id
+            # Delete self book - Unused
+            # _service.clan_battle_boss_book_repo.delete_book_by_id(
+            #    book.clan_battle_boss_book_id
+            # )
+
+            # Delete all book by boss entry (Including who deaded the bosses)
+            _service.clan_battle_boss_book_repo.delete_book_by_entry_id(
+                boss_entry.clan_battle_boss_entry_id
             )
 
             # Prepare insert into overall Entry

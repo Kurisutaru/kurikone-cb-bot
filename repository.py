@@ -21,12 +21,14 @@ def connection_context():
     Context manager that handles both transactional and non-transactional connections
     Returns a connection and manages its lifecycle automatically
     """
+    existing_conn = db_connection_context.get()
+    if existing_conn:
+        yield existing_conn
+        return
+
     conn, should_close = get_connection()
     try:
-        # Set connection in context if not already set
-        if not db_connection_context.get():
-            set_connection_context(conn)
-
+        set_connection_context(conn)
         yield conn
     finally:
         if should_close:
@@ -38,19 +40,26 @@ T = TypeVar("T")
 
 
 def fetch_all_to_model(cursor, model_class: Type[T]) -> List[T]:
-    """Convert all fetched rows to instances of the given model class."""
+    """Convert fetched rows to model instances, ignoring missing fields."""
     result = cursor.fetchall()
-    if result:
-        return [model_class(**row) for row in result]
-    return []
+    if not result:
+        return []
+    return [
+        model_class(
+            **{k: v for k, v in row.items() if k in model_class.__annotations__}
+        )
+        for row in result
+    ]
 
 
 def fetch_one_to_model(cursor, model_class: Type[T]) -> Optional[T]:
-    """Convert a single fetched row to an instance of the given model class."""
+    """Convert a single row to a model instance, ignoring missing fields."""
     result = cursor.fetchone()
-    if result:
-        return model_class(**result)
-    return None
+    if not result:
+        return None
+    return model_class(
+        **{k: v for k, v in result.items() if k in model_class.__annotations__}
+    )
 
 
 class GenericRepository:
@@ -658,6 +667,22 @@ class ClanBattleBossBookRepository:
                     """,
                     {
                         "clan_battle_boss_book_id": clan_battle_boss_book_id,
+                    },
+                )
+
+                return True
+
+    def delete_book_by_entry_id(self, clan_battle_boss_entry_id: int) -> bool:
+        with connection_context() as conn:
+            with conn.cursor(dictionary=True) as cursor:
+                cursor.execute(
+                    """
+                    DELETE
+                    FROM clan_battle_boss_book
+                    WHERE clan_battle_boss_entry_id = %(clan_battle_boss_entry_id)s
+                    """,
+                    {
+                        "clan_battle_boss_entry_id": clan_battle_boss_entry_id,
                     },
                 )
 
