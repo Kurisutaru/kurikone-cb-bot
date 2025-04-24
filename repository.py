@@ -91,11 +91,11 @@ class GenericRepository:
     def get_session_autocommit(self):
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
-                cursor.execute("SELECT @@SESSION.autocommit AS TI")
+                cursor.execute("SELECT @@SESSION.autocommit AS AC")
                 result = cursor.fetchone()
                 if result is None:
-                    raise ValueError("Failed to retrieve transaction Isolation")
-                return bool(result["TI"])
+                    raise ValueError("Failed to retrieve session auto commit")
+                return bool(result["AC"])
 
     def get_session_transaction_id(self):
         with connection_context() as conn:
