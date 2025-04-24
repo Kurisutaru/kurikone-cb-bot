@@ -162,7 +162,7 @@ class ClanBattleLeftover(EnumSerializerMixin):
 
 
 @define
-class ClanBattleReportMessage:
+class ClanBattleReportMessage(EnumSerializerMixin):
     clan_battle_report_message_id: int = field(default=None)
     guild_id: int = field(default=None)
     clan_battle_period_id: int = field(default=None)

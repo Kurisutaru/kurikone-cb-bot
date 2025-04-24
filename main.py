@@ -84,6 +84,7 @@ if __name__ == "__main__":
             "config",
             "database",
             "services",
+            "repository",
             "ui",
             "utils",
             "cogs.base_cog",

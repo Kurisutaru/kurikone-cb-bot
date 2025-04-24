@@ -1,9 +1,10 @@
+import inspect
 from typing import List, Optional, Tuple, Type
 
 from contextlib import contextmanager
 
 import attrs
-from dependency_injector.wiring import Provide
+from dependency_injector.wiring import Provide, inject
 
 from models import *
 from database import (
@@ -13,6 +14,10 @@ from database import (
     db_connection_context,
     DatabasePool,
 )
+
+
+# Shared cache for field names
+_field_cache = {}
 
 
 @contextmanager
@@ -40,26 +45,40 @@ T = TypeVar("T")
 
 
 def fetch_all_to_model(cursor, model_class: Type[T]) -> List[T]:
-    """Convert fetched rows to model instances, ignoring missing fields."""
+    """Convert fetched rows to model instances, including inherited fields."""
     result = cursor.fetchall()
     if not result:
         return []
+
+    # Get cached or compute all fields from model_class and parents
+    all_fields = _field_cache.get(model_class)
+    if not all_fields:
+        all_fields = set()
+        for cls in inspect.getmro(model_class)[:-1]:  # Exclude object
+            all_fields.update(getattr(cls, "__annotations__", {}).keys())
+        _field_cache[model_class] = all_fields
+
     return [
-        model_class(
-            **{k: v for k, v in row.items() if k in model_class.__annotations__}
-        )
+        model_class(**{k: v for k, v in row.items() if k in all_fields})
         for row in result
     ]
 
 
 def fetch_one_to_model(cursor, model_class: Type[T]) -> Optional[T]:
-    """Convert a single row to a model instance, ignoring missing fields."""
+    """Convert a single row to a model instance, including inherited fields."""
     result = cursor.fetchone()
     if not result:
         return None
-    return model_class(
-        **{k: v for k, v in result.items() if k in model_class.__annotations__}
-    )
+
+    # Get cached or compute all fields from model_class and parents
+    all_fields = _field_cache.get(model_class)
+    if not all_fields:
+        all_fields = set()
+        for cls in inspect.getmro(model_class)[:-1]:  # Exclude object
+            all_fields.update(getattr(cls, "__annotations__", {}).keys())
+        _field_cache[model_class] = all_fields
+
+    return model_class(**{k: v for k, v in result.items() if k in all_fields})
 
 
 class GenericRepository:
@@ -194,7 +213,7 @@ class ChannelRepository:
                 )
                 return fetch_all_to_model(cursor, Channel)
 
-    def get_all_by_guild_id_and_type(
+    def get_by_guild_id_and_type(
         self, guild_id: int, channel_type: str
     ) -> Optional[Channel]:
         with connection_context() as conn:
@@ -224,13 +243,8 @@ class ChannelRepository:
                         )
                     VALUES (%(channel_id)s, %(guild_id)s, %(channel_type)s)
                     """,
-                    {
-                        "channel_id": channel.channel_id,
-                        "guild_id": channel.guild_id,
-                        "channel_type": channel.channel_type.name,
-                    },
+                    channel.to_db_dict(),
                 )
-                channel.channel_id = cursor.lastrowid
 
             return channel
 
@@ -243,13 +257,8 @@ class ChannelRepository:
                         SET channel_id = %(channel_id)s
                     WHERE guild_id = %(guild_id)s and channel_type = %(channel_type)s
                     """,
-                    {
-                        "channel_id": channel.channel_id,
-                        "guild_id": channel.guild_id,
-                        "channel_type": channel.channel_type.name,
-                    },
+                    channel.to_db_dict(),
                 )
-                channel.channel_id = cursor.lastrowid
 
             return channel
 
@@ -1405,7 +1414,7 @@ class ClanBattleReportMessageRepository:
                         %(message_id)s
                     )
                     """,
-                    attrs.asdict(report),
+                    report.to_db_dict(),
                 )
                 report.clan_battle_report_message_id = cursor.lastrowid
                 return report
@@ -1473,6 +1482,7 @@ class GuildPlayerRepository:
 
 
 class ErrorLogRepository:
+    @inject
     def insert(
         self, guild_id: int, identifier: str, exception: str, stacktrace: str
     ) -> bool:

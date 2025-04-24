@@ -1098,7 +1098,7 @@ class MainService:
                 return service_result
 
             # Get channel data once
-            channel_data = _service.channel_repo.get_all_by_guild_id_and_type(
+            channel_data = _service.channel_repo.get_by_guild_id_and_type(
                 guild_id, ChannelEnum.REPORT.name
             )
             if channel_data is None:
