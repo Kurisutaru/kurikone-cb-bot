@@ -1180,14 +1180,13 @@ class ClanBattleOverallEntryRepository:
                     WHERE CBOE.guild_id = %(guild_id)s
                       AND CBOE.player_id = %(player_id)s
                       AND CBOE.attack_type <> 'CARRY'
-                      AND CURDATE() BETWEEN CBP.date_from AND CBP.date_to
+                      AND CBP.is_active = 1
                       AND CBOE.entry_date >= IF(CURRENT_TIME() < '05:00:00',
                                         CONCAT(DATE_SUB(CURDATE(), INTERVAL 1 DAY), ' 05:00:00'),
                                         CONCAT(CURDATE(), ' 05:00:00'))
                       AND CBOE.entry_date < IF(CURRENT_TIME() < '05:00:00',
                                        CONCAT(CURDATE(), ' 05:00:00'),
                                        CONCAT(DATE_ADD(CURDATE(), INTERVAL 1 DAY), ' 05:00:00'))
-
                     """,
                     {
                         "guild_id": guild_id,
@@ -1219,7 +1218,7 @@ class ClanBattleOverallEntryRepository:
                         AND CBOE.player_id = %(player_id)s
                         AND CBOE.leftover_time IS NOT NULL
                         AND CBOE.overall_leftover_entry_id IS NULL
-                        AND CURDATE() BETWEEN CBP.date_from AND CBP.date_to
+                        AND CBP.is_active = 1
                         AND CONVERT_TZ(CBOE.entry_date, @@session.time_zone, 'Asia/Tokyo') >= IF(CURRENT_TIME() < '05:00:00',
                                         CONCAT(DATE_SUB(CURDATE(), INTERVAL 1 DAY), ' 05:00:00'),
                                         CONCAT(CURDATE(), ' 05:00:00'))
