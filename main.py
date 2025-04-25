@@ -32,8 +32,7 @@ async def on_ready(
     await bot.load_extension("cogs.clan_battle")
 
     await update_presence(bot)
-    await bot.tree.sync()
-
+    await main_service.check_command_tree_sync(bot)
     await main_service.check_clan_battle_period()
 
     for guild in bot.guilds:

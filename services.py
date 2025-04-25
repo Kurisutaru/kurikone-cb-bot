@@ -4,8 +4,9 @@ import uuid
 
 import discord
 from dependency_injector.wiring import inject, Provide
-from discord import Embed, Message, TextChannel
+from discord import Embed, Message, TextChannel, app_commands
 from discord.abc import GuildChannel
+from discord.ext.commands.bot import Bot
 
 # from database import db_pool
 from globals import NEW_LINE
@@ -1387,6 +1388,84 @@ class MainService:
             transaction_rollback()
 
         return service_result
+
+    @inject
+    async def check_command_tree_sync(
+        self,
+        bot: Bot,  # Type hint for discord.ext.commands.bot.Bot
+        guild_id: Optional[int] = None,
+        log: KuriLogger = Provide["logger"],
+    ):
+        """
+        Compare local and Discord command trees by name and description, syncing if they differ.
+
+        Args:
+            bot: The bot instance.
+            guild_id: Optional guild ID for guild-specific commands.
+            log: Logger instance for output.
+        """
+        tree = bot.tree
+        guild_obj = discord.utils.get(bot.guilds, id=guild_id)
+        if guild_id and not guild_obj:
+            log.error(f"Guild {guild_id} not found.")
+            return
+
+        # Define location for logging (accessible to both if and else)
+        location = f"Guild {guild_obj.id} - {guild_obj.name}" if guild_obj else "Global"
+
+        # Fetch remote (Discord) commands
+        try:
+            remote_commands = await tree.fetch_commands(guild=guild_obj)
+        except discord.HTTPException as e:
+            log.error(f"Failed to fetch commands: {e}")
+            return
+
+        # Get local commands (match guild scope)
+        local_commands = tree.get_commands(guild=guild_obj)
+
+        # Serialize commands (name and description only)
+        def serialize_command(cmd: any) -> dict:
+            if isinstance(cmd, app_commands.ContextMenu):
+                return {
+                    "name": cmd.name,
+                    "description": "",
+                    "type": "context_menu",
+                }
+            # Local AppCommand or Command, or remote AppCommand
+            cmd_type = (
+                "slash"
+                if isinstance(cmd, (app_commands.AppCommand, app_commands.Command))
+                else (
+                    "context_menu"
+                    if isinstance(cmd, app_commands.AppCommand)
+                    and cmd.type.value in (2, 3)
+                    else "slash"
+                )
+            )
+            return {
+                "name": cmd.name,
+                "description": getattr(cmd, "description", "") or "",
+                "type": cmd_type,
+            }
+
+        # Sort serialized commands by name for consistent comparison
+        remote_serialized = sorted(
+            [serialize_command(cmd) for cmd in remote_commands], key=lambda x: x["name"]
+        )
+        local_serialized = sorted(
+            [serialize_command(cmd) for cmd in local_commands], key=lambda x: x["name"]
+        )
+
+        # Compare and sync if needed
+        if remote_serialized != local_serialized:
+            log.info(f"🔁 Command tree out of sync ({location}). Syncing...")
+            try:
+                await tree.sync(guild=guild_obj)
+                log.info(f"✅ Command tree synced ({location}).")
+            except discord.HTTPException as e:
+                log.error(f"Failed to sync command tree: {e}")
+        else:
+            log.info(f"✅ Command tree in sync ({location}).")
 
 
 class UiService:
