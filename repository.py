@@ -806,7 +806,7 @@ class ClanBattlePeriodRepository:
                     """,
                     clan_battle_period.to_db_dict(),
                 )
-                clan_battle_period.clan_battle_overall_entry_id = cursor.lastrowid
+                clan_battle_period.clan_battle_period_id = cursor.lastrowid
 
             return clan_battle_period
 
@@ -1483,9 +1483,13 @@ class GuildPlayerRepository:
 class ErrorLogRepository:
     @inject
     def insert(
-        self, guild_id: int, identifier: str, exception: str, stacktrace: str
+        self,
+        guild_id: int,
+        identifier: str,
+        exception: str,
+        stacktrace: str,
+        db_pool: DatabasePool = Provide["db_pool"],
     ) -> bool:
-        db_pool: DatabasePool = Provide["db_pool"]
         with db_pool as conn:
             with conn.cursor(dictionary=True) as cursor:
                 cursor.execute(
