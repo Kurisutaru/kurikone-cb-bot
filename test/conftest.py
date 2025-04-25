@@ -47,6 +47,7 @@ def mock_container():
             "config",
             "database",
             "services",
+            "repository",
             "ui",
             "utils",
             "cogs.base_cog",
