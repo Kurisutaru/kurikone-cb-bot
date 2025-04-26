@@ -185,8 +185,6 @@ fabric.properties
 .idea
 
 discord.log
-docs/*.bkp
-
-documents/docs/.$Purikone CB Bot.drawio.bkp
+*.drawio.bkp
 
 logs
