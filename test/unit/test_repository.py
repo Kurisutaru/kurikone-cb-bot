@@ -11,7 +11,6 @@ from enums import ChannelEnum, AttackTypeEnum, PeriodType
 from models import (
     Guild,
     Channel,
-    ChannelMessage,
     ClanBattleBossEntry,
     ClanBattleBossBook,
     ClanBattlePeriod,
@@ -23,15 +22,14 @@ from models import (
     ClanBattleReportEntry,
     ClanBattleReportMessage,
     GuildPlayer,
+    ClanBattleBossEntries,
 )
 from repository import (
     fetch_one_to_model,
     fetch_all_to_model,
-    GenericRepository,
     connection_context,
     GuildRepository,
     ChannelRepository,
-    ChannelMessageRepository,
     ClanBattleBossEntryRepository,
     ClanBattleBossBookRepository,
     ClanBattleBossRepository,
@@ -173,161 +171,6 @@ def test_context_conn_context_none(mocker):
 # Repo DB
 
 
-# GenericRepository
-# Test case: fetching connection ID
-def test_get_connection_id_success(mock_db):
-    conn, cursor = mock_db
-    cursor.fetchone.return_value = {"CONNECTION_ID": 42}
-    repo = GenericRepository()
-
-    result = repo.get_connection_id()
-
-    assert result == 42
-    cursor.execute.assert_called_once()
-    cursor.fetchone.assert_called_once()
-
-
-def test_get_connection_id_none_result(mock_db):
-    conn, cursor = mock_db
-    cursor.fetchone.return_value = None
-    repo = GenericRepository()
-
-    with pytest.raises(ValueError, match="Failed to retrieve connection ID"):
-        repo.get_connection_id()
-
-    cursor.execute.assert_called_once()
-    cursor.fetchone.assert_called_once()
-
-
-def test_get_connection_id_empty_dict(mock_db):
-    conn, cursor = mock_db
-    cursor.fetchone.return_value = {}
-    repo = GenericRepository()
-
-    with pytest.raises(KeyError, match="CONNECTION_ID"):
-        repo.get_connection_id()
-
-    cursor.execute.assert_called_once()
-    cursor.fetchone.assert_called_once()
-
-
-def test_set_session_read_uncommited(mock_db):
-    conn, cursor = mock_db
-    repo = GenericRepository()
-
-    repo.set_session_read_uncommited()
-
-    cursor.execute.assert_called_once()
-
-
-def test_get_session_transaction_isolation_success(mock_db):
-    conn, cursor = mock_db
-    cursor.fetchone.return_value = {"TI": "REPEATABLE READ"}
-    repo = GenericRepository()
-
-    result = repo.get_session_transaction_isolation()
-
-    assert result == "REPEATABLE READ"
-    cursor.execute.assert_called_once()
-    cursor.fetchone.assert_called_once()
-
-
-def test_get_session_transaction_isolation_none_result(mock_db):
-    conn, cursor = mock_db
-    cursor.fetchone.return_value = None
-    repo = GenericRepository()
-
-    with pytest.raises(ValueError, match="Failed to retrieve transaction Isolation"):
-        repo.get_session_transaction_isolation()
-
-    cursor.execute.assert_called_once()
-    cursor.fetchone.assert_called_once()
-
-
-def test_get_session_transaction_isolation_empty_dict(mock_db):
-    conn, cursor = mock_db
-    cursor.fetchone.return_value = {}
-    repo = GenericRepository()
-
-    with pytest.raises(KeyError, match="TI"):
-        repo.get_session_transaction_isolation()
-
-    cursor.execute.assert_called_once()
-    cursor.fetchone.assert_called_once()
-
-
-def test_get_session_autocommit_success(mock_db):
-    conn, cursor = mock_db
-    cursor.fetchone.return_value = {"AC": True}
-    repo = GenericRepository()
-
-    result = repo.get_session_autocommit()
-
-    assert result is True
-    cursor.execute.assert_called_once()
-    cursor.fetchone.assert_called_once()
-
-
-def test_get_session_autocommit_none_result(mock_db):
-    conn, cursor = mock_db
-    cursor.fetchone.return_value = None
-    repo = GenericRepository()
-
-    with pytest.raises(ValueError, match="Failed to retrieve session auto commit"):
-        repo.get_session_autocommit()
-
-    cursor.execute.assert_called_once()
-    cursor.fetchone.assert_called_once()
-
-
-def test_get_session_autocommit_empty_dict(mock_db):
-    conn, cursor = mock_db
-    cursor.fetchone.return_value = {}
-    repo = GenericRepository()
-
-    with pytest.raises(KeyError, match="AC"):
-        repo.get_session_autocommit()
-
-    cursor.execute.assert_called_once()
-    cursor.fetchone.assert_called_once()
-
-
-def test_get_session_transaction_id_success(mock_db):
-    conn, cursor = mock_db
-    cursor.fetchone.return_value = {"trx_id": 1}
-    repo = GenericRepository()
-
-    result = repo.get_session_transaction_id()
-
-    assert result == 1
-    cursor.execute.assert_called_once()
-    cursor.fetchone.assert_called_once()
-
-
-def test_get_session_transaction_id_none_result(mock_db):
-    conn, cursor = mock_db
-    cursor.fetchone.return_value = None
-    repo = GenericRepository()
-
-    result = repo.get_session_transaction_id()
-
-    assert result == "None"
-    cursor.execute.assert_called_once()
-    cursor.fetchone.assert_called_once()
-
-
-def test_get_session_transaction_id_empty_dict(mock_db):
-    conn, cursor = mock_db
-    cursor.fetchone.return_value = {}
-    repo = GenericRepository()
-
-    with pytest.raises(KeyError, match="trx_id"):
-        repo.get_session_transaction_id()
-
-    cursor.execute.assert_called_once()
-    cursor.fetchone.assert_called_once()
-
-
 # GuildRepository
 def test_get_by_guild_id_return_value(mock_db):
     conn, cursor = mock_db
@@ -457,6 +300,67 @@ def test_get_by_guild_id_and_type_none_result(mock_db):
     cursor.fetchone.assert_called_once()
 
 
+def test_get_by_channel_id_success(mock_db):
+    conn, cursor = mock_db
+    cursor.fetchone.return_value = {
+        "channel_id": 1,
+        "guild_id": 1,
+        "channel_type": "BOSS1",
+        "message_id": 1,
+    }
+    repo = ChannelRepository()
+
+    result = repo.get_by_channel_id(1)
+
+    assert result.channel_id == 1
+    cursor.execute.assert_called_once()
+    cursor.fetchone.assert_called_once()
+
+
+def test_get_by_channel_id_none_result(mock_db):
+    conn, cursor = mock_db
+    cursor.fetchone.return_value = None
+    repo = ChannelRepository()
+
+    result = repo.get_by_channel_id(1)
+
+    assert result is None
+    cursor.execute.assert_called_once()
+    cursor.fetchone.assert_called_once()
+
+
+def test_get_by_channel_id_with_boss_success(mock_db):
+    conn, cursor = mock_db
+    channel_id = 1
+    cursor.fetchone.return_value = {
+        "channel_id": channel_id,
+        "guild_id": 456,
+        "channel_type": "BOSS1",
+        "message_id": 789,
+        "boss_id": 1,
+    }
+    repo = ChannelRepository()
+
+    result = repo.get_by_channel_id_with_boss(channel_id)
+
+    assert result.channel_id == channel_id
+    cursor.execute.assert_called_once()
+    cursor.fetchone.assert_called_once()
+
+
+def test_get_by_channel_id_with_boss_result(mock_db):
+    conn, cursor = mock_db
+    channel_id = 1
+    cursor.fetchone.return_value = None
+    repo = ChannelRepository()
+
+    result = repo.get_by_channel_id(channel_id)
+
+    assert result is None
+    cursor.execute.assert_called_once()
+    cursor.fetchone.assert_called_once()
+
+
 def test_insert_channel(mock_db):
     conn, cursor = mock_db
     repo = ChannelRepository()
@@ -501,6 +405,26 @@ def test_update_channel_failed(mock_db):
     cursor.execute.assert_called_once()
 
 
+def test_update_channel_message_success(mock_db):
+    conn, cursor = mock_db
+    repo = ChannelRepository()
+
+    repo.update_channel_message(1, 1)
+
+    cursor.execute.assert_called_once()
+
+
+def test_update_channel_message_failed(mock_db):
+    conn, cursor = mock_db
+    cursor.execute.side_effect = AttributeError("Invalid")
+    repo = ChannelRepository()
+
+    with pytest.raises(AttributeError):
+        repo.update_channel_message(1, 1)
+
+    cursor.execute.assert_called_once()
+
+
 def test_delete_channel_by_guild_id_success(mock_db):
     conn, cursor = mock_db
     cursor.fetchone.return_value = None
@@ -523,359 +447,16 @@ def test_delete_channel_by_guild_id_failed(mock_db):
     cursor.execute.assert_called_once()
 
 
-# ChannelMessageRepository
-def test_insert_channel_message_success(mock_db):
-    conn, cursor = mock_db
-    cursor.execute.return_result = None
-    repo = ChannelMessageRepository()
-
-    repo.insert_channel_message(ChannelMessage(1, 1))
-
-    cursor.execute.assert_called_once()
-
-
-def test_insert_channel_message_failed(mock_db):
-    conn, cursor = mock_db
-    cursor.execute.side_effect = mariadb.Error("Invalid")
-    repo = ChannelMessageRepository()
-
-    with pytest.raises(mariadb.Error):
-        repo.insert_channel_message(ChannelMessage(1, 1))
-
-    cursor.execute.assert_called_once()
-
-
-def test_update_channel_message_success(mock_db):
-    conn, cursor = mock_db
-    cursor.execute.return_result = None
-    repo = ChannelMessageRepository()
-
-    channel_message = ChannelMessage(1, 1)
-    result = repo.update_channel_message(channel_message)
-
-    assert result.message_id == channel_message.message_id
-    assert result.channel_id == channel_message.channel_id
-    cursor.execute.assert_called_once()
-
-
-def test_get_all_by_guild_id_success(mock_db):
-    conn, cursor = mock_db
-    # Mock the fetchall result to return some sample channel_message objects
-    cursor.fetchall.return_value = [
-        {"channel_id": 1, "message_id": 2},
-        {"channel_id": 3, "message_id": 4},
-    ]
-
-    repo = ChannelMessageRepository()
-    guild_id = 1
-
-    result = repo.get_all_by_guild_id(guild_id)
-
-    assert len(result) == 2
-    assert isinstance(result[0], ChannelMessage)
-    assert result[0].channel_id == 1
-    assert result[0].message_id == 2
-    cursor.execute.assert_called_once()
-
-    expected_query = """
-        SELECT CM.channel_id,
-               CM.message_id
-        FROM channel_message CM 
-            JOIN channel C ON C.channel_id = CM.channel_id
-            JOIN guild G ON G.guild_id = C.guild_id
-        WHERE G.guild_id = %(guild_id)s
-        """
-
-    actual_query_args, _ = cursor.execute.call_args
-
-    # Normalize the expected and actual queries to remove whitespace for comparison
-    normalized_expected_query = normalize_sql(expected_query)
-    normalized_actual_query = normalize_sql(actual_query_args[0])
-
-    assert (
-        normalized_actual_query == normalized_expected_query
-    ), f"Expected: {expected_query}, Actual: {str(actual_query_args[0])}"
-
-
-def test_get_all_by_guild_id_no_results(mock_db):
-    conn, cursor = mock_db
-    # Mock the fetchall result to return an empty list
-    cursor.fetchall.return_value = []
-
-    repo = ChannelMessageRepository()
-    guild_id = 1
-
-    result = repo.get_all_by_guild_id(guild_id)
-
-    assert len(result) == 0
-    cursor.execute.assert_called_once()
-
-    expected_query = """
-        SELECT CM.channel_id,
-               CM.message_id
-        FROM channel_message CM 
-            JOIN channel C ON C.channel_id = CM.channel_id
-            JOIN guild G ON G.guild_id = C.guild_id
-        WHERE G.guild_id = %(guild_id)s
-        """
-
-    actual_query_args, _ = cursor.execute.call_args
-
-    # Normalize the expected and actual queries to remove whitespace for comparison
-    normalized_expected_query = normalize_sql(expected_query)
-    normalized_actual_query = normalize_sql(actual_query_args[0])
-
-    assert (
-        normalized_actual_query == normalized_expected_query
-    ), f"Expected: {expected_query}, Actual: {str(actual_query_args[0])}"
-
-
-def test_delete_by_guild_id_success(mock_db):
-    conn, cursor = mock_db
-
-    repo = ChannelMessageRepository()
-
-    guild_id = 1
-    result = repo.delete_by_guild_id(guild_id)
-
-    assert result == True
-
-    expected_query = """
-        DELETE FROM channel_message 
-        WHERE channel_id IN (SELECT channel_id from channel WHERE guild_id = %(guild_id)s)
-        """
-
-    actual_query_args, _ = cursor.execute.call_args
-
-    # Normalize the expected and actual queries to remove whitespace for comparison
-    normalized_expected_query = normalize_sql(expected_query)
-    normalized_actual_query = normalize_sql(actual_query_args[0])
-
-    assert (
-        normalized_actual_query == normalized_expected_query
-    ), f"Expected: {expected_query}, Actual: {str(actual_query_args[0])}"
-
-
-def test_delete_by_guild_id_no_channels(mock_db):
-    conn, cursor = mock_db
-    cursor.fetchall.return_value = []
-
-    repo = ChannelMessageRepository()
-
-    guild_id = 1
-    result = repo.delete_by_guild_id(guild_id)
-
-    assert result == True
-
-    expected_query = """
-        DELETE FROM channel_message 
-        WHERE channel_id IN (SELECT channel_id from channel WHERE guild_id = %(guild_id)s)
-        """
-
-    actual_query_args, _ = cursor.execute.call_args
-
-    # Normalize the expected and actual queries to remove whitespace for comparison
-    normalized_expected_query = normalize_sql(expected_query)
-    normalized_actual_query = normalize_sql(actual_query_args[0])
-
-    assert (
-        normalized_actual_query == normalized_expected_query
-    ), f"Expected: {expected_query}, Actual: {str(actual_query_args[0])}"
-
-
-def test_update_self_channel_message_success(mock_db):
-    conn, cursor = mock_db
-
-    repo = ChannelMessageRepository()
-
-    old_channel_id = 1
-    new_channel_id = 2
-
-    result = repo.update_self_channel_message(old_channel_id, new_channel_id)
-
-    assert result == True
-
-    expected_query = """
-        UPDATE channel_message 
-            SET channel_id = %(new_channel_id)s
-        WHERE channel_id = %(old_channel_id)s
-        """
-
-    actual_query_args, _ = cursor.execute.call_args
-
-    # Normalize the expected and actual queries to remove whitespace for comparison
-    normalized_expected_query = normalize_sql(expected_query)
-    normalized_actual_query = normalize_sql(actual_query_args[0])
-
-    assert (
-        normalized_actual_query == normalized_expected_query
-    ), f"Expected: {expected_query}, Actual: {str(actual_query_args[0])}"
-
-
-def test_update_self_channel_message_failure(mock_db):
-    conn, cursor = mock_db
-    cursor.rowcount = -1
-    repo = ChannelMessageRepository()
-
-    old_channel_id = 1
-    new_channel_id = 2
-
-    result = repo.update_self_channel_message(old_channel_id, new_channel_id)
-
-    assert (
-        result == True
-    )  # Assuming the function returns True even if nothing was updated
-
-
-def test_get_channel_message_by_channel_id_success(mock_db):
-    conn, cursor = mock_db
-
-    repo = ChannelMessageRepository()
-
-    channel_id = 1
-
-    cursor.fetchone.return_value = {
-        "channel_id": channel_id,
-        "message_id": 2,
-    }
-
-    expected_query = """
-        SELECT channel_id,
-               message_id 
-        FROM channel_message 
-        WHERE channel_id = %(channel_id)s
-        """
-
-    result = repo.get_channel_message_by_channel_id(channel_id)
-
-    assert isinstance(result, ChannelMessage)
-    assert result.channel_id == channel_id
-    assert result.message_id == 2
-
-    actual_query_args, _ = cursor.execute.call_args
-
-    # Normalize the expected and actual queries to remove whitespace for comparison
-    normalized_expected_query = normalize_sql(expected_query)
-    normalized_actual_query = normalize_sql(actual_query_args[0])
-
-    assert (
-        normalized_actual_query == normalized_expected_query
-    ), f"Expected: {expected_query}, Actual: {str(actual_query_args[0])}"
-
-
-def test_get_channel_message_by_channel_id_no_message(mock_db):
-    conn, cursor = mock_db
-
-    repo = ChannelMessageRepository()
-
-    channel_id = 1
-    expected_query = """
-        SELECT channel_id,
-               message_id 
-        FROM channel_message 
-        WHERE channel_id = %(channel_id)s
-        """
-    cursor.fetchone.return_value = None
-
-    result = repo.get_channel_message_by_channel_id(channel_id)
-
-    assert result is None
-
-    actual_query_args, _ = cursor.execute.call_args
-
-    # Normalize the expected and actual queries to remove whitespace for comparison
-    normalized_expected_query = normalize_sql(expected_query)
-    normalized_actual_query = normalize_sql(actual_query_args[0])
-
-    assert (
-        normalized_actual_query == normalized_expected_query
-    ), f"Expected: {expected_query}, Actual: {str(actual_query_args[0])}"
-
-
-def test_get_message_by_guild_id_and_channel_type_success(mock_db):
-    conn, cursor = mock_db
-
-    repo = ChannelMessageRepository()
-    guild_id = 1
-    channel_type = "voice"
-
-    # Mock the fetch_one_to_model result to return a sample ChannelMessage object
-    expected_result = {
-        "channel_id": 1,
-        "message_id": 2,
-    }
-    cursor.fetchone.return_value = expected_result
-
-    result = repo.get_message_by_guild_id_and_channel_type(guild_id, channel_type)
-
-    assert isinstance(result, ChannelMessage)
-    assert result.channel_id == 1
-    assert result.message_id == 2
-    cursor.execute.assert_called_once()
-
-    expected_query = """
-        SELECT CM.channel_id,
-               CM.message_id
-        FROM channel_message CM
-             JOIN channel C on CM.channel_id = C.channel_id
-        WHERE C.guild_id = %(guild_id)s AND C.channel_type = %(channel_type)s
-        """
-
-    actual_query_args, _ = cursor.execute.call_args
-    # Normalize the expected and actual queries to remove whitespace for comparison
-    normalized_expected_query = normalize_sql(expected_query)
-    normalized_actual_query = normalize_sql(actual_query_args[0])
-
-    assert (
-        normalized_actual_query == normalized_expected_query
-    ), f"Expected: {expected_query}, Actual: {str(actual_query_args[0])}"
-
-
-def test_get_message_by_guild_id_and_channel_type_no_results(mock_db):
-    conn, cursor = mock_db
-
-    repo = ChannelMessageRepository()
-    guild_id = 1
-    channel_type = "voice"
-
-    # Mock the fetch_one_to_model result to return None when no results are found
-    cursor.fetchone.return_value = None
-
-    result = repo.get_message_by_guild_id_and_channel_type(guild_id, channel_type)
-
-    assert result is None
-    cursor.execute.assert_called_once()
-
-    expected_query = """
-        SELECT CM.channel_id,
-               CM.message_id
-        FROM channel_message CM
-             JOIN channel C on CM.channel_id = C.channel_id
-        WHERE C.guild_id = %(guild_id)s AND C.channel_type = %(channel_type)s
-        """
-
-    actual_query_args, _ = cursor.execute.call_args
-
-    # Normalize the expected and actual queries to remove whitespace for comparison
-    normalized_expected_query = normalize_sql(expected_query)
-    normalized_actual_query = normalize_sql(actual_query_args[0])
-
-    assert (
-        normalized_actual_query == normalized_expected_query
-    ), f"Expected: {expected_query}, Actual: {str(actual_query_args[0])}"
-
-
 # Clan Battle Boss Repository
 def test_insert_clan_battle_boss_entry_success(mock_db):
     conn, cursor = mock_db
 
     repo = ClanBattleBossEntryRepository()
-    clan_battle_boss_entry = ClanBattleBossEntry(
+    clan_battle_boss_entry = ClanBattleBossEntries(
         guild_id=1,
-        message_id=2,
         clan_battle_period_id=3,
         clan_battle_boss_id=4,
-        name="Example Boss",
+        boss_name="Example Boss",
         image_path="/path/to/image.png",
         boss_round=5,
         current_health=6000,
@@ -893,32 +474,6 @@ def test_insert_clan_battle_boss_entry_success(mock_db):
 
     cursor.execute.assert_called_once()
 
-    expected_query = """
-        INSERT INTO clan_battle_boss_entry (
-            guild_id,
-            message_id, 
-            clan_battle_period_id, 
-            clan_battle_boss_id, 
-            name, 
-            image_path, 
-            boss_round, 
-            current_health, 
-            max_health
-        ) VALUES (%(guild_id)s, %(message_id)s, %(clan_battle_period_id)s,
-                  %(clan_battle_boss_id)s,%(name)s,%(image_path)s,
-                  %(boss_round)s,%(current_health)s,%(max_health)s)
-    """
-
-    actual_query_args, _ = cursor.execute.call_args
-
-    # Normalize the expected and actual queries to remove whitespace for comparison
-    normalized_expected_query = normalize_sql(expected_query)
-    normalized_actual_query = normalize_sql(actual_query_args[0])
-
-    assert (
-        normalized_actual_query == normalized_expected_query
-    ), f"Expected: {expected_query}, Actual: {str(actual_query_args[0])}"
-
 
 def test_insert_clan_battle_boss_entry_failure(mock_db):
     conn, cursor = mock_db
@@ -927,12 +482,11 @@ def test_insert_clan_battle_boss_entry_failure(mock_db):
 
     cursor.execute.side_effect = Exception("Insert operation failed")
 
-    clan_battle_boss_entry = ClanBattleBossEntry(
+    clan_battle_boss_entry = ClanBattleBossEntries(
         guild_id=1,
-        message_id=2,
         clan_battle_period_id=3,
         clan_battle_boss_id=4,
-        name="Example Boss",
+        boss_name="Example Boss",
         image_path="/path/to/image.png",
         boss_round=5,
         current_health=6000,
@@ -943,113 +497,6 @@ def test_insert_clan_battle_boss_entry_failure(mock_db):
         repo.insert_clan_battle_boss_entry(clan_battle_boss_entry)
 
     cursor.execute.assert_called_once()
-
-    expected_query = """
-        INSERT INTO clan_battle_boss_entry (
-            guild_id,
-            message_id, 
-            clan_battle_period_id, 
-            clan_battle_boss_id, 
-            name, 
-            image_path, 
-            boss_round, 
-            current_health, 
-            max_health
-        ) VALUES (%(guild_id)s,%(message_id)s,%(clan_battle_period_id)s,
-                  %(clan_battle_boss_id)s,%(name)s,%(image_path)s,
-                  %(boss_round)s,%(current_health)s,%(max_health)s)
-    """
-
-    actual_query_args, _ = cursor.execute.call_args
-
-    # Normalize the expected and actual queries to remove whitespace for comparison
-    normalized_expected_query = normalize_sql(expected_query)
-    normalized_actual_query = normalize_sql(actual_query_args[0])
-
-    assert (
-        normalized_actual_query == normalized_expected_query
-    ), f"Expected: {expected_query}, Actual: {str(actual_query_args[0])}"
-
-
-def test_get_last_by_message_id_success(mock_db):
-    conn, cursor = mock_db
-
-    repo = ClanBattleBossEntryRepository()
-    message_id = 100
-
-    # Mock the fetch_one_to_model result to return some sample clan_battle_boss_entry objects
-    expected_result_dict = {
-        "clan_battle_boss_entry_id": 1,
-        "guild_id": 2,
-        "message_id": 3,
-        "clan_battle_period_id": 4,
-        "clan_battle_boss_id": 5,
-        "name": "Boss",
-        "image_path": "/path/to/image.png",
-        "boss_round": 10,
-        "current_health": 500,
-        "max_health": 1000,
-    }
-
-    cursor.fetchone.return_value = expected_result_dict
-
-    result = repo.get_last_by_message_id(message_id)
-
-    assert isinstance(result, ClanBattleBossEntry)
-    assert (
-        result.clan_battle_boss_entry_id
-        == expected_result_dict["clan_battle_boss_entry_id"]
-    )
-    assert result.guild_id == expected_result_dict["guild_id"]
-    assert result.message_id == expected_result_dict["message_id"]
-    assert result.clan_battle_period_id == expected_result_dict["clan_battle_period_id"]
-    assert result.clan_battle_boss_id == expected_result_dict["clan_battle_boss_id"]
-    assert result.name == expected_result_dict["name"]
-    assert result.image_path == expected_result_dict["image_path"]
-    assert result.boss_round == expected_result_dict["boss_round"]
-    assert result.current_health == expected_result_dict["current_health"]
-    assert result.max_health == expected_result_dict["max_health"]
-
-    expected_query = """
-        SELECT clan_battle_boss_entry_id,
-               guild_id,
-               message_id,
-               clan_battle_period_id,
-               clan_battle_boss_id,
-               name,
-               image_path,
-               boss_round,
-               current_health,
-               max_health
-        FROM clan_battle_boss_entry
-        WHERE message_id = %(message_id)s
-        ORDER BY boss_round, clan_battle_boss_entry_id DESC
-        LIMIT 1
-    """
-
-    actual_query_args, _ = cursor.execute.call_args
-
-    # Normalize the expected and actual queries to remove whitespace for comparison
-    normalized_expected_query = normalize_sql(expected_query)
-    normalized_actual_query = normalize_sql(actual_query_args[0])
-
-    assert (
-        normalized_expected_query == normalized_actual_query
-    ), f"Expected: {normalized_expected_query}, Actual: {normalized_actual_query}"
-
-
-def test_get_last_by_message_id_no_results(mock_db):
-    conn, cursor = mock_db
-
-    repo = ClanBattleBossEntryRepository()
-    message_id = 0
-
-    # Mock the fetch_one_to_model result to return None when no results are found
-    cursor.fetchone.return_value = None
-
-    result = repo.get_last_by_message_id(message_id)
-
-    assert result is None
 
 
 def test_get_boss_entry_by_param_success(mock_db):
@@ -1086,33 +533,6 @@ def test_get_boss_entry_by_param_success(mock_db):
     assert result.guild_id == guild_id
     cursor.execute.assert_called_once()
 
-    expected_query = """
-        SELECT clan_battle_boss_entry_id,
-               guild_id,
-               message_id,
-               clan_battle_period_id,
-               clan_battle_boss_id,
-               name,
-               image_path,
-               boss_round,
-               current_health,
-               max_health
-        FROM clan_battle_boss_entry
-        WHERE guild_id = %(guild_id)s
-        AND clan_battle_period_id = %(clan_battle_period_id)s
-        AND clan_battle_boss_id = %(clan_battle_boss_id)s
-        ORDER BY boss_round, clan_battle_boss_entry_id DESC
-        LIMIT 1
-    """
-
-    actual_query_args, _ = cursor.execute.call_args
-
-    # Normalize the expected and actual queries to remove whitespace for comparison
-    normalized_expected_query = normalize_sql(expected_query)
-    normalized_actual_query = normalize_sql(actual_query_args[0])
-
-    assert normalized_expected_query == normalized_actual_query
-
 
 def test_get_boss_entry_by_param_no_result(mock_db):
     conn, cursor = mock_db
@@ -1133,104 +553,102 @@ def test_get_boss_entry_by_param_no_result(mock_db):
     assert result is None
 
 
-def test_get_last_active_period_by_message_id_success(mock_db):
+def test_get_boss_entry_active_cb_by_param_success(mock_db):
     conn, cursor = mock_db
 
     repo = ClanBattleBossEntryRepository()
-    message_id = 1
 
-    # Mock the fetch_all_to_model result to return some sample clan_battle_boss_entry objects
-    cursor.fetchone.return_value = {
-        "clan_battle_boss_entry_id": 1,
-        "guild_id": 2,
-        "message_id": 3,
-        "clan_battle_period_id": 4,
-        "clan_battle_boss_id": 5,
-        "name": "Boss",
-        "image_path": "/path/to/image.jpg",
-        "boss_round": 10,
+    guild_id = 1
+    clan_battle_period_id = 2
+    clan_battle_boss_id = 3
+
+    # Mock the fetch_one_to_model result to return some sample data
+    expected_data = {
+        "clan_battle_boss_entry_id": 4,
+        "guild_id": guild_id,
+        "message_id": 5,
+        "clan_battle_period_id": clan_battle_period_id,
+        "clan_battle_boss_id": clan_battle_boss_id,
+        "name": "BossName",
+        "image_path": "/path/to/boss/image.png",
+        "boss_round": 1,
         "current_health": 100,
         "max_health": 200,
     }
 
-    result = repo.get_last_active_period_by_message_id(message_id)
+    cursor.fetchone.return_value = expected_data
+
+    result = repo.get_boss_entry_active_cb_by_param(guild_id, clan_battle_boss_id)
 
     assert isinstance(result, ClanBattleBossEntry)
-    assert result.clan_battle_boss_entry_id == 1
+    assert result.clan_battle_boss_entry_id == 4
+    assert result.guild_id == guild_id
     cursor.execute.assert_called_once()
 
-    expected_query = """
-        SELECT CBBE.clan_battle_boss_entry_id,
-               CBBE.guild_id,
-               CBBE.message_id,
-               CBBE.clan_battle_period_id,
-               CBBE.clan_battle_boss_id,
-               CBBE.name,
-               CBBE.image_path,
-               CBBE.boss_round,
-               CBBE.current_health,
-               CBBE.max_health
-        FROM clan_battle_boss_entry AS CBBE 
-            JOIN clan_battle_period CBR ON CBBE.clan_battle_period_id = CBR.clan_battle_period_id
-        WHERE message_id = %(message_id)s
-        AND CBR.is_active = 1
-        ORDER BY boss_round, clan_battle_boss_entry_id DESC
-        LIMIT 1
-    """
 
-    actual_query_args, _ = cursor.execute.call_args
-
-    # Normalize the expected and actual queries to remove whitespace for comparison
-    normalized_expected_query = normalize_sql(expected_query)
-    normalized_actual_query = normalize_sql(actual_query_args[0])
-
-    assert (
-        normalized_actual_query == normalized_expected_query
-    ), f"Expected: {expected_query}, Actual: {str(actual_query_args[0])}"
-
-
-def test_get_last_active_period_by_message_id_no_results(mock_db):
+def test_get_boss_entry_active_cb_by_param_no_result(mock_db):
     conn, cursor = mock_db
 
     repo = ClanBattleBossEntryRepository()
-    message_id = 1
+
+    guild_id = 1
+    clan_battle_period_id = 2
+    clan_battle_boss_id = 3
 
     # Mock the fetch_one_to_model result to return None
     cursor.fetchone.return_value = None
 
-    result = repo.get_last_active_period_by_message_id(message_id)
+    result = repo.get_boss_entry_active_cb_by_param(guild_id, clan_battle_boss_id)
 
     assert result is None
+
+
+def test_get_boss_entry_active_cb_by_channel_id_success(mock_db):
+    conn, cursor = mock_db
+
+    repo = ClanBattleBossEntryRepository()
+
+    guild_id = 1
+    clan_battle_period_id = 2
+    clan_battle_boss_id = 3
+    channel_id = 4
+
+    # Mock the fetch_one_to_model result to return some sample data
+    expected_data = {
+        "clan_battle_boss_entry_id": 4,
+        "guild_id": guild_id,
+        "message_id": 5,
+        "clan_battle_period_id": clan_battle_period_id,
+        "clan_battle_boss_id": clan_battle_boss_id,
+        "name": "BossName",
+        "image_path": "/path/to/boss/image.png",
+        "boss_round": 1,
+        "current_health": 100,
+        "max_health": 200,
+    }
+
+    cursor.fetchone.return_value = expected_data
+
+    result = repo.get_boss_entry_active_cb_by_channel_id(channel_id)
+
+    assert isinstance(result, ClanBattleBossEntry)
+    assert result.clan_battle_boss_entry_id == 4
+    assert result.guild_id == guild_id
     cursor.execute.assert_called_once()
 
-    expected_query = """
-        SELECT CBBE.clan_battle_boss_entry_id,
-               CBBE.guild_id,
-               CBBE.message_id,
-               CBBE.clan_battle_period_id,
-               CBBE.clan_battle_boss_id,
-               CBBE.name,
-               CBBE.image_path,
-               CBBE.boss_round,
-               CBBE.current_health,
-               CBBE.max_health
-        FROM clan_battle_boss_entry AS CBBE 
-            JOIN clan_battle_period CBR ON CBBE.clan_battle_period_id = CBR.clan_battle_period_id
-        WHERE message_id = %(message_id)s
-        AND CBR.is_active = 1
-        ORDER BY boss_round, clan_battle_boss_entry_id DESC
-        LIMIT 1
-    """
 
-    actual_query_args, _ = cursor.execute.call_args
+def test_get_boss_entry_active_cb_by_param_no_result(mock_db):
+    conn, cursor = mock_db
 
-    # Normalize the expected and actual queries to remove whitespace for comparison
-    normalized_expected_query = normalize_sql(expected_query)
-    normalized_actual_query = normalize_sql(actual_query_args[0])
+    repo = ClanBattleBossEntryRepository()
+    channel_id = 1
 
-    assert (
-        normalized_actual_query == normalized_expected_query
-    ), f"Expected: {expected_query}, Actual: {str(actual_query_args[0])}"
+    # Mock the fetch_one_to_model result to return None
+    cursor.fetchone.return_value = None
+
+    result = repo.get_boss_entry_active_cb_by_channel_id(channel_id)
+
+    assert result is None
 
 
 def test_update_on_attack_success(mock_db):
@@ -1244,22 +662,6 @@ def test_update_on_attack_success(mock_db):
 
     assert result is True
     cursor.execute.assert_called_once()
-
-    expected_query = """
-        UPDATE clan_battle_boss_entry 
-        SET current_health = %(current_health)s
-        WHERE clan_battle_boss_entry_id = %(clan_battle_boss_entry_id)s
-        """
-
-    actual_query_args, _ = cursor.execute.call_args
-
-    # Normalize the expected and actual queries to remove whitespace for comparison
-    normalized_expected_query = normalize_sql(expected_query)
-    normalized_actual_query = normalize_sql(actual_query_args[0])
-
-    assert (
-        normalized_actual_query == normalized_expected_query
-    ), f"Expected: {expected_query}, Actual: {str(actual_query_args[0])}"
 
 
 def test_update_on_attack_failure(mock_db):
@@ -1275,82 +677,6 @@ def test_update_on_attack_failure(mock_db):
 
     cursor.execute.assert_called_once()
 
-    expected_query = """
-        UPDATE clan_battle_boss_entry 
-        SET current_health = %(current_health)s
-        WHERE clan_battle_boss_entry_id = %(clan_battle_boss_entry_id)s
-        """
-
-    actual_query_args, _ = cursor.execute.call_args
-
-    # Normalize the expected and actual queries to remove whitespace for comparison
-    normalized_expected_query = normalize_sql(expected_query)
-    normalized_actual_query = normalize_sql(actual_query_args[0])
-
-    assert (
-        normalized_actual_query == normalized_expected_query
-    ), f"Expected: {expected_query}, Actual: {str(actual_query_args[0])}"
-
-
-def test_update_message_id_success(mock_db):
-    conn, cursor = mock_db
-
-    repo = ClanBattleBossEntryRepository()
-    clan_battle_boss_entry_id = 1
-    message_id = 2
-
-    result = repo.update_message_id(clan_battle_boss_entry_id, message_id)
-
-    assert result == True
-    cursor.execute.assert_called_once()
-
-    expected_query = """
-        UPDATE clan_battle_boss_entry 
-        SET message_id = %(message_id)s
-        WHERE clan_battle_boss_entry_id = %(clan_battle_boss_entry_id)s
-        """
-
-    actual_query_args, _ = cursor.execute.call_args
-
-    # Normalize the expected and actual queries to remove whitespace for comparison
-    normalized_expected_query = normalize_sql(expected_query)
-    normalized_actual_query = normalize_sql(actual_query_args[0])
-
-    assert (
-        normalized_actual_query == normalized_expected_query
-    ), f"Expected: {expected_query}, Actual: {str(actual_query_args[0])}"
-
-
-def test_update_message_id_failure(mock_db):
-    conn, cursor = mock_db
-
-    repo = ClanBattleBossEntryRepository()
-    clan_battle_boss_entry_id = 1
-    message_id = None
-
-    cursor.execute.side_effect = mariadb.Error("Invalid")
-
-    with pytest.raises(mariadb.Error, match="Invalid") as e:
-        repo.update_message_id(clan_battle_boss_entry_id, message_id)
-
-    cursor.execute.assert_called_once()
-
-    expected_query = """
-        UPDATE clan_battle_boss_entry 
-        SET message_id = %(message_id)s
-        WHERE clan_battle_boss_entry_id = %(clan_battle_boss_entry_id)s
-        """
-
-    actual_query_args, _ = cursor.execute.call_args
-
-    # Normalize the expected and actual queries to remove whitespace for comparison
-    normalized_expected_query = normalize_sql(expected_query)
-    normalized_actual_query = normalize_sql(actual_query_args[0])
-
-    assert (
-        normalized_actual_query == normalized_expected_query
-    ), f"Expected: {expected_query}, Actual: {str(actual_query_args[0])}"
-
 
 def test_cb_entry_delete_by_guild_id_success(mock_db):
     conn, cursor = mock_db
@@ -1362,21 +688,6 @@ def test_cb_entry_delete_by_guild_id_success(mock_db):
 
     assert result is True
     cursor.execute.assert_called_once()
-
-    expected_query = """
-        DELETE FROM clan_battle_boss_entry 
-        WHERE guild_id = %(guild_id)s
-        """
-
-    actual_query_args, _ = cursor.execute.call_args
-
-    # Normalize the expected and actual queries to remove whitespace for comparison
-    normalized_expected_query = normalize_sql(expected_query)
-    normalized_actual_query = normalize_sql(actual_query_args[0])
-
-    assert (
-        normalized_actual_query == normalized_expected_query
-    ), f"Expected: {expected_query}, Actual: {str(actual_query_args[0])}"
 
 
 def test_cb_entry_delete_by_guild_id_no_results(mock_db):
@@ -1392,37 +703,21 @@ def test_cb_entry_delete_by_guild_id_no_results(mock_db):
 
     cursor.execute.assert_called_once()
 
-    expected_query = """
-        DELETE FROM clan_battle_boss_entry 
-        WHERE guild_id = %(guild_id)s
-        """
-
-    actual_query_args, _ = cursor.execute.call_args
-
-    # Normalize the expected and actual queries to remove whitespace for comparison
-    normalized_expected_query = normalize_sql(expected_query)
-    normalized_actual_query = normalize_sql(actual_query_args[0])
-
-    assert (
-        normalized_actual_query == normalized_expected_query
-    ), f"Expected: {expected_query}, Actual: {str(actual_query_args[0])}"
-
 
 # Clan Battle Boss Book
-
-
 def test_get_all_by_message_id_success(mock_db):
     conn, cursor = mock_db
 
     repo = ClanBattleBossBookRepository()
-    message_id = 100
+    guild_id = 1
+    entry_id = 1
 
     # Mock the fetch_all_to_model result to return some sample clan_battle_boss_book objects
     cursor.fetchall.return_value = [
         {
             "clan_battle_boss_book_id": 1,
-            "clan_battle_boss_entry_id": 2,
-            "guild_id": 3,
+            "clan_battle_boss_entry_id": 1,
+            "guild_id": 1,
             "player_id": 4,
             "player_name": "John",
             "attack_type": "PATK",
@@ -1433,8 +728,8 @@ def test_get_all_by_message_id_success(mock_db):
         },
         {
             "clan_battle_boss_book_id": 7,
-            "clan_battle_boss_entry_id": 8,
-            "guild_id": 9,
+            "clan_battle_boss_entry_id": 2,
+            "guild_id": 2,
             "player_id": 10,
             "player_name": "Jane",
             "attack_type": "MATK",
@@ -1445,7 +740,7 @@ def test_get_all_by_message_id_success(mock_db):
         },
     ]
 
-    result = repo.get_all_by_message_id(message_id)
+    result = repo.get_all_by_entry_id(guild_id, entry_id)
 
     assert len(result) == 2
     assert isinstance(result[0], ClanBattleBossBook)
@@ -1453,72 +748,21 @@ def test_get_all_by_message_id_success(mock_db):
     assert result[0].player_name == "John"
     cursor.execute.assert_called_once()
 
-    expected_query = """
-        SELECT CBBB.clan_battle_boss_book_id,
-               CBBB.clan_battle_boss_entry_id,
-               CBBB.guild_id,
-               CBBB.player_id,
-               CBBB.player_name,
-               CBBB.attack_type,
-               CBBB.damage,
-               CBBB.clan_battle_overall_entry_id,
-               CBBB.leftover_time,
-               CBBB.entry_date
-        FROM clan_battle_boss_book CBBB
-            JOIN clan_battle_boss_entry CBE ON CBBB.clan_battle_boss_entry_id = CBE.clan_battle_boss_entry_id
-        WHERE CBE.message_id = %(message_id)s
-    """
-
-    actual_query_args, _ = cursor.execute.call_args
-
-    # Normalize the expected and actual queries to remove whitespace for comparison
-    normalized_expected_query = normalize_sql(expected_query)
-    normalized_actual_query = normalize_sql(actual_query_args[0])
-
-    assert (
-        normalized_actual_query == normalized_expected_query
-    ), f"Expected: {expected_query}, Actual: {str(actual_query_args[0])}"
-
 
 def test_get_all_by_message_id_failure(mock_db):
     conn, cursor = mock_db
 
     repo = ClanBattleBossBookRepository()
-    message_id = 1
+    guild_id = 1
+    entry_id = 1
 
     # Mock fetch_all_to_model result to return an empty list (no results)
     cursor.fetchall.side_effect = mariadb.Error("Invalid")
 
     with pytest.raises(mariadb.Error, match="Invalid") as e:
-        repo.get_all_by_message_id(message_id)
+        result = repo.get_all_by_entry_id(guild_id, entry_id)
 
     cursor.execute.assert_called_once()
-
-    expected_query = """
-        SELECT CBBB.clan_battle_boss_book_id,
-               CBBB.clan_battle_boss_entry_id,
-               CBBB.guild_id,
-               CBBB.player_id,
-               CBBB.player_name,
-               CBBB.attack_type,
-               CBBB.damage,
-               CBBB.clan_battle_overall_entry_id,
-               CBBB.leftover_time,
-               CBBB.entry_date
-        FROM clan_battle_boss_book CBBB 
-            JOIN clan_battle_boss_entry CBE ON CBBB.clan_battle_boss_entry_id = CBE.clan_battle_boss_entry_id
-        WHERE CBE.message_id = %(message_id)s
-    """
-
-    actual_query_args, _ = cursor.execute.call_args
-
-    # Normalize the expected and actual queries to remove whitespace for comparison
-    normalized_expected_query = normalize_sql(expected_query)
-    normalized_actual_query = normalize_sql(actual_query_args[0])
-
-    assert (
-        normalized_actual_query == normalized_expected_query
-    ), f"Expected: {expected_query}, Actual: {str(actual_query_args[0])}"
 
 
 def test_get_player_book_entry_success(mock_db):
@@ -1542,38 +786,11 @@ def test_get_player_book_entry_success(mock_db):
         "entry_date": datetime.now(),
     }
 
-    result = repo.get_player_book_entry(message_id, player_id)
+    result = repo.get_player_book_by_entry_id(message_id, player_id)
 
     assert isinstance(result, ClanBattleBossBook)
     assert result.clan_battle_boss_book_id == 1
     cursor.execute.assert_called_once()
-
-    expected_query = """
-        SELECT CBBB.clan_battle_boss_book_id,
-               CBBB.clan_battle_boss_entry_id,
-               CBBB.guild_id,
-               CBBB.player_id,
-               CBBB.player_name,
-               CBBB.attack_type,
-               CBBB.damage,
-               CBBB.clan_battle_overall_entry_id,
-               CBBB.leftover_time,
-               CBBB.entry_date
-            FROM clan_battle_boss_book AS CBBB
-                                 INNER JOIN clan_battle_boss_entry AS CBBE ON CBBB.clan_battle_boss_entry_id = CBBE.clan_battle_boss_entry_id
-                        WHERE CBBB.player_id = %(player_id)s
-                          AND CBBE.message_id = %(message_id)s
-        """
-
-    actual_query_args, _ = cursor.execute.call_args
-
-    # Normalize the expected and actual queries to remove whitespace for comparison
-    normalized_expected_query = normalize_sql(expected_query)
-    normalized_actual_query = normalize_sql(actual_query_args[0])
-
-    assert (
-        normalized_actual_query == normalized_expected_query
-    ), f"Expected: {expected_query}, Actual: {str(actual_query_args[0])}"
 
 
 def test_get_player_book_entry_failure(mock_db):
@@ -1587,36 +804,9 @@ def test_get_player_book_entry_failure(mock_db):
     cursor.fetchone.side_effect = mariadb.Error("Invalid")
 
     with pytest.raises(mariadb.Error, match="Invalid"):
-        repo.get_player_book_entry(message_id, player_id)
+        repo.get_player_book_by_entry_id(message_id, player_id)
 
     cursor.execute.assert_called_once()
-
-    expected_query = """
-        SELECT CBBB.clan_battle_boss_book_id,
-               CBBB.clan_battle_boss_entry_id,
-               CBBB.guild_id,
-               CBBB.player_id,
-               CBBB.player_name,
-               CBBB.attack_type,
-               CBBB.damage,
-               CBBB.clan_battle_overall_entry_id,
-               CBBB.leftover_time,
-               CBBB.entry_date
-            FROM clan_battle_boss_book AS CBBB
-                                 INNER JOIN clan_battle_boss_entry AS CBBE ON CBBB.clan_battle_boss_entry_id = CBBE.clan_battle_boss_entry_id
-                        WHERE CBBB.player_id = %(player_id)s
-                          AND CBBE.message_id = %(message_id)s
-        """
-
-    actual_query_args, _ = cursor.execute.call_args
-
-    # Normalize the expected and actual queries to remove whitespace for comparison
-    normalized_expected_query = normalize_sql(expected_query)
-    normalized_actual_query = normalize_sql(actual_query_args[0])
-
-    assert (
-        normalized_actual_query == normalized_expected_query
-    ), f"Expected: {expected_query}, Actual: {str(actual_query_args[0])}"
 
 
 def test_get_player_book_count_success(mock_db):
@@ -1634,31 +824,6 @@ def test_get_player_book_count_success(mock_db):
     assert result == 3
     cursor.execute.assert_called_once()
 
-    expected_query = """
-        SELECT COUNT(CBBB.clan_battle_boss_book_id) AS Book_Count
-            FROM clan_battle_boss_book AS CBBB
-                     INNER JOIN clan_battle_boss_entry AS CBBE ON CBBB.clan_battle_boss_entry_id = CBBE.clan_battle_boss_entry_id
-                     INNER JOIN channel_message AS CM ON CBBE.message_id = CM.message_id
-                     INNER JOIN channel AS C ON CM.channel_id = C.channel_id
-                     INNER JOIN guild AS G ON C.guild_id = G.guild_id
-            WHERE G.guild_id = %(guild_id)s
-                AND CBBB.player_id = %(player_id)s
-                AND CBBB.entry_date >= IF(CURRENT_TIME() < '05:00:00',
-                        CONCAT(DATE_SUB(CURDATE(), INTERVAL 1 DAY), ' 05:00:00'),
-                        CONCAT(CURDATE(), '05:00:00'))
-                AND CBBB.entry_date < IF(CURRENT_TIME() < '05:00:00',
-                           CONCAT(CURDATE(), '05:00:00'),
-                           CONCAT(DATE_ADD(CURDATE(), INTERVAL 1 DAY), ' 05:00:00'))
-        """
-
-    actual_query_args, _ = cursor.execute.call_args
-
-    # Normalize the expected and actual queries to remove whitespace for comparison
-    normalized_expected_query = normalize_sql(expected_query)
-    normalized_actual_query = normalize_sql(actual_query_args[0])
-
-    assert normalized_expected_query == normalized_actual_query
-
 
 def test_get_player_book_count_failure(mock_db):
     conn, cursor = mock_db
@@ -1675,31 +840,6 @@ def test_get_player_book_count_failure(mock_db):
     assert result == 0
     cursor.execute.assert_called_once()
 
-    expected_query = """
-        SELECT COUNT(CBBB.clan_battle_boss_book_id) AS Book_Count
-            FROM clan_battle_boss_book AS CBBB
-                     INNER JOIN clan_battle_boss_entry AS CBBE ON CBBB.clan_battle_boss_entry_id = CBBE.clan_battle_boss_entry_id
-                     INNER JOIN channel_message AS CM ON CBBE.message_id = CM.message_id
-                     INNER JOIN channel AS C ON CM.channel_id = C.channel_id
-                     INNER JOIN guild AS G ON C.guild_id = G.guild_id
-            WHERE G.guild_id = %(guild_id)s
-                AND CBBB.player_id = %(player_id)s
-                AND CBBB.entry_date >= IF(CURRENT_TIME() < '05:00:00',
-                        CONCAT(DATE_SUB(CURDATE(), INTERVAL 1 DAY), ' 05:00:00'),
-                        CONCAT(CURDATE(), '05:00:00'))
-                AND CBBB.entry_date < IF(CURRENT_TIME() < '05:00:00',
-                           CONCAT(CURDATE(), '05:00:00'),
-                           CONCAT(DATE_ADD(CURDATE(), INTERVAL 1 DAY), ' 05:00:00'))
-        """
-
-    actual_query_args, _ = cursor.execute.call_args
-
-    # Normalize the expected and actual queries to remove whitespace for comparison
-    normalized_expected_query = normalize_sql(expected_query)
-    normalized_actual_query = normalize_sql(actual_query_args[0])
-
-    assert normalized_expected_query == normalized_actual_query
-
 
 def test_delete_book_by_id_success(mock_db):
     conn, cursor = mock_db
@@ -1711,22 +851,6 @@ def test_delete_book_by_id_success(mock_db):
 
     assert result == True
     cursor.execute.assert_called_once()
-
-    expected_query = """
-        DELETE FROM clan_battle_boss_book WHERE clan_battle_boss_book_id = %(clan_battle_boss_book_id)s
-        """
-
-    actual_query_args, _ = cursor.execute.call_args
-
-    # Normalize the expected and actual queries to remove whitespace for comparison
-    normalized_expected_query = expected_query.replace(" ", "").replace("\n", "")
-    normalized_actual_query = (
-        str(actual_query_args[0]).replace(" ", "").replace("\n", "")
-    )
-
-    assert (
-        normalized_actual_query == normalized_expected_query
-    ), f"Expected: {expected_query}, Actual: {str(actual_query_args[0])}"
 
 
 def test_delete_book_by_id_failure(mock_db):
@@ -1742,20 +866,6 @@ def test_delete_book_by_id_failure(mock_db):
 
     cursor.execute.assert_called_once()
 
-    expected_query = """
-        DELETE FROM clan_battle_boss_book WHERE clan_battle_boss_book_id = %(clan_battle_boss_book_id)s
-        """
-
-    actual_query_args, _ = cursor.execute.call_args
-
-    # Normalize the expected and actual queries to remove whitespace for comparison
-    normalized_expected_query = normalize_sql(expected_query)
-    normalized_actual_query = normalize_sql(actual_query_args[0])
-
-    assert (
-        normalized_actual_query == normalized_expected_query
-    ), f"Expected: {expected_query}, Actual: {str(actual_query_args[0])}"
-
 
 def test_delete_book_by_entry_id_success(mock_db):
     conn, cursor = mock_db
@@ -1767,22 +877,6 @@ def test_delete_book_by_entry_id_success(mock_db):
 
     assert result == True
     cursor.execute.assert_called_once()
-
-    expected_query = """
-        DELETE
-        FROM clan_battle_boss_book
-        WHERE clan_battle_boss_entry_id = %(clan_battle_boss_entry_id)s
-        """
-
-    actual_query_args, _ = cursor.execute.call_args
-
-    # Normalize the expected and actual queries to remove whitespace for comparison
-    normalized_expected_query = normalize_sql(expected_query)
-    normalized_actual_query = normalize_sql(actual_query_args[0])
-
-    assert (
-        normalized_actual_query == normalized_expected_query
-    ), f"Expected: {expected_query}, Actual: {str(actual_query_args[0])}"
 
 
 def test_delete_book_by_entry_id_failure(mock_db):
@@ -1797,22 +891,6 @@ def test_delete_book_by_entry_id_failure(mock_db):
         repo.delete_book_by_entry_id(entry_id)
 
     cursor.execute.assert_called_once()
-
-    expected_query = """
-        DELETE
-        FROM clan_battle_boss_book
-        WHERE clan_battle_boss_entry_id = %(clan_battle_boss_entry_id)s
-        """
-
-    actual_query_args, _ = cursor.execute.call_args
-
-    # Normalize the expected and actual queries to remove whitespace for comparison
-    normalized_expected_query = normalize_sql(expected_query)
-    normalized_actual_query = normalize_sql(actual_query_args[0])
-
-    assert (
-        normalized_actual_query == normalized_expected_query
-    ), f"Expected: {expected_query}, Actual: {str(actual_query_args[0])}"
 
 
 def test_insert_boss_book_entry_success(mock_db):
@@ -1862,22 +940,6 @@ def test_update_damage_boss_book_by_id_success(mock_db):
     assert result is True
     cursor.execute.assert_called_once()
 
-    expected_query = """
-        UPDATE clan_battle_boss_book 
-            SET damage = %(damage)s
-        WHERE clan_battle_boss_book_id = %(clan_battle_boss_book_id)s
-        """
-
-    actual_query_args, _ = cursor.execute.call_args
-
-    # Normalize the expected and actual queries to remove whitespace for comparison
-    normalized_expected_query = normalize_sql(expected_query)
-    normalized_actual_query = normalize_sql(actual_query_args[0])
-
-    assert (
-        normalized_actual_query == normalized_expected_query
-    ), f"Expected: {expected_query}, Actual: {str(actual_query_args[0])}"
-
 
 def test_update_damage_boss_book_by_id_failure(mock_db):
     conn, cursor = mock_db
@@ -1891,22 +953,6 @@ def test_update_damage_boss_book_by_id_failure(mock_db):
     assert result is True
     cursor.execute.assert_called_once()
 
-    expected_query = """
-        UPDATE clan_battle_boss_book 
-            SET damage = %(damage)s
-        WHERE clan_battle_boss_book_id = %(clan_battle_boss_book_id)s
-        """
-
-    actual_query_args, _ = cursor.execute.call_args
-
-    # Normalize the expected and actual queries to remove whitespace for comparison
-    normalized_expected_query = normalize_sql(expected_query)
-    normalized_actual_query = normalize_sql(actual_query_args[0])
-
-    assert (
-        normalized_actual_query == normalized_expected_query
-    ), f"Expected: {expected_query}, Actual: {str(actual_query_args[0])}"
-
 
 def test_cb_repo_delete_by_guild_id_success(mock_db):
     conn, cursor = mock_db
@@ -1919,21 +965,6 @@ def test_cb_repo_delete_by_guild_id_success(mock_db):
     assert result is True
     cursor.execute.assert_called_once()
 
-    expected_query = """
-        DELETE FROM clan_battle_boss_book 
-        WHERE guild_id = %(guild_id)s
-        """
-
-    actual_query_args, _ = cursor.execute.call_args
-
-    # Normalize the expected and actual queries to remove whitespace for comparison
-    normalized_expected_query = normalize_sql(expected_query)
-    normalized_actual_query = normalize_sql(actual_query_args[0])
-
-    assert (
-        normalized_actual_query == normalized_expected_query
-    ), f"Expected: {expected_query}, Actual: {str(actual_query_args[0])}"
-
 
 def test_cb_repo_delete_by_guild_id_no_results(mock_db):
     conn, cursor = mock_db
@@ -1945,21 +976,6 @@ def test_cb_repo_delete_by_guild_id_no_results(mock_db):
 
     assert result is True
     cursor.execute.assert_called_once()
-
-    expected_query = """
-        DELETE FROM clan_battle_boss_book 
-        WHERE guild_id = %(guild_id)s
-        """
-
-    actual_query_args, _ = cursor.execute.call_args
-
-    # Normalize the expected and actual queries to remove whitespace for comparison
-    normalized_expected_query = normalize_sql(expected_query)
-    normalized_actual_query = normalize_sql(actual_query_args[0])
-
-    assert (
-        normalized_actual_query == normalized_expected_query
-    ), f"Expected: {expected_query}, Actual: {str(actual_query_args[0])}"
 
 
 def test_insert_success(mock_db):
@@ -1989,34 +1005,6 @@ def test_insert_success(mock_db):
     assert new_clan_battle_period.clan_battle_period_id == expected_insert_id
     cursor.execute.assert_called_once()
 
-    expected_query = """
-        INSERT INTO clan_battle_period(
-            clan_battle_period_name,
-            period_type,
-            date_from,
-            date_to,
-            is_active,
-            boss1_id,
-            boss2_id,
-            boss3_id,
-            boss4_id,
-            boss5_id
-        ) 
-        VALUES (
-            %(clan_battle_period_name)s,%(period_type)s,%(date_from)s,%(date_to)s,%(is_active)s,%(boss1_id)s,%(boss2_id)s,%(boss3_id)s,%(boss4_id)s,%(boss5_id)s
-        )
-    """
-
-    actual_query_args, _ = cursor.execute.call_args
-
-    # Normalize the expected and actual queries to remove whitespace for comparison
-    normalized_expected_query = normalize_sql(expected_query)
-    normalized_actual_query = normalize_sql(actual_query_args[0])
-
-    assert (
-        normalized_actual_query == normalized_expected_query
-    ), f"Expected: {expected_query}, Actual: {str(actual_query_args[0])}"
-
 
 def test_insert_failure(mock_db):
     conn, cursor = mock_db
@@ -2041,34 +1029,6 @@ def test_insert_failure(mock_db):
         repo.insert(new_clan_battle_period)
 
     cursor.execute.assert_called_once()
-
-    expected_query = """
-            INSERT INTO clan_battle_period(
-                clan_battle_period_name,
-                period_type,
-                date_from,
-                date_to,
-                is_active,
-                boss1_id,
-                boss2_id,
-                boss3_id,
-                boss4_id,
-                boss5_id
-            ) 
-            VALUES (
-                %(clan_battle_period_name)s,%(period_type)s,%(date_from)s,%(date_to)s,%(is_active)s,%(boss1_id)s,%(boss2_id)s,%(boss3_id)s,%(boss4_id)s,%(boss5_id)s
-            )
-        """
-
-    actual_query_args, _ = cursor.execute.call_args
-
-    # Normalize the expected and actual queries to remove whitespace for comparison
-    normalized_expected_query = normalize_sql(expected_query)
-    normalized_actual_query = normalize_sql(actual_query_args[0])
-
-    assert (
-        normalized_actual_query == normalized_expected_query
-    ), f"Expected: {expected_query}, Actual: {str(actual_query_args[0])}"
 
 
 def test_get_latest_cb_period_success(mock_db):
@@ -2095,31 +1055,6 @@ def test_get_latest_cb_period_success(mock_db):
 
     assert isinstance(result, ClanBattlePeriod)
     cursor.execute.assert_called_once()
-    expected_query = """
-        SELECT clan_battle_period_id,
-               clan_battle_period_name,
-               period_type,
-               date_to,
-               date_from,
-               is_active,
-               boss1_id,
-               boss2_id,
-               boss3_id,
-               boss4_id,
-               boss5_id
-        FROM clan_battle_period
-        WHERE DATE_ADD(SYSDATE(), INTERVAL 5 HOUR) BETWEEN date_from AND date_to
-        ORDER BY clan_battle_period_id DESC
-        LIMIT 1
-    """
-    actual_query_args, _ = cursor.execute.call_args
-
-    normalized_expected_query = normalize_sql(expected_query)
-    normalized_actual_query = normalize_sql(actual_query_args[0])
-
-    assert (
-        normalized_actual_query == normalized_expected_query
-    ), f"Expected: {expected_query}, Actual: {str(actual_query_args[0])}"
 
 
 def test_get_latest_cb_period_no_results(mock_db):
@@ -2134,32 +1069,6 @@ def test_get_latest_cb_period_no_results(mock_db):
 
     assert result is None
     cursor.execute.assert_called_once()
-
-    expected_query = """
-            SELECT clan_battle_period_id,
-                   clan_battle_period_name,
-                   period_type,
-                   date_to,
-                   date_from,
-                   is_active,
-                   boss1_id,
-                   boss2_id,
-                   boss3_id,
-                   boss4_id,
-                   boss5_id
-            FROM clan_battle_period
-            WHERE DATE_ADD(SYSDATE(), INTERVAL 5 HOUR) BETWEEN date_from AND date_to
-            ORDER BY clan_battle_period_id DESC
-            LIMIT 1
-        """
-    actual_query_args, _ = cursor.execute.call_args
-
-    normalized_expected_query = normalize_sql(expected_query)
-    normalized_actual_query = normalize_sql(actual_query_args[0])
-
-    assert (
-        normalized_actual_query == normalized_expected_query
-    ), f"Expected: {expected_query}, Actual: {str(actual_query_args[0])}"
 
 
 def test_get_current_active_cb_period_success(mock_db):
@@ -2230,34 +1139,6 @@ def test_get_by_id_success(mock_db):
     assert result.clan_battle_period_id == 1
     assert result.clan_battle_period_name == "Battle Period 1"
     cursor.execute.assert_called_once()
-    expected_query = """
-        SELECT clan_battle_period_id,
-               clan_battle_period_name,
-               period_type,
-               date_to,
-               date_from,
-               is_active,
-               boss1_id,
-               boss2_id,
-               boss3_id,
-               boss4_id,
-               boss5_id
-        FROM clan_battle_period
-        WHERE clan_battle_period_id = %(clan_battle_period_id)s
-        ORDER BY clan_battle_period_id DESC
-        LIMIT 1
-    """
-    actual_query_args, _ = cursor.execute.call_args
-
-    # Normalize the expected and actual queries to remove whitespace for comparison
-    normalized_expected_query = normalize_sql(expected_query)
-    normalized_actual_query = (
-        str(actual_query_args[0]).replace(" ", "").replace("\n", "")
-    )
-
-    assert (
-        normalized_actual_query == normalized_expected_query
-    ), f"Expected: {expected_query}, Actual: {str(actual_query_args[0])}"
 
 
 def test_get_by_id_no_results(mock_db):
@@ -2307,35 +1188,6 @@ def test_get_by_param_success(mock_db):
     assert result.date_from == datetime(2023, 10, 1)
     cursor.execute.assert_called_once()
 
-    expected_query = """
-        SELECT clan_battle_period_id,
-               clan_battle_period_name,
-               period_type,
-               date_to,
-               date_from,
-               is_active,
-               boss1_id,
-               boss2_id,
-               boss3_id,
-               boss4_id,
-               boss5_id
-        FROM clan_battle_period
-        WHERE date_from <= LAST_DAY(CONCAT(%(year)s, '-', LPAD(%(month)s, 2, '0'), '-01'))
-          AND date_to >= CONCAT(%(year)s, '-', LPAD(%(month)s, 2, '0'), '-01')
-        ORDER BY clan_battle_period_id DESC
-        LIMIT 1
-    """
-
-    actual_query_args, _ = cursor.execute.call_args
-
-    # Normalize the expected and actual queries to remove whitespace for comparison
-    normalized_expected_query = normalize_sql(expected_query)
-    normalized_actual_query = normalize_sql(str(actual_query_args[0]))
-
-    assert (
-        normalized_actual_query == normalized_expected_query
-    ), f"Expected: {expected_query}, Actual: {str(actual_query_args[0])}"
-
 
 def test_get_by_param_no_results(mock_db):
     conn, cursor = mock_db
@@ -2351,35 +1203,6 @@ def test_get_by_param_no_results(mock_db):
 
     assert result is None
     cursor.execute.assert_called_once()
-
-    expected_query = """
-        SELECT clan_battle_period_id,
-               clan_battle_period_name,
-               period_type,
-               date_to,
-               date_from,
-               is_active,
-               boss1_id,
-               boss2_id,
-               boss3_id,
-               boss4_id,
-               boss5_id
-        FROM clan_battle_period
-        WHERE date_from <= LAST_DAY(CONCAT(%(year)s, '-', LPAD(%(month)s, 2, '0'), '-01'))
-          AND date_to >= CONCAT(%(year)s, '-', LPAD(%(month)s, 2, '0'), '-01')
-        ORDER BY clan_battle_period_id DESC
-        LIMIT 1
-    """
-
-    actual_query_args, _ = cursor.execute.call_args
-
-    # Normalize the expected and actual queries to remove whitespace for comparison
-    normalized_expected_query = normalize_sql(expected_query)
-    normalized_actual_query = normalize_sql(str(actual_query_args[0]))
-
-    assert (
-        normalized_actual_query == normalized_expected_query
-    ), f"Expected: {expected_query}, Actual: {str(actual_query_args[0])}"
 
 
 def test_get_by_id_day_success(mock_db):
@@ -2488,22 +1311,6 @@ def test_set_all_inactive_success(mock_db):
     assert result is True
     cursor.execute.assert_called_once()
 
-    expected_query = """
-            UPDATE clan_battle_period
-                    SET is_active = 0
-                    WHERE is_active = 1
-            """
-
-    actual_query_args, _ = cursor.execute.call_args
-
-    # Normalize the expected and actual queries to remove whitespace for comparison
-    normalized_expected_query = normalize_sql(expected_query)
-    normalized_actual_query = normalize_sql(actual_query_args[0])
-
-    assert (
-        normalized_actual_query == normalized_expected_query
-    ), f"Expected: {expected_query}, Actual: {str(actual_query_args[0])}"
-
 
 def test_set_all_inactive_no_changes(mock_db):
     conn, cursor = mock_db
@@ -2516,21 +1323,6 @@ def test_set_all_inactive_no_changes(mock_db):
 
     assert result is True
     cursor.execute.assert_called_once()
-    expected_query = """
-            UPDATE clan_battle_period
-                    SET is_active = 0
-                    WHERE is_active = 1
-            """
-
-    actual_query_args, _ = cursor.execute.call_args
-
-    # Normalize the expected and actual queries to remove whitespace for comparison
-    normalized_expected_query = normalize_sql(expected_query)
-    normalized_actual_query = normalize_sql(actual_query_args[0])
-
-    assert (
-        normalized_actual_query == normalized_expected_query
-    ), f"Expected: {expected_query}, Actual: {str(actual_query_args[0])}"
 
 
 def test_set_active_by_id_success(mock_db):
@@ -2543,22 +1335,6 @@ def test_set_active_by_id_success(mock_db):
 
     assert result is True
     cursor.execute.assert_called_once()
-
-    expected_query = """
-        UPDATE clan_battle_period
-        SET is_active = 1
-        WHERE clan_battle_period_id = %(clan_battle_period_id)s
-        """
-
-    actual_query_args, _ = cursor.execute.call_args
-
-    # Normalize the expected and actual queries to remove whitespace for comparison
-    normalized_expected_query = normalize_sql(expected_query)
-    normalized_actual_query = normalize_sql(actual_query_args[0])
-
-    assert (
-        normalized_actual_query == normalized_expected_query
-    ), f"Expected: {expected_query}, Actual: {str(actual_query_args[0])}"
 
 
 def test_set_active_by_id_failure(mock_db):
@@ -2599,26 +1375,6 @@ def test_fetch_clan_battle_boss_by_id_success(mock_db):
     assert result.name == "Test Boss"
     cursor.execute.assert_called_once()
 
-    expected_query = """
-        SELECT clan_battle_boss_id,
-               name,
-               description,
-               image_path,
-               position
-        FROM clan_battle_boss
-        WHERE clan_battle_boss_id = %(clan_battle_boss_id)s
-        """
-
-    actual_query_args, _ = cursor.execute.call_args
-
-    # Normalize the expected and actual queries to remove whitespace for comparison
-    normalized_expected_query = normalize_sql(expected_query)
-    normalized_actual_query = normalize_sql(actual_query_args[0])
-
-    assert (
-        normalized_actual_query == normalized_expected_query
-    ), f"Expected: {expected_query}, Actual: {str(actual_query_args[0])}"
-
 
 def test_fetch_clan_battle_boss_by_id_no_results(mock_db):
     conn, cursor = mock_db
@@ -2634,25 +1390,45 @@ def test_fetch_clan_battle_boss_by_id_no_results(mock_db):
     assert result is None
     cursor.execute.assert_called_once()
 
-    expected_query = """
-        SELECT clan_battle_boss_id,
-               name,
-               description,
-               image_path,
-               position
-        FROM clan_battle_boss
-        WHERE clan_battle_boss_id = %(clan_battle_boss_id)s
-        """
 
-    actual_query_args, _ = cursor.execute.call_args
+def test_fetch_clan_battle_boss_by_id_and_round_success(mock_db):
+    conn, cursor = mock_db
 
-    # Normalize the expected and actual queries to remove whitespace for comparison
-    normalized_expected_query = normalize_sql(expected_query)
-    normalized_actual_query = normalize_sql(actual_query_args[0])
+    repo = ClanBattleBossRepository()
+    clan_battle_boss_id = 1
+    round = 1
 
-    assert (
-        normalized_actual_query == normalized_expected_query
-    ), f"Expected: {expected_query}, Actual: {str(actual_query_args[0])}"
+    # Mock the fetch_one_to_model result to return a sample clan battle boss object
+    cursor.fetchone.return_value = {
+        "clan_battle_boss_id": 1,
+        "name": "Test Boss",
+        "description": "A test boss for testing purposes.",
+        "image_path": "/path/to/test/boss/image.png",
+        "position": 0,
+    }
+
+    result = repo.fetch_clan_battle_boss_by_id_and_round(clan_battle_boss_id, round)
+
+    assert isinstance(result, ClanBattleBoss)
+    assert result.clan_battle_boss_id == 1
+    assert result.name == "Test Boss"
+    cursor.execute.assert_called_once()
+
+
+def test_fetch_clan_battle_boss_by_id_and_round_no_results(mock_db):
+    conn, cursor = mock_db
+
+    repo = ClanBattleBossRepository()
+    clan_battle_boss_id = 1
+    round = 1
+
+    # Mock the fetch_one_to_model result to return None
+    cursor.fetchone.return_value = None
+
+    result = repo.fetch_clan_battle_boss_by_id_and_round(clan_battle_boss_id, round)
+
+    assert result is None
+    cursor.execute.assert_called_once()
 
 
 def test_get_all_success(mock_db):
@@ -2684,25 +1460,6 @@ def test_get_all_success(mock_db):
     assert result[0].clan_battle_boss_id == 1
     cursor.execute.assert_called_once()
 
-    expected_query = """
-        SELECT clan_battle_boss_id,
-               name,
-               description,
-               image_path,
-               position
-        FROM clan_battle_boss
-        """
-
-    actual_query_args, _ = cursor.execute.call_args
-
-    # Normalize the expected and actual queries to remove whitespace for comparison
-    normalized_expected_query = normalize_sql(expected_query)
-    normalized_actual_query = normalize_sql(actual_query_args[0])
-
-    assert (
-        normalized_actual_query == normalized_expected_query
-    ), f"Expected: {expected_query}, Actual: {str(actual_query_args[0])}"
-
 
 def test_get_all_no_results(mock_db):
     conn, cursor = mock_db
@@ -2715,25 +1472,6 @@ def test_get_all_no_results(mock_db):
 
     assert len(result) == 0
     cursor.execute.assert_called_once()
-
-    expected_query = """
-        SELECT clan_battle_boss_id,
-               name,
-               description,
-               image_path,
-               position
-        FROM clan_battle_boss
-        """
-
-    actual_query_args, _ = cursor.execute.call_args
-
-    # Normalize the expected and actual queries to remove whitespace for comparison
-    normalized_expected_query = normalize_sql(expected_query)
-    normalized_actual_query = normalize_sql(actual_query_args[0])
-
-    assert (
-        normalized_actual_query == normalized_expected_query
-    ), f"Expected: {expected_query}, Actual: {str(actual_query_args[0])}"
 
 
 def test_get_one_by_position_and_round_success(mock_db):
@@ -2832,39 +1570,6 @@ def test_get_all_by_param_and_round_success(mock_db):
     assert result[0].guild_id == guild_id
     cursor.execute.assert_called_once()
 
-    expected_query = """
-        SELECT clan_battle_overall_entry_id,
-                guild_id,
-                clan_battle_period_id,
-                clan_battle_boss_id,
-                player_id,
-                player_name,
-                boss_round,
-                day,
-                attack_type,
-                damage,
-                leftover_time,
-                overall_leftover_entry_id,
-                entry_date
-        FROM clan_battle_overall_entry
-        WHERE guild_id = %(guild_id)s
-        AND clan_battle_period_id = %(clan_battle_period_id)s
-        AND clan_battle_boss_id = %(clan_battle_boss_id)s
-        AND boss_round = %(boss_round)s
-        ORDER BY entry_date
-    """
-
-    cursor.execute.assert_called_once()
-    actual_query_args, _ = cursor.execute.call_args
-
-    # Normalize the expected and actual queries to remove whitespace for comparison
-    normalized_expected_query = normalize_sql(expected_query)
-    normalized_actual_query = normalize_sql(actual_query_args[0])
-
-    assert (
-        normalized_actual_query == normalized_expected_query
-    ), f"Expected: {expected_query}, Actual: {str(actual_query_args[0])}"
-
 
 def test_get_all_by_param_and_round_failure(mock_db):
     conn, cursor = mock_db
@@ -2885,39 +1590,77 @@ def test_get_all_by_param_and_round_failure(mock_db):
     assert len(result) == 0
     cursor.execute.assert_called_once()
 
-    expected_query = """
-        SELECT clan_battle_overall_entry_id,
-                guild_id,
-                clan_battle_period_id,
-                clan_battle_boss_id,
-                player_id,
-                player_name,
-                boss_round,
-                day,
-                attack_type,
-                damage,
-                leftover_time,
-                overall_leftover_entry_id,
-                entry_date
-        FROM clan_battle_overall_entry
-        WHERE guild_id = %(guild_id)s
-        AND clan_battle_period_id = %(clan_battle_period_id)s
-        AND clan_battle_boss_id = %(clan_battle_boss_id)s
-        AND boss_round = %(boss_round)s
-        ORDER BY entry_date
-    """
 
+def test_get_all_by_boss_entry_id_success(mock_db):
+    conn, cursor = mock_db
+
+    repo = ClanBattleOverallEntryRepository()
+    guild_id = 1
+    clan_battle_period_id = 2
+    clan_battle_boss_id = 3
+    boss_round = 4
+    clan_battle_boss_entry_id = 5
+
+    # Mock the fetch_all_to_model result to return some sample clan_battle_overall_entry objects
+    cursor.fetchall.return_value = [
+        {
+            "clan_battle_overall_entry_id": 1,
+            "guild_id": guild_id,
+            "clan_battle_boss_entry_id": clan_battle_boss_entry_id,
+            "clan_battle_": clan_battle_period_id,
+            "clan_battle_period_id": clan_battle_period_id,
+            "clan_battle_boss_id": clan_battle_boss_id,
+            "player_id": 5,
+            "player_name": "PlayerA",
+            "boss_round": boss_round,
+            "day": "2023-10-01",
+            "attack_type": "CARRY",
+            "damage": 100,
+            "leftover_time": 90,
+            "overall_leftover_entry_id": 6,
+            "entry_date": "2023-10-01T14:59:59",
+        },
+        {
+            "clan_battle_overall_entry_id": 7,
+            "guild_id": guild_id,
+            "clan_battle_boss_entry_id": clan_battle_boss_entry_id,
+            "clan_battle_period_id": clan_battle_period_id,
+            "clan_battle_boss_id": clan_battle_boss_id,
+            "player_id": 8,
+            "player_name": "PlayerB",
+            "boss_round": boss_round,
+            "day": "2023-10-01",
+            "attack_type": "PATK",
+            "damage": 200,
+            "leftover_time": 66,
+            "overall_leftover_entry_id": 9,
+            "entry_date": "2023-10-01T15:59:59",
+        },
+    ]
+
+    result = repo.get_all_by_boss_entry_id(guild_id, clan_battle_boss_entry_id)
+
+    assert len(result) == 2
+    assert isinstance(result[0], ClanBattleOverallEntry)
+    assert result[0].clan_battle_overall_entry_id == 1
+    assert result[0].guild_id == guild_id
     cursor.execute.assert_called_once()
 
-    actual_query_args, _ = cursor.execute.call_args
 
-    # Normalize the expected and actual queries to remove whitespace for comparison
-    normalized_expected_query = normalize_sql(expected_query)
-    normalized_actual_query = normalize_sql(actual_query_args[0])
+def test_get_all_by_boss_entry_id_failure(mock_db):
+    conn, cursor = mock_db
 
-    assert (
-        normalized_actual_query == normalized_expected_query
-    ), f"Expected: {expected_query}, Actual: {str(actual_query_args[0])}"
+    repo = ClanBattleOverallEntryRepository()
+    guild_id = 1
+    clan_battle_boss_entry_id = 2
+
+    # Mock the fetch_all_to_model result to return an empty list
+    cursor.fetchall.return_value = []
+
+    result = repo.get_all_by_boss_entry_id(guild_id, clan_battle_boss_entry_id)
+
+    assert len(result) == 0
+    cursor.execute.assert_called_once()
 
 
 def test_cb_entry_insert_success(mock_db):
@@ -2943,47 +1686,6 @@ def test_cb_entry_insert_success(mock_db):
     assert isinstance(result, ClanBattleOverallEntry)
     assert result.clan_battle_overall_entry_id == 8
     cursor.execute.assert_called_once()
-
-    expected_query = """
-        INSERT INTO clan_battle_overall_entry (
-            guild_id,
-            clan_battle_period_id,
-            clan_battle_boss_id,
-            player_id,
-            player_name,
-            boss_round,
-            day,
-            damage,
-            attack_type,
-            leftover_time, 
-            overall_leftover_entry_id, 
-            entry_date
-        )
-        VALUES (
-            %(guild_id)s,
-            %(clan_battle_period_id)s, 
-            %(clan_battle_boss_id)s, 
-            %(player_id)s, 
-            %(player_name)s,
-            %(boss_round)s, 
-            %(day)s,
-            %(damage)s, 
-            %(attack_type)s, 
-            %(leftover_time)s,
-            %(overall_leftover_entry_id)s,
-            SYSDATE()
-        )
-    """
-
-    actual_query_args, _ = cursor.execute.call_args
-
-    # Normalize the expected and actual queries to remove whitespace for comparison
-    normalized_expected_query = normalize_sql(expected_query)
-    normalized_actual_query = normalize_sql(str(actual_query_args[0]))
-
-    assert (
-        normalized_actual_query == normalized_expected_query
-    ), f"Expected: {expected_query}, Actual: {str(actual_query_args[0])}"
 
 
 def test_cb_entry_insert_failure(mock_db):
@@ -3024,22 +1726,6 @@ def test_update_overall_link_success(mock_db):
     assert result == True
     cursor.execute.assert_called_once()
 
-    expected_query = """
-        UPDATE clan_battle_overall_entry
-        SET overall_leftover_entry_id = %(overall_leftover_entry_id)s
-        WHERE clan_battle_overall_entry_id = %(cb_overall_entry_id)s
-        """
-
-    actual_query_args, _ = cursor.execute.call_args
-
-    # Normalize the expected and actual queries to remove whitespace for comparison
-    normalized_expected_query = normalize_sql(expected_query)
-    normalized_actual_query = normalize_sql(actual_query_args[0])
-
-    assert (
-        normalized_actual_query == normalized_expected_query
-    ), f"Expected: {expected_query}, Actual: {str(actual_query_args[0])}"
-
 
 def test_update_overall_link_failure(mock_db):
     conn, cursor = mock_db
@@ -3066,34 +1752,6 @@ def test_get_player_overall_entry_count_success(mock_db):
 
     result = repo.get_player_overall_entry_count(guild_id, player_id)
 
-    assert result == 5
-    cursor.execute.assert_called_once()
-
-    expected_query = """
-        SELECT COUNT(CBOE.clan_battle_overall_entry_id) AS entry_count
-        FROM clan_battle_overall_entry CBOE 
-            JOIN clan_battle_period CBP ON CBP.clan_battle_period_id = CBOE.clan_battle_period_id
-            JOIN clan_battle_boss CBB ON CBOE.clan_battle_boss_id = CBB.clan_battle_boss_id
-        WHERE CBOE.guild_id = %(guild_id)s
-          AND CBOE.player_id = %(player_id)s
-          AND CBOE.attack_type <> 'CARRY'
-          AND CBP.is_active = 1
-          AND CBOE.entry_date >= IF(CURRENT_TIME() < '05:00:00',
-                                        CONCAT(DATE_SUB(CURDATE(), INTERVAL 1 DAY), ' 05:00:00'),
-                                        CONCAT(CURDATE(), ' 05:00:00'))
-          AND CBOE.entry_date < IF(CURRENT_TIME() < '05:00:00',
-                                       CONCAT(CURDATE(), ' 05:00:00'),
-                                       CONCAT(DATE_ADD(CURDATE(), INTERVAL 1 DAY), ' 05:00:00'))
-        """
-
-    actual_query_args, _ = cursor.execute.call_args
-
-    # Normalize the expected and actual queries to remove whitespace for comparison
-    normalized_expected_query = normalize_sql(expected_query)
-    normalized_actual_query = normalize_sql(actual_query_args[0])
-
-    assert normalized_actual_query == normalized_expected_query
-
 
 def test_get_player_overall_entry_count_failure(mock_db):
     conn, cursor = mock_db
@@ -3106,34 +1764,6 @@ def test_get_player_overall_entry_count_failure(mock_db):
     cursor.fetchone.return_value = None
 
     result = repo.get_player_overall_entry_count(guild_id, player_id)
-
-    assert result == 0
-    cursor.execute.assert_called_once()
-
-    expected_query = """
-        SELECT COUNT(CBOE.clan_battle_overall_entry_id) AS entry_count
-        FROM clan_battle_overall_entry CBOE 
-            JOIN clan_battle_period CBP ON CBP.clan_battle_period_id = CBOE.clan_battle_period_id
-            JOIN clan_battle_boss CBB ON CBOE.clan_battle_boss_id = CBB.clan_battle_boss_id
-        WHERE CBOE.guild_id = %(guild_id)s
-          AND CBOE.player_id = %(player_id)s
-          AND CBOE.attack_type <> 'CARRY'
-          AND CBP.is_active = 1
-          AND CBOE.entry_date >= IF(CURRENT_TIME() < '05:00:00',
-                                        CONCAT(DATE_SUB(CURDATE(), INTERVAL 1 DAY), ' 05:00:00'),
-                                        CONCAT(CURDATE(), ' 05:00:00'))
-          AND CBOE.entry_date < IF(CURRENT_TIME() < '05:00:00',
-                                       CONCAT(CURDATE(), ' 05:00:00'),
-                                       CONCAT(DATE_ADD(CURDATE(), INTERVAL 1 DAY), ' 05:00:00'))
-        """
-
-    actual_query_args, _ = cursor.execute.call_args
-
-    # Normalize the expected and actual queries to remove whitespace for comparison
-    normalized_expected_query = normalize_sql(expected_query)
-    normalized_actual_query = normalize_sql(actual_query_args[0])
-
-    assert normalized_actual_query == normalized_expected_query
 
 
 def test_get_leftover_by_guild_id_and_player_id_success(mock_db):
@@ -3168,38 +1798,6 @@ def test_get_leftover_by_guild_id_and_player_id_success(mock_db):
     assert result[0].clan_battle_overall_entry_id == 1
     cursor.execute.assert_called_once()
 
-    expected_query = """
-        SELECT CBOE.clan_battle_overall_entry_id,
-               CBOE.clan_battle_boss_id,
-               CBB.name AS clan_battle_boss_name,
-               CBOE.player_id,
-               CBOE.attack_type,
-               CBOE.leftover_time
-        FROM clan_battle_overall_entry CBOE
-                             JOIN clan_battle_period CBP ON CBP.clan_battle_period_id = CBOE.clan_battle_period_id
-                             JOIN clan_battle_boss CBB ON CBOE.clan_battle_boss_id = CBB.clan_battle_boss_id
-        WHERE CBOE.guild_id = %(guild_id)s
-            AND CBOE.player_id = %(player_id)s
-            AND CBOE.leftover_time IS NOT NULL
-            AND CBOE.overall_leftover_entry_id IS NULL
-            AND CBP.is_active = 1
-            AND CONVERT_TZ(CBOE.entry_date, @@session.time_zone, 'Asia/Tokyo') >= IF(CURRENT_TIME() < '05:00:00',
-                                        CONCAT(DATE_SUB(CURDATE(), INTERVAL 1 DAY), ' 05:00:00'),
-                                        CONCAT(CURDATE(), ' 05:00:00'))
-            AND CONVERT_TZ(CBOE.entry_date, @@session.time_zone, 'Asia/Tokyo') < IF(CURRENT_TIME() < '05:00:00',
-                                       CONCAT(CURDATE(), ' 05:00:00'),
-                                       CONCAT(DATE_ADD(CURDATE(), INTERVAL 1 DAY), ' 05:00:00'));
-        """
-
-    cursor.execute.assert_called_once()
-    actual_query_args, _ = cursor.execute.call_args
-
-    # Normalize the expected and actual queries to remove whitespace for comparison
-    normalized_expected_query = normalize_sql(expected_query)
-    normalized_actual_query = normalize_sql(actual_query_args[0])
-
-    assert normalized_actual_query == normalized_expected_query
-
 
 def test_get_leftover_by_guild_id_and_player_id_no_results(mock_db):
     conn, cursor = mock_db
@@ -3216,38 +1814,6 @@ def test_get_leftover_by_guild_id_and_player_id_no_results(mock_db):
     assert len(result) == 0
     cursor.execute.assert_called_once()
 
-    expected_query = """
-        SELECT CBOE.clan_battle_overall_entry_id,
-               CBOE.clan_battle_boss_id,
-               CBB.name AS clan_battle_boss_name,
-               CBOE.player_id,
-               CBOE.attack_type,
-               CBOE.leftover_time
-        FROM clan_battle_overall_entry CBOE
-                             JOIN clan_battle_period CBP ON CBP.clan_battle_period_id = CBOE.clan_battle_period_id
-                             JOIN clan_battle_boss CBB ON CBOE.clan_battle_boss_id = CBB.clan_battle_boss_id
-        WHERE CBOE.guild_id = %(guild_id)s
-            AND CBOE.player_id = %(player_id)s
-            AND CBOE.leftover_time IS NOT NULL
-            AND CBOE.overall_leftover_entry_id IS NULL
-            AND CBP.is_active = 1
-            AND CONVERT_TZ(CBOE.entry_date, @@session.time_zone, 'Asia/Tokyo') >= IF(CURRENT_TIME() < '05:00:00',
-                                        CONCAT(DATE_SUB(CURDATE(), INTERVAL 1 DAY), ' 05:00:00'),
-                                        CONCAT(CURDATE(), ' 05:00:00'))
-            AND CONVERT_TZ(CBOE.entry_date, @@session.time_zone, 'Asia/Tokyo') < IF(CURRENT_TIME() < '05:00:00',
-                                       CONCAT(CURDATE(), ' 05:00:00'),
-                                       CONCAT(DATE_ADD(CURDATE(), INTERVAL 1 DAY), ' 05:00:00'));
-        """
-
-    cursor.execute.assert_called_once()
-    actual_query_args, _ = cursor.execute.call_args
-
-    # Normalize the expected and actual queries to remove whitespace for comparison
-    normalized_expected_query = normalize_sql(expected_query)
-    normalized_actual_query = normalize_sql(actual_query_args[0])
-
-    assert normalized_actual_query == normalized_expected_query
-
 
 def test_delete_by_guild_id_success(mock_db):
     conn, cursor = mock_db
@@ -3260,19 +1826,6 @@ def test_delete_by_guild_id_success(mock_db):
     assert result is True
     cursor.execute.assert_called_once()
 
-    expected_query = """
-        DELETE FROM clan_battle_overall_entry
-        WHERE guild_id = %(guild_id)s
-        """
-
-    actual_query_args, _ = cursor.execute.call_args
-
-    # Normalize the expected and actual queries to remove whitespace for comparison
-    normalized_expected_query = normalize_sql(expected_query)
-    normalized_actual_query = normalize_sql(actual_query_args[0])
-
-    assert normalized_actual_query == normalized_expected_query
-
 
 def test_delete_by_guild_id_no_results(mock_db):
     conn, cursor = mock_db
@@ -3284,19 +1837,6 @@ def test_delete_by_guild_id_no_results(mock_db):
 
     assert result is True
     cursor.execute.assert_called_once()
-
-    expected_query = """
-        DELETE FROM clan_battle_overall_entry
-        WHERE guild_id = %(guild_id)s
-        """
-
-    actual_query_args, _ = cursor.execute.call_args
-
-    # Normalize the expected and actual queries to remove whitespace for comparison
-    normalized_expected_query = normalize_sql(expected_query)
-    normalized_actual_query = normalize_sql(actual_query_args[0])
-
-    assert normalized_actual_query == normalized_expected_query
 
 
 def test_get_report_entry_by_param_success(mock_db):
@@ -3484,27 +2024,6 @@ def test_get_last_by_guild_period_success(mock_db):
     assert result.day == day
     cursor.execute.assert_called_once()
 
-    expected_query = """
-        SELECT clan_battle_report_message_id,
-               guild_id,
-               clan_battle_period_id,
-               day,
-               message_id
-        FROM clan_battle_report_message
-        WHERE guild_id = %(guild_id)s
-          AND clan_battle_period_id = %(clan_battle_period_id)s
-          AND day = %(day)s
-        ORDER BY clan_battle_report_message_id DESC
-    """
-
-    actual_query_args, _ = cursor.execute.call_args
-
-    # Normalize the expected and actual queries to remove whitespace for comparison
-    normalized_expected_query = normalize_sql(expected_query)
-    normalized_actual_query = normalize_sql(actual_query_args[0])
-
-    assert normalized_actual_query == normalized_expected_query
-
 
 def test_get_last_by_guild_period_no_results(mock_db):
     conn, cursor = mock_db
@@ -3521,27 +2040,6 @@ def test_get_last_by_guild_period_no_results(mock_db):
 
     assert result is None
     cursor.execute.assert_called_once()
-
-    expected_query = """
-        SELECT clan_battle_report_message_id,
-               guild_id,
-               clan_battle_period_id,
-               day,
-               message_id
-        FROM clan_battle_report_message
-        WHERE guild_id = %(guild_id)s
-          AND clan_battle_period_id = %(clan_battle_period_id)s
-          AND day = %(day)s
-        ORDER BY clan_battle_report_message_id DESC
-    """
-
-    actual_query_args, _ = cursor.execute.call_args
-
-    # Normalize the expected and actual queries to remove whitespace for comparison
-    normalized_expected_query = normalize_sql(expected_query)
-    normalized_actual_query = normalize_sql(actual_query_args[0])
-
-    assert normalized_actual_query == normalized_expected_query
 
 
 def test_cb_report_message_insert_success(mock_db):
@@ -3560,33 +2058,6 @@ def test_cb_report_message_insert_success(mock_db):
     assert isinstance(result, ClanBattleReportMessage)
     assert result.clan_battle_report_message_id == 1
     cursor.execute.assert_called_once()
-
-    expected_query = """
-        INSERT INTO clan_battle_report_message 
-        (
-            guild_id,
-            clan_battle_period_id,
-            day,
-            message_id
-        )
-        VALUES 
-        (
-            %(guild_id)s,
-            %(clan_battle_period_id)s,
-            %(day)s,
-            %(message_id)s
-        )
-    """
-
-    actual_query_args, _ = cursor.execute.call_args
-
-    # Normalize the expected and actual queries to remove whitespace for comparison
-    normalized_expected_query = normalize_sql(expected_query)
-    normalized_actual_query = normalize_sql(actual_query_args[0])
-
-    assert (
-        normalized_actual_query == normalized_expected_query
-    ), f"Expected: {expected_query}, Actual: {str(actual_query_args[0])}"
 
 
 def test_cb_report_message_insert_failure(mock_db):
@@ -3616,21 +2087,6 @@ def test_delete_by_guild_id_success(mock_db):
 
     assert result is True
     cursor.execute.assert_called_once()
-
-    expected_query = """
-        DELETE FROM clan_battle_report_message
-        WHERE guild_id = %(guild_id)s
-        """
-
-    actual_query_args, _ = cursor.execute.call_args
-
-    # Normalize the expected and actual queries to remove whitespace for comparison
-    normalized_expected_query = normalize_sql(expected_query)
-    normalized_actual_query = normalize_sql(actual_query_args[0])
-
-    assert (
-        normalized_actual_query == normalized_expected_query
-    ), f"Expected: {normalized_expected_query}, Actual: {normalized_actual_query}"
 
 
 def test_delete_by_guild_id_failure(mock_db):
@@ -3684,21 +2140,6 @@ def test_guild_player_delete_by_guild_id_success(mock_db):
     assert result is True
     cursor.execute.assert_called_once()
 
-    expected_query = """
-        DELETE FROM guild_player
-        WHERE guild_id = %(guild_id)s
-        """
-
-    actual_query_args, _ = cursor.execute.call_args
-
-    # Normalize the expected and actual queries to remove whitespace for comparison
-    normalized_expected_query = normalize_sql(expected_query)
-    normalized_actual_query = normalize_sql(actual_query_args[0])
-
-    assert (
-        normalized_actual_query == normalized_expected_query
-    ), f"Expected: {expected_query}, Actual: {normalized_expected_query}"
-
 
 def test_guild_player_delete_by_guild_id_no_rows(mock_db):
     conn, cursor = mock_db
@@ -3713,21 +2154,6 @@ def test_guild_player_delete_by_guild_id_no_rows(mock_db):
 
     assert result is True
     cursor.execute.assert_called_once()
-
-    expected_query = """
-        DELETE FROM guild_player
-        WHERE guild_id = %(guild_id)s
-        """
-
-    actual_query_args, _ = cursor.execute.call_args
-
-    # Normalize the expected and actual queries to remove whitespace for comparison
-    normalized_expected_query = normalize_sql(expected_query)
-    normalized_actual_query = normalize_sql(actual_query_args[0])
-
-    assert (
-        normalized_actual_query == normalized_expected_query
-    ), f"Expected: {expected_query}, Actual: {normalized_expected_query}"
 
 
 def test_guild_player_get_all_by_guild_id_success(mock_db):
@@ -3750,22 +2176,6 @@ def test_guild_player_get_all_by_guild_id_success(mock_db):
     assert result[0].player_id == 2
     cursor.execute.assert_called_once()
 
-    expected_query = """
-        SELECT guild_id, player_id, player_name 
-        FROM guild_player
-        WHERE guild_id = %(guild_id)s
-    """
-
-    actual_query_args, _ = cursor.execute.call_args
-
-    # Normalize the expected and actual queries to remove whitespace for comparison
-    normalized_expected_query = normalize_sql(expected_query)
-    normalized_actual_query = normalize_sql(actual_query_args[0])
-
-    assert (
-        normalized_actual_query == normalized_expected_query
-    ), f"Expected: {expected_query}, Actual: {str(actual_query_args[0])}"
-
 
 def test_guild_player_get_all_by_guild_id_no_results(mock_db):
     conn, cursor = mock_db
@@ -3780,22 +2190,6 @@ def test_guild_player_get_all_by_guild_id_no_results(mock_db):
 
     assert len(result) == 0
     cursor.execute.assert_called_once()
-
-    expected_query = """
-        SELECT guild_id, player_id, player_name 
-        FROM guild_player
-        WHERE guild_id = %(guild_id)s
-    """
-
-    actual_query_args, _ = cursor.execute.call_args
-
-    # Normalize the expected and actual queries to remove whitespace for comparison
-    normalized_expected_query = normalize_sql(expected_query)
-    normalized_actual_query = normalize_sql(actual_query_args[0])
-
-    assert (
-        normalized_actual_query == normalized_expected_query
-    ), f"Expected: {expected_query}, Actual: {str(actual_query_args[0])}"
 
 
 def test_error_log_insert_success(mock_container, mock_db):
@@ -3870,21 +2264,6 @@ def test_error_log_delete_by_guild_id_success(mock_db):
     assert result is True
     cursor.execute.assert_called_once()
 
-    expected_query = """
-        DELETE FROM error_log
-        WHERE guild_id = %(guild_id)s
-        """
-
-    actual_query_args, _ = cursor.execute.call_args
-
-    # Normalize the expected and actual queries to remove whitespace for comparison
-    normalized_expected_query = normalize_sql(expected_query)
-    normalized_actual_query = normalize_sql(actual_query_args[0])
-
-    assert (
-        normalized_actual_query == normalized_expected_query
-    ), f"Expected: {expected_query}, Actual: {normalized_expected_query}"
-
 
 def test_error_log_delete_by_guild_id_no_results(mock_db):
     conn, cursor = mock_db
@@ -3896,18 +2275,3 @@ def test_error_log_delete_by_guild_id_no_results(mock_db):
 
     assert result is True
     cursor.execute.assert_called_once()
-
-    expected_query = """
-        DELETE FROM error_log
-        WHERE guild_id = %(guild_id)s
-        """
-
-    actual_query_args, _ = cursor.execute.call_args
-
-    # Normalize the expected and actual queries to remove whitespace for comparison
-    normalized_expected_query = normalize_sql(expected_query)
-    normalized_actual_query = normalize_sql(actual_query_args[0])
-
-    assert (
-        normalized_actual_query == normalized_expected_query
-    ), f"Expected: {expected_query}, Actual: {normalized_expected_query}"

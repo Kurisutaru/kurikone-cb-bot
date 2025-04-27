@@ -38,25 +38,28 @@ class Channel(EnumSerializerMixin):
     channel_type: ChannelEnum = field(
         default=None, converter=lambda x: ChannelEnum[x] if isinstance(x, str) else x
     )
+    message_id: int = field(default=None)
 
 
 @define
-class ChannelMessage:
-    channel_id: int = field(default=None)
-    message_id: int = field(default=None)
+class ChannelBoss(Channel):
+    boss_id: int = field(default=None)
 
 
 @define
 class ClanBattleBossEntry:
     guild_id: int
     clan_battle_boss_entry_id: int = field(default=None)
-    message_id: int = field(default=None)
     clan_battle_period_id: int = field(default=None)
     clan_battle_boss_id: int = field(default=None)
-    name: str = field(default=None)
-    image_path: str = field(default=None)
     boss_round: int = field(default=None)
     current_health: int = field(default=None)
+
+
+@define
+class ClanBattleBossEntries(ClanBattleBossEntry):
+    boss_name: str = field(default=None)
+    image_path: str = field(default=None)
     max_health: int = field(default=None)
 
 
@@ -84,6 +87,11 @@ class ClanBattleBoss:
     description: str = field(default=None)
     image_path: str = field(default=None)
     position: int = field(default=None)
+
+
+@define
+class ClanBattleBosses(ClanBattleBoss):
+    health: int = field(default=None)
 
 
 @define
@@ -130,6 +138,7 @@ class ClanBattlePeriodDay(ClanBattlePeriod):
 class ClanBattleOverallEntry(EnumSerializerMixin):
     clan_battle_overall_entry_id: int = field(default=None)
     guild_id: int = field(default=None)
+    clan_battle_boss_entry_id: int = field(default=None)
     clan_battle_period_id: int = field(default=None)
     clan_battle_boss_id: int = field(default=None)
     player_id: int = field(default=None)

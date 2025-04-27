@@ -21,6 +21,7 @@ from models import (
     ClanBattleBossBook,
     ClanBattleBoss,
     ClanBattlePeriod,
+    ClanBattleBossEntries,
 )
 
 
@@ -284,13 +285,13 @@ def create_message_param(
 @inject
 def create_header_embed(
     guild_id: int,
-    cb_boss_entry: ClanBattleBossEntry,
+    cb_boss_entry: ClanBattleBossEntries,
     include_image: bool = True,
     default_color: Colour = discord.Color.red(),
     l: Locale = Provide["locale"],
 ) -> Embed:
     embed = discord.Embed(
-        title=f"{cb_boss_entry.name} ({l.t(guild_id, "ui.status.round", round=cb_boss_entry.boss_round)})",
+        title=f"{cb_boss_entry.boss_name} ({l.t(guild_id, "ui.status.round", round=cb_boss_entry.boss_round)})",
         description=(
             f"# HP : {format_large_number(cb_boss_entry.current_health)} / {format_large_number(cb_boss_entry.max_health)}{NEW_LINE}"
             f"{generate_health_bar(current_health=cb_boss_entry.current_health, max_health=cb_boss_entry.max_health)}"
@@ -407,6 +408,10 @@ def now():
 
 def utc():
     return datetime.now()
+
+
+def date_between(date: datetime, from_date: datetime, to_date: datetime) -> bool:
+    return from_date <= date.replace(tzinfo=None) <= to_date
 
 
 # Period thingy

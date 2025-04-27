@@ -81,53 +81,6 @@ def fetch_one_to_model(cursor, model_class: Type[T]) -> Optional[T]:
     return model_class(**{k: v for k, v in result.items() if k in all_fields})
 
 
-class GenericRepository:
-    def get_connection_id(self) -> int:
-        with connection_context() as conn:
-            with conn.cursor(dictionary=True) as cursor:
-                cursor.execute("SELECT CONNECTION_ID() AS CONNECTION_ID")
-                result = cursor.fetchone()
-                if result is None:
-                    raise ValueError("Failed to retrieve connection ID")
-                return int(result["CONNECTION_ID"])
-
-    def set_session_read_uncommited(self):
-        with connection_context() as conn:
-            with conn.cursor(dictionary=True) as cursor:
-                cursor.execute(
-                    "SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED"
-                )
-
-    def get_session_transaction_isolation(self):
-        with connection_context() as conn:
-            with conn.cursor(dictionary=True) as cursor:
-                cursor.execute("SELECT @@SESSION.transaction_isolation AS TI")
-                result = cursor.fetchone()
-                if result is None:
-                    raise ValueError("Failed to retrieve transaction Isolation")
-                return str(result["TI"])
-
-    def get_session_autocommit(self):
-        with connection_context() as conn:
-            with conn.cursor(dictionary=True) as cursor:
-                cursor.execute("SELECT @@SESSION.autocommit AS AC")
-                result = cursor.fetchone()
-                if result is None:
-                    raise ValueError("Failed to retrieve session auto commit")
-                return bool(result["AC"])
-
-    def get_session_transaction_id(self):
-        with connection_context() as conn:
-            with conn.cursor(dictionary=True) as cursor:
-                cursor.execute(
-                    "SELECT trx_id FROM information_schema.innodb_trx WHERE trx_mysql_thread_id = CONNECTION_ID()"
-                )
-                result = cursor.fetchone()
-                if result is None:
-                    return "None"
-                return result["trx_id"]
-
-
 class GuildRepository:
     def get_by_guild_id(self, guild_id: int) -> Optional[Guild]:
         with connection_context() as conn:
@@ -186,7 +139,8 @@ class ChannelRepository:
                     """
                     SELECT channel_id,
                            guild_id,
-                           channel_type
+                           channel_type,
+                           message_id
                     FROM channel
                     WHERE guild_id = %(guild_id)s
                     """,
@@ -196,6 +150,66 @@ class ChannelRepository:
                 )
                 return fetch_all_to_model(cursor, Channel)
 
+    def get_by_channel_id(self, channel_id: int) -> Channel:
+        with connection_context() as conn:
+            with conn.cursor(dictionary=True) as cursor:
+                cursor.execute(
+                    """
+                    SELECT channel_id,
+                           guild_id,
+                           channel_type,
+                           message_id
+                    FROM channel
+                    WHERE channel_id = %(channel_id)s
+                    """,
+                    {
+                        "channel_id": channel_id,
+                    },
+                )
+                return fetch_one_to_model(cursor, Channel)
+
+    def get_by_channel_id_with_boss(self, channel_id: int) -> ChannelBoss:
+        with connection_context() as conn:
+            with conn.cursor(dictionary=True) as cursor:
+                cursor.execute(
+                    """
+                    WITH ACTIVE_PERIOD AS (SELECT clan_battle_period_id,
+                                                  clan_battle_period_name,
+                                                  period_type,
+                                                  date_to,
+                                                  date_from,
+                                                  is_active,
+                                                  boss1_id,
+                                                  boss2_id,
+                                                  boss3_id,
+                                                  boss4_id,
+                                                  boss5_id
+                                           FROM clan_battle_period
+                                           WHERE is_active = 1
+                                           ORDER BY clan_battle_period_id DESC
+                                           LIMIT 1)
+                    SELECT c.channel_id,
+                           c.guild_id,
+                           c.channel_type,
+                           c.message_id,
+                           CASE
+                               WHEN c.channel_type = 'BOSS1' THEN AP.boss1_id
+                               WHEN c.channel_type = 'BOSS2' THEN AP.boss2_id
+                               WHEN c.channel_type = 'BOSS3' THEN AP.boss3_id
+                               WHEN c.channel_type = 'BOSS4' THEN AP.boss4_id
+                               WHEN c.channel_type = 'BOSS5' THEN AP.boss5_id
+                               END AS boss_id
+                    FROM channel C
+                             CROSS JOIN ACTIVE_PERIOD AP
+                                    WHERE channel_id = %(channel_id)s
+                                    LIMIT 1
+                    """,
+                    {
+                        "channel_id": channel_id,
+                    },
+                )
+                return fetch_one_to_model(cursor, ChannelBoss)
+
     def get_boss_channel_by_guild_id(self, guild_id: int) -> List[Channel]:
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
@@ -203,7 +217,8 @@ class ChannelRepository:
                     """
                     SELECT channel_id,
                            guild_id,
-                           channel_type
+                           channel_type,
+                           message_id
                     FROM channel
                     WHERE guild_id = %(guild_id)s AND UPPER(channel_type) like '%BOSS%'
                     """,
@@ -222,7 +237,8 @@ class ChannelRepository:
                     """
                     SELECT channel_id,
                            guild_id,
-                           channel_type
+                           channel_type,
+                           message_id
                     FROM channel
                     WHERE guild_id = %(guild_id)s
                     AND channel_type = %(channel_type)s
@@ -239,9 +255,10 @@ class ChannelRepository:
                     INSERT INTO channel (
                         channel_id, 
                         guild_id, 
-                        channel_type
+                        channel_type,
+                           message_id
                         )
-                    VALUES (%(channel_id)s, %(guild_id)s, %(channel_type)s)
+                    VALUES (%(channel_id)s, %(guild_id)s, %(channel_type)s, %(message_id)s)
                     """,
                     channel.to_db_dict(),
                 )
@@ -254,13 +271,31 @@ class ChannelRepository:
                 cursor.execute(
                     """
                     UPDATE channel
-                        SET channel_id = %(channel_id)s
+                        SET channel_id = %(channel_id)s,
+                        message_id = %(message_id)s
                     WHERE guild_id = %(guild_id)s and channel_type = %(channel_type)s
                     """,
                     channel.to_db_dict(),
                 )
 
             return channel
+
+    def update_channel_message(self, channel_id: int, message_id: int) -> bool:
+        with connection_context() as conn:
+            with conn.cursor(dictionary=True) as cursor:
+                cursor.execute(
+                    """
+                    UPDATE channel
+                        SET message_id = %(message_id)s
+                    WHERE channel_id = %(channel_id)s
+                    """,
+                    {
+                        "channel_id": channel_id,
+                        "message_id": message_id,
+                    },
+                )
+
+            return True
 
     def delete_channel_by_guild_id(self, guild_id: int) -> bool:
         with connection_context() as conn:
@@ -276,130 +311,6 @@ class ChannelRepository:
             return True
 
 
-class ChannelMessageRepository:
-
-    def insert_channel_message(self, channel_message: ChannelMessage) -> ChannelMessage:
-        with connection_context() as conn:
-            with conn.cursor(dictionary=True) as cursor:
-                cursor.execute(
-                    """
-                    INSERT INTO channel_message (channel_id, message_id) 
-                    VALUES (%(channel_id)s, %(message_id)s)
-                    """,
-                    {
-                        "channel_id": channel_message.channel_id,
-                        "message_id": channel_message.message_id,
-                    },
-                )
-
-                return channel_message
-
-    def update_channel_message(self, channel_message: ChannelMessage) -> ChannelMessage:
-        with connection_context() as conn:
-            with conn.cursor(dictionary=True) as cursor:
-                cursor.execute(
-                    """
-                    UPDATE channel_message 
-                        SET message_id = %(message_id)s
-                    WHERE channel_id = %(channel_id)s
-                    """,
-                    {
-                        "channel_id": channel_message.channel_id,
-                        "message_id": channel_message.message_id,
-                    },
-                )
-
-                return channel_message
-
-    def update_self_channel_message(
-        self, old_channel_id: int, new_channel_id: int
-    ) -> bool:
-        with connection_context() as conn:
-            with conn.cursor(dictionary=True) as cursor:
-                cursor.execute(
-                    """
-                    UPDATE channel_message 
-                        SET channel_id = %(new_channel_id)s
-                    WHERE channel_id = %(old_channel_id)s
-                    """,
-                    {
-                        "new_channel_id": new_channel_id,
-                        "old_channel_id": old_channel_id,
-                    },
-                )
-
-                return True
-
-    def get_channel_message_by_channel_id(
-        self, channel_id: int
-    ) -> Optional[ChannelMessage]:
-        with connection_context() as conn:
-            with conn.cursor(dictionary=True) as cursor:
-                cursor.execute(
-                    """
-                    SELECT channel_id,
-                           message_id
-                    FROM channel_message
-                    WHERE channel_id = %(channel_id)s
-                    """,
-                    {
-                        "channel_id": channel_id,
-                    },
-                )
-                return fetch_one_to_model(cursor, ChannelMessage)
-
-    def get_all_by_guild_id(self, guild_id: int) -> list[ChannelMessage]:
-        with connection_context() as conn:
-            with conn.cursor(dictionary=True) as cursor:
-                cursor.execute(
-                    """
-                    SELECT CM.channel_id,
-                           CM.message_id
-                    FROM channel_message CM 
-                        JOIN channel C ON C.channel_id = CM.channel_id
-                        JOIN guild G ON G.guild_id = C.guild_id
-                    WHERE G.guild_id = %(guild_id)s
-                    """,
-                    {
-                        "guild_id": guild_id,
-                    },
-                )
-                return fetch_all_to_model(cursor, ChannelMessage)
-
-    def delete_by_guild_id(self, guild_id: int) -> bool:
-        with connection_context() as conn:
-            with conn.cursor(dictionary=True) as cursor:
-                cursor.execute(
-                    """
-                    DELETE FROM channel_message 
-                    WHERE channel_id IN (SELECT channel_id from channel WHERE guild_id = %(guild_id)s)
-                    """,
-                    {
-                        "guild_id": guild_id,
-                    },
-                )
-
-                return True
-
-    def get_message_by_guild_id_and_channel_type(
-        self, guild_id, channel_type
-    ) -> Optional[ChannelMessage]:
-        with connection_context() as conn:
-            with conn.cursor(dictionary=True) as cursor:
-                cursor.execute(
-                    """
-                    SELECT CM.channel_id, CM.message_id
-                    FROM channel_message CM
-                             JOIN channel C on CM.channel_id = C.channel_id
-                    WHERE C.guild_id = %(guild_id)s
-                      AND C.channel_type = %(channel_type)s
-
-                    """,
-                    {"guild_id": guild_id, "channel_type": channel_type},
-                )
-                return fetch_one_to_model(cursor, ChannelMessage)
-
-
 class ClanBattleBossEntryRepository:
 
     def insert_clan_battle_boss_entry(
@@ -411,25 +322,18 @@ class ClanBattleBossEntryRepository:
                     """
                     INSERT INTO clan_battle_boss_entry (
                         guild_id,
-                        message_id, 
                         clan_battle_period_id, 
                         clan_battle_boss_id, 
-                        name, 
-                        image_path, 
                         boss_round, 
-                        current_health, 
-                        max_health
+                        current_health
                     ) 
                     VALUES (
                          %(guild_id)s, 
-                         %(message_id)s, 
                          %(clan_battle_period_id)s, 
                          %(clan_battle_boss_id)s,
-                         %(name)s,
-                         %(image_path)s,
                          %(boss_round)s,
-                         %(current_health)s,
-                         %(max_health)s)
+                         %(current_health)s
+                    )
                     """,
                     attrs.asdict(clan_battle_boss_entry),
                 )
@@ -437,55 +341,31 @@ class ClanBattleBossEntryRepository:
 
             return clan_battle_boss_entry
 
-    def get_last_by_message_id(self, message_id: int) -> Optional[ClanBattleBossEntry]:
-        with connection_context() as conn:
-            with conn.cursor(dictionary=True) as cursor:
-                cursor.execute(
-                    """
-                    SELECT clan_battle_boss_entry_id,
-                           guild_id,
-                           message_id,
-                           clan_battle_period_id,
-                           clan_battle_boss_id,
-                           name,
-                           image_path,
-                           boss_round,
-                           current_health,
-                           max_health
-                    FROM clan_battle_boss_entry
-                    WHERE message_id = %(message_id)s
-                    ORDER BY boss_round, clan_battle_boss_entry_id DESC
-                    LIMIT 1
-                    """,
-                    {
-                        "message_id": message_id,
-                    },
-                )
-                return fetch_one_to_model(cursor, ClanBattleBossEntry)
-
     def get_boss_entry_by_param(
         self, guild_id: int, clan_battle_period_id: int, clan_battle_boss_id: int
-    ) -> Optional[ClanBattleBossEntry]:
+    ) -> Optional[ClanBattleBossEntries]:
         with connection_context() as conn:
 
             with conn.cursor(dictionary=True) as cursor:
                 cursor.execute(
                     """
-                    SELECT clan_battle_boss_entry_id,
-                           guild_id,
-                           message_id,
-                           clan_battle_period_id,
-                           clan_battle_boss_id,
-                           name,
-                           image_path,
-                           boss_round,
-                           current_health,
-                           max_health
-                    FROM clan_battle_boss_entry
+                    SELECT CBBE.clan_battle_boss_entry_id,
+                           CBBE.guild_id,
+                           CBBE.clan_battle_period_id,
+                           CBB.clan_battle_boss_id,
+                           CONCAT(CBB.name, ' 「', CBB.description ,'」') as boss_name,
+                           CBB.image_path,
+                           CBBE.boss_round,
+                           CBBE.current_health,
+                           CBBH.health as max_health
+                    FROM clan_battle_boss_entry CBBE
+                             JOIN clan_battle_boss CBB ON CBBE.clan_battle_boss_id = CBB.clan_battle_boss_id
+                             JOIN clan_battle_boss_health CBBH
+                                  ON CBB.position = CBBH.position AND CBBE.boss_round BETWEEN CBBH.round_from AND CBBH.round_to
                     WHERE guild_id = %(guild_id)s
-                    AND clan_battle_period_id = %(clan_battle_period_id)s
-                    AND clan_battle_boss_id = %(clan_battle_boss_id)s
-                    ORDER BY boss_round, clan_battle_boss_entry_id DESC
+                        AND CBBE.clan_battle_period_id = %(clan_battle_period_id)s
+                        AND CBB.clan_battle_boss_id = %(clan_battle_boss_id)s
+                    ORDER BY CBBE.boss_round DESC, CBBE.clan_battle_boss_entry_id DESC
                     LIMIT 1
                     """,
                     {
@@ -494,11 +374,11 @@ class ClanBattleBossEntryRepository:
                         "clan_battle_boss_id": clan_battle_boss_id,
                     },
                 )
-                return fetch_one_to_model(cursor, ClanBattleBossEntry)
+                return fetch_one_to_model(cursor, ClanBattleBossEntries)
 
-    def get_last_active_period_by_message_id(
-        self, message_id: int
-    ) -> Optional[ClanBattleBossEntry]:
+    def get_boss_entry_active_cb_by_param(
+        self, guild_id: int, clan_battle_boss_id: int
+    ) -> Optional[ClanBattleBossEntries]:
         with connection_context() as conn:
 
             with conn.cursor(dictionary=True) as cursor:
@@ -506,24 +386,94 @@ class ClanBattleBossEntryRepository:
                     """
                     SELECT CBBE.clan_battle_boss_entry_id,
                            CBBE.guild_id,
-                           CBBE.message_id,
                            CBBE.clan_battle_period_id,
-                           CBBE.clan_battle_boss_id,
-                           CBBE.name,
-                           CBBE.image_path,
+                           CBB.clan_battle_boss_id,
+                           CONCAT(CBB.name, ' 「', CBB.description ,'」') as boss_name,
+                           CBB.image_path,
                            CBBE.boss_round,
                            CBBE.current_health,
-                           CBBE.max_health
-                    FROM clan_battle_boss_entry AS CBBE 
-                    JOIN clan_battle_period CBR ON CBBE.clan_battle_period_id = CBR.clan_battle_period_id
-                    WHERE message_id = %(message_id)s
-                    AND CBR.is_active = 1
-                    ORDER BY boss_round, clan_battle_boss_entry_id DESC
+                           CBBH.health as max_health
+                    FROM clan_battle_boss_entry CBBE
+                             JOIN clan_battle_period CBP ON CBBE.clan_battle_period_id = CBP.clan_battle_period_id
+                             JOIN clan_battle_boss CBB ON CBBE.clan_battle_boss_id = CBB.clan_battle_boss_id
+                             JOIN clan_battle_boss_health CBBH
+                                  ON CBB.position = CBBH.position AND CBBE.boss_round BETWEEN CBBH.round_from AND CBBH.round_to
+                    WHERE guild_id = %(guild_id)s
+                        AND CBP.is_active = 1
+                        AND CBB.clan_battle_boss_id = %(clan_battle_boss_id)s
+                    ORDER BY CBBE.boss_round DESC, CBBE.clan_battle_boss_entry_id DESC
                     LIMIT 1
                     """,
-                    {"message_id": message_id},
+                    {
+                        "guild_id": guild_id,
+                        "clan_battle_boss_id": clan_battle_boss_id,
+                    },
                 )
-                return fetch_one_to_model(cursor, ClanBattleBossEntry)
+                return fetch_one_to_model(cursor, ClanBattleBossEntries)
+
+    def get_boss_entry_active_cb_by_channel_id(
+        self, channel_id: int
+    ) -> Optional[ClanBattleBossEntries]:
+        with connection_context() as conn:
+            with conn.cursor(dictionary=True) as cursor:
+                cursor.execute(
+                    """
+                    WITH ACTIVE_PERIOD AS (SELECT clan_battle_period_id,
+                                                  clan_battle_period_name,
+                                                  period_type,
+                                                  date_to,
+                                                  date_from,
+                                                  is_active,
+                                                  boss1_id,
+                                                  boss2_id,
+                                                  boss3_id,
+                                                  boss4_id,
+                                                  boss5_id
+                                           FROM clan_battle_period
+                                           WHERE is_active = 1
+                                           ORDER BY clan_battle_period_id DESC
+                                           LIMIT 1),
+                         SELECTED_BOSS AS (SELECT CASE
+                                                      WHEN c.channel_type = 'BOSS1' THEN ap.boss1_id
+                                                      WHEN c.channel_type = 'BOSS2' THEN ap.boss2_id
+                                                      WHEN c.channel_type = 'BOSS3' THEN ap.boss3_id
+                                                      WHEN c.channel_type = 'BOSS4' THEN ap.boss4_id
+                                                      WHEN c.channel_type = 'BOSS5' THEN ap.boss5_id
+                                                      END AS clan_battle_boss_id,
+                                                  c.guild_id
+                                           FROM channel c
+                                                    CROSS JOIN ACTIVE_PERIOD ap
+                                           WHERE c.channel_id = %(channel_id)s
+                                        )
+                    SELECT CBBE.clan_battle_boss_entry_id,
+                           CBBE.guild_id,
+                           CBBE.clan_battle_period_id,
+                           CBB.clan_battle_boss_id,
+                           CONCAT(CBB.name, ' 「', CBB.description, '」') AS boss_name,
+                           CBB.image_path,
+                           CBBE.boss_round,
+                           CBBE.current_health,
+                           CBBH.health                                  AS max_health
+                    FROM clan_battle_boss_entry CBBE
+                             JOIN clan_battle_period CBP
+                                  ON CBBE.clan_battle_period_id = CBP.clan_battle_period_id
+                             JOIN clan_battle_boss CBB
+                                  ON CBBE.clan_battle_boss_id = CBB.clan_battle_boss_id
+                             JOIN clan_battle_boss_health CBBH
+                                  ON CBB.position = CBBH.position
+                                      AND CBBE.boss_round BETWEEN CBBH.round_from AND CBBH.round_to
+                             JOIN SELECTED_BOSS SB
+                                  ON CBBE.guild_id = SB.guild_id
+                                      AND CBB.clan_battle_boss_id = SB.clan_battle_boss_id
+                    WHERE CBP.is_active = 1
+                    ORDER BY CBBE.boss_round DESC, CBBE.clan_battle_boss_entry_id DESC
+                    LIMIT 1
+                    """,
+                    {
+                        "channel_id": channel_id,
+                    },
+                )
+                return fetch_one_to_model(cursor, ClanBattleBossEntries)
 
     def update_on_attack(
         self, clan_battle_boss_entry_id: int, current_health: int
@@ -539,25 +489,6 @@ class ClanBattleBossEntryRepository:
                     {
                         "clan_battle_boss_entry_id": clan_battle_boss_entry_id,
                         "current_health": current_health,
-                    },
-                )
-
-                return True
-
-    def update_message_id(
-        self, clan_battle_boss_entry_id: int, message_id: int
-    ) -> bool:
-        with connection_context() as conn:
-            with conn.cursor(dictionary=True) as cursor:
-                cursor.execute(
-                    """
-                    UPDATE clan_battle_boss_entry 
-                    SET message_id = %(message_id)s
-                    WHERE clan_battle_boss_entry_id = %(clan_battle_boss_entry_id)s
-                    """,
-                    {
-                        "clan_battle_boss_entry_id": clan_battle_boss_entry_id,
-                        "message_id": message_id,
                     },
                 )
 
@@ -581,56 +512,58 @@ class ClanBattleBossEntryRepository:
 
 class ClanBattleBossBookRepository:
 
-    def get_all_by_message_id(self, message_id: int) -> list[ClanBattleBossBook]:
+    def get_all_by_entry_id(
+        self, guild_id: int, clan_battle_boss_entry_id: int
+    ) -> list[ClanBattleBossBook]:
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
                 cursor.execute(
                     """
-                    SELECT CBBB.clan_battle_boss_book_id,
-                           CBBB.clan_battle_boss_entry_id,
-                           CBBB.guild_id,
-                           CBBB.player_id,
-                           CBBB.player_name,
-                           CBBB.attack_type,
-                           CBBB.damage,
-                           CBBB.clan_battle_overall_entry_id,
-                           CBBB.leftover_time,
-                           CBBB.entry_date
-                    FROM clan_battle_boss_book CBBB
-                             JOIN clan_battle_boss_entry CBE ON CBBB.clan_battle_boss_entry_id = CBE.clan_battle_boss_entry_id
-                    WHERE CBE.message_id = %(message_id)s
+                    SELECT clan_battle_boss_book_id,
+                           clan_battle_boss_entry_id,
+                           guild_id,
+                           player_id,
+                           player_name,
+                           attack_type,
+                           damage,
+                           clan_battle_overall_entry_id,
+                           leftover_time,
+                           entry_date
+                    FROM clan_battle_boss_book
+                    WHERE guild_id = %(guild_id)s
+                    AND clan_battle_boss_entry_id = %(clan_battle_boss_entry_id)s
                     """,
                     {
-                        "message_id": message_id,
+                        "guild_id": guild_id,
+                        "clan_battle_boss_entry_id": clan_battle_boss_entry_id,
                     },
                 )
                 return fetch_all_to_model(cursor, ClanBattleBossBook)
 
-    def get_player_book_entry(
-        self, message_id: int, player_id: int
+    def get_player_book_by_entry_id(
+        self, clan_battle_boss_entry_id: int, player_id: int
     ) -> Optional[ClanBattleBossBook]:
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
                 cursor.execute(
                     """
-                    SELECT CBBB.clan_battle_boss_book_id,
-                           CBBB.clan_battle_boss_entry_id,
-                           CBBB.guild_id,
-                           CBBB.player_id,
-                           CBBB.player_name,
-                           CBBB.attack_type,
-                           CBBB.damage,
-                           CBBB.clan_battle_overall_entry_id,
-                           CBBB.leftover_time,
-                           CBBB.entry_date
-                        FROM clan_battle_boss_book AS CBBB
-                                 INNER JOIN clan_battle_boss_entry AS CBBE ON CBBB.clan_battle_boss_entry_id = CBBE.clan_battle_boss_entry_id
-                        WHERE CBBB.player_id = %(player_id)s
-                          AND CBBE.message_id = %(message_id)s
+                    SELECT clan_battle_boss_book_id,
+                           clan_battle_boss_entry_id,
+                           guild_id,
+                           player_id,
+                           player_name,
+                           attack_type,
+                           damage,
+                           clan_battle_overall_entry_id,
+                           leftover_time,
+                           entry_date
+                        FROM clan_battle_boss_book
+                        WHERE player_id = %(player_id)s
+                          AND clan_battle_boss_entry_id = %(clan_battle_boss_entry_id)s
                     """,
                     {
+                        "clan_battle_boss_entry_id": clan_battle_boss_entry_id,
                         "player_id": player_id,
-                        "message_id": message_id,
                     },
                 )
                 return fetch_one_to_model(cursor, ClanBattleBossBook)
@@ -643,10 +576,8 @@ class ClanBattleBossBookRepository:
                     SELECT COUNT(CBBB.clan_battle_boss_book_id) AS Book_Count
                         FROM clan_battle_boss_book AS CBBB
                                  INNER JOIN clan_battle_boss_entry AS CBBE ON CBBB.clan_battle_boss_entry_id = CBBE.clan_battle_boss_entry_id
-                                 INNER JOIN channel_message AS CM ON CBBE.message_id = CM.message_id
-                                 INNER JOIN channel AS C ON CM.channel_id = C.channel_id
-                                 INNER JOIN guild AS G ON C.guild_id = G.guild_id
-                        WHERE G.guild_id = %(guild_id)s
+                                 INNER JOIN clan_battle_period CBP ON CBBE.clan_battle_period_id = CBP.clan_battle_period_id AND CBP.is_active = 1
+                        WHERE CBBE.guild_id = %(guild_id)s
                             AND CBBB.player_id = %(player_id)s
                             AND CBBB.entry_date >= IF(CURRENT_TIME() < '05:00:00',
                                         CONCAT(DATE_SUB(CURDATE(), INTERVAL 1 DAY), ' 05:00:00'),
@@ -1022,6 +953,30 @@ class ClanBattleBossRepository:
                 )
                 return fetch_one_to_model(cursor, ClanBattleBoss)
 
+    def fetch_clan_battle_boss_by_id_and_round(
+        self, clan_battle_boss_id: int, boss_round: int
+    ) -> Optional[ClanBattleBosses]:
+        with connection_context() as conn:
+            with conn.cursor(dictionary=True) as cursor:
+                cursor.execute(
+                    """
+                    SELECT CBB.clan_battle_boss_id,
+                           CBB.name,
+                           CBB.description,
+                           CBB.image_path,
+                           CBB.position,
+                           CBBH.health
+                    FROM clan_battle_boss CBB JOIN clan_battle_boss_health CBBH ON CBB.position = CBBH.position
+                    WHERE CBB.clan_battle_boss_id = %(clan_battle_boss_id)s
+                    AND %(boss_round)s BETWEEN CBBH.round_from AND CBBH.round_to
+                    """,
+                    {
+                        "clan_battle_boss_id": clan_battle_boss_id,
+                        "boss_round": boss_round,
+                    },
+                )
+                return fetch_one_to_model(cursor, ClanBattleBosses)
+
     def get_all(self) -> Optional[list[ClanBattleBoss]]:
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
@@ -1105,6 +1060,39 @@ class ClanBattleOverallEntryRepository:
                 )
                 return fetch_all_to_model(cursor, ClanBattleOverallEntry)
 
+    def get_all_by_boss_entry_id(
+        self, guild_id: int, clan_battle_boss_entry_id: int
+    ) -> list[ClanBattleOverallEntry]:
+        with connection_context() as conn:
+            with conn.cursor(dictionary=True) as cursor:
+                cursor.execute(
+                    """
+                    SELECT clan_battle_overall_entry_id,
+                            guild_id,
+                            clan_battle_boss_entry_id,
+                            clan_battle_period_id,
+                            clan_battle_boss_id,
+                            player_id,
+                            player_name,
+                            boss_round,
+                            day,
+                            attack_type,
+                            damage,
+                            leftover_time,
+                            overall_leftover_entry_id,
+                            entry_date
+                    FROM clan_battle_overall_entry
+                    WHERE guild_id = %(guild_id)s
+                    AND clan_battle_boss_entry_id = %(clan_battle_boss_entry_id)s
+                    ORDER BY entry_date
+                    """,
+                    {
+                        "guild_id": guild_id,
+                        "clan_battle_boss_entry_id": clan_battle_boss_entry_id,
+                    },
+                )
+                return fetch_all_to_model(cursor, ClanBattleOverallEntry)
+
     def insert(
         self, cb_overall_entry: ClanBattleOverallEntry
     ) -> ClanBattleOverallEntry:
@@ -1114,6 +1102,7 @@ class ClanBattleOverallEntryRepository:
                     """
                     INSERT INTO clan_battle_overall_entry (
                         guild_id, 
+                        clan_battle_boss_entry_id,
                         clan_battle_period_id, 
                         clan_battle_boss_id, 
                         player_id, 
@@ -1129,6 +1118,7 @@ class ClanBattleOverallEntryRepository:
                     VALUES 
                     (
                         %(guild_id)s,
+                        %(clan_battle_boss_entry_id)s,
                         %(clan_battle_period_id)s,
                         %(clan_battle_boss_id)s,
                         %(player_id)s,

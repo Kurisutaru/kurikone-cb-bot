@@ -72,11 +72,11 @@ class DiscordTranslator(app_commands.Translator):
         return string  # Fallback to original string
 
     def _translate_command(self, context, string, lang):
-        command = context.data.name
+        command = context.data.boss_name
         return self.locale.text(lang, f"commands.{command}.name") or string
 
     def _translate_command_description(self, context, string, lang):
-        command = context.data.name
+        command = context.data.boss_name
         return self.locale.text(lang, f"commands.{command}.description") or string
 
     # def _translate_parameter(self, context, string, lang):

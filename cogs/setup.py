@@ -65,7 +65,6 @@ class SetupCommands(
             view=view,
             ephemeral=True,
         )
-        return None
 
     @app_commands.command(
         name="uninstall",
@@ -89,6 +88,7 @@ class SetupCommands(
         async def button_ok_callback(interact: discord.Interaction):
             await interact.response.defer(thinking=True, ephemeral=True)
             guild = interaction.guild
+            guild_id = interaction.guild_id
             action = await self.main_service.uninstall_bot_command(
                 guild, TL_SHIFTER_CHANNEL
             )
@@ -124,7 +124,6 @@ class SetupCommands(
             view=view,
             ephemeral=True,
         )
-        return None
 
 
 async def setup(bot: commands.Bot):

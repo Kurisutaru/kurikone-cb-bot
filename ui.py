@@ -31,13 +31,13 @@ class BookButton(Button):
     async def callback(
         self,
         interaction: discord.Interaction,
-        _ui_service: UiService = Provide["ui_service"],
+        ui_service: UiService = Provide["ui_service"],
         l: Locale = Provide["locale"],
         log: KuriLogger = Provide["logger"],
     ):
         guild_id = interaction.guild_id
 
-        service = await _ui_service.book_button_service(interaction)
+        service = await ui_service.book_button_service(interaction)
         if not service.is_success:
             await send_message_short(interaction, service.error_messages, True)
             return
@@ -114,7 +114,7 @@ class EntryButton(Button):
             await send_message_short(interaction, service.error_messages, True)
             return
 
-        modal = EntryInputModal(interaction.guild_id)
+        modal = EntryInputModal(interaction)
         await interaction.response.send_modal(modal)
 
 
@@ -123,13 +123,15 @@ class EntryInputModal(Modal):
     @inject
     def __init__(
         self,
-        guild_id: int,
-        _ui_service: UiService = Provide["ui_service"],
+        parent_inter: discord.Interaction,
         l: Locale = Provide["locale"],
     ) -> None:
-        super().__init__(title=l.t(guild_id, "ui.popup.entry_input.title"))
-        self.user_input.label = l.t(guild_id, "ui.popup.entry_input.label")
-        self.user_input.placeholder = l.t(guild_id, "ui.popup.entry_input.placeholder")
+        super().__init__(title=l.t(parent_inter.guild_id, "ui.popup.entry_input.title"))
+        self.user_input.label = l.t(parent_inter.guild_id, "ui.popup.entry_input.label")
+        self.user_input.placeholder = l.t(
+            parent_inter.guild_id, "ui.popup.entry_input.placeholder"
+        )
+        self.parent_inter = parent_inter
 
     # Define a text input
     user_input = TextInput(
@@ -145,27 +147,22 @@ class EntryInputModal(Modal):
     async def on_submit(
         self,
         interaction: discord.Interaction,
-        _ui_service: UiService = Provide["ui_service"],
+        ui_service: UiService = Provide["ui_service"],
         l: Locale = Provide["locale"],
         log: KuriLogger = Provide["logger"],
     ):
         guild_id = interaction.guild_id
-        message_id = interaction.message.id
 
-        service = await _ui_service.entry_input_service(
+        service = await ui_service.entry_input_service(
             interaction, self.user_input.value
         )
         if not service.is_success:
             await send_message_short(interaction, service.error_messages, True)
             return
 
-        embeds = service.result
-
-        # Refresh Messages
-        message = await discord_try_fetch_message(interaction.channel, message_id)
-        if message:
-            await interaction.message.edit(embeds=embeds, view=ButtonView(guild_id))
-
+        await self.parent_inter.message.edit(
+            embeds=service.result, view=ButtonView(guild_id)
+        )
         await interaction.response.defer(ephemeral=True)
 
 
@@ -180,20 +177,19 @@ class DoneButton(Button):
     async def callback(
         self,
         interaction: discord.Interaction,
-        _ui_service: UiService = Provide["ui_service"],
+        ui_service: UiService = Provide["ui_service"],
         l: Locale = Provide["locale"],
         log: KuriLogger = Provide["logger"],
     ):
         guild_id = interaction.guild_id
-        message_id = interaction.message.id
 
-        service = await _ui_service.done_button_service(interaction)
+        service = await ui_service.done_button_service(interaction)
         if not service.is_success:
             await send_message_short(interaction, service.error_messages, True)
             return
 
         view = View(timeout=None)
-        view.add_item(DoneOkButton(message_id=message_id))
+        view.add_item(DoneOkButton(interaction))
         view.add_item(ConfirmationNoCancelButton(emoji_param=EmojiEnum.NO))
 
         await send_message_long(
@@ -206,54 +202,38 @@ class DoneButton(Button):
 
 # Done Ok Confirm Button
 class DoneOkButton(Button):
-    def __init__(self, message_id: int):
+    def __init__(self, parent_inter: discord.Interaction):
         super().__init__(
             label=EmojiEnum.DONE.name.capitalize(),
             style=ButtonStyle.green,
             emoji=EmojiEnum.DONE.value,
             row=0,
         )
-        self.message_id = message_id
+        self.parent_inter = parent_inter
 
     @inject
     async def callback(
         self,
         interaction: discord.Interaction,
-        _main_service: MainService = Provide["main_service"],
-        _ui_service: UiService = Provide["ui_service"],
+        main_service: MainService = Provide["main_service"],
+        ui_service: UiService = Provide["ui_service"],
         l: Locale = Provide["locale"],
         log: KuriLogger = Provide["logger"],
     ):
-        user_id = interaction.user.id
-        display_name = interaction.user.display_name
-        message_id = self.message_id
         guild_id = interaction.guild_id
 
-        done_service = await _main_service.done_entry(
-            guild_id, message_id, user_id, display_name
-        )
+        done_service = await main_service.done_entry(interaction)
         if not done_service.is_success:
             await discord_close_response(interaction=interaction)
             log.error(done_service.error_messages)
             return
 
-        # Refresh Messages
-        message = await discord_try_fetch_message(
-            channel=interaction.channel, message_id=message_id
+        await self.parent_inter.message.edit(
+            embeds=done_service.result, view=ButtonView(guild_id)
         )
-        if message:
-            embeds = await _main_service.refresh_clan_battle_boss_embeds(
-                guild_id, message_id
-            )
-            if not embeds.is_success:
-                await interaction.response.defer(ephemeral=True)
-                log.error(embeds.error_messages)
-                return
-
-            await message.edit(embeds=embeds.result, view=ButtonView(guild_id))
 
         asyncio.create_task(
-            _main_service.refresh_report_channel_message(interaction.guild)
+            main_service.refresh_report_channel_message(interaction.guild)
         )
 
         await discord_close_response(interaction=interaction)
@@ -286,14 +266,12 @@ class DeadButton(Button):
 
         # Fresh Entry
         if book.leftover_time is None:
-            modal = LeftoverModal(guild_id)
+            modal = LeftoverModal(interaction)
             await interaction.response.send_modal(modal)
         # Carry over
         else:
             view = View(timeout=None)
-            view.add_item(
-                DeadOkButton(message_id=message_id, leftover_time=book.leftover_time)
-            )
+            view.add_item(DeadOkButton(interaction, book.leftover_time))
             view.add_item(ConfirmationNoCancelButton(emoji_param=EmojiEnum.NO))
 
             await send_message_long(
@@ -309,15 +287,17 @@ class LeftoverModal(Modal):
     @inject
     def __init__(
         self,
-        guild_id: int,
-        _ui_service: UiService = Provide["ui_service"],
+        parent_inter: discord.Interaction,
         l: Locale = Provide["locale"],
     ):
-        super().__init__(title=l.t(guild_id, "ui.popup.leftover_input.title"))
-        self.guild_id = guild_id
-        self.user_input.label = l.t(guild_id, "ui.popup.leftover_input.label")
+        self.guild_id = parent_inter.guild_id
+        self.user_input.label = l.t(self.guild_id, "ui.popup.leftover_input.label")
         self.user_input.placeholder = l.t(
-            guild_id, "ui.popup.leftover_input.placeholder"
+            self.guild_id, "ui.popup.leftover_input.placeholder"
+        )
+        self.parent_inter = parent_inter
+        super().__init__(
+            title=l.t(parent_inter.guild_id, "ui.popup.leftover_input.title")
         )
 
     # Define a text input
@@ -360,7 +340,7 @@ class LeftoverModal(Modal):
             return
 
         view = View(timeout=None)
-        view.add_item(DeadOkButton(message_id=message_id, leftover_time=leftover_time))
+        view.add_item(DeadOkButton(interaction, leftover_time))
         view.add_item(ConfirmationNoCancelButton(emoji_param=EmojiEnum.NO))
 
         await send_message_long(
@@ -373,14 +353,14 @@ class LeftoverModal(Modal):
 
 # Dead Ok Confirm Button
 class DeadOkButton(Button):
-    def __init__(self, message_id: int, leftover_time: int):
+    def __init__(self, parent_inter: discord.Interaction, leftover_time: int):
         super().__init__(
             label=EmojiEnum.DONE.name.capitalize(),
             style=ButtonStyle.green,
             emoji=EmojiEnum.DONE.value,
             row=0,
         )
-        self.message_id = message_id
+        self.parent_inter = parent_inter
         self.leftover_time = leftover_time
 
     @inject
@@ -392,72 +372,32 @@ class DeadOkButton(Button):
         l: Locale = Provide["locale"],
         log: KuriLogger = Provide["logger"],
     ):
-        user_id = interaction.user.id
-        display_name = interaction.user.display_name
-        message_id = self.message_id
-        guild_id = interaction.guild_id
         leftover_time = self.leftover_time
 
         await discord_close_response(interaction=interaction)
 
-        dead_result = await _main_service.dead_ok(
-            guild_id, message_id, user_id, display_name, leftover_time
-        )
+        dead_result = await _main_service.dead_ok(self.parent_inter, leftover_time)
         if not dead_result.is_success:
             log.error(dead_result.error_messages)
             await interaction.response.defer(ephemeral=True)
-            return
-
-        boss_id = dead_result.result.clan_battle_boss_id
-        generate = await _main_service.generate_next_boss(
-            interaction,
-            boss_id,
-            message_id,
-            dead_result.result.attack_type,
-            leftover_time,
-        )
-        if not generate.is_success:
-            log.error(generate.error_messages)
-            await interaction.response.defer(ephemeral=True)
-            return
-
-        message = await discord_try_fetch_message(
-            interaction.channel, generate.result.message_id
-        )
-        if message is None:
-            log.error("Failed to fetch message")
-            await interaction.response.defer(ephemeral=True)
-            return
-
-        embeds = await _main_service.refresh_clan_battle_boss_embeds(
-            guild_id, message.id
-        )
-        if not embeds.is_success:
-            await interaction.response.defer(ephemeral=True)
-            log.error(embeds.error_messages)
             return
 
         asyncio.create_task(
             _main_service.refresh_report_channel_message(interaction.guild)
         )
 
-        await message.edit(content="", embeds=embeds.result, view=ButtonView(guild_id))
-
 
 # PATK Button
 class BookPatkButton(Button):
-    @inject
     def __init__(
         self,
         interaction: discord.Interaction,
         disable: bool,
-        _main_service: MainService = Provide["main_service"],
-        _ui_service: UiService = Provide["ui_service"],
         l: Locale = Provide["locale"],
     ):
         self.local_emoji = EmojiEnum.PATK
         self.attack_type = AttackTypeEnum.PATK
-        self.parent_interaction = interaction
+        self.parent_inter = interaction
 
         super().__init__(
             label=l.t(interaction.guild_id, "ui.button.physical"),
@@ -471,37 +411,28 @@ class BookPatkButton(Button):
     async def callback(
         self,
         interaction: discord.Interaction,
-        _main_service: MainService = Provide["main_service"],
-        _ui_service: UiService = Provide["ui_service"],
+        ui_service: UiService = Provide["ui_service"],
         l: Locale = Provide["locale"],
         log: KuriLogger = Provide["logger"],
     ):
         user_id = interaction.user.id
         display_name = interaction.user.display_name
+        channel_id = interaction.channel.id
         guild_id = interaction.guild_id
-        message_id = self.parent_interaction.message.id
 
-        insert_result = await _main_service.insert_boss_book_entry(
-            guild_id=guild_id,
-            message_id=message_id,
-            user_id=user_id,
-            display_name=display_name,
-            attack_type=self.attack_type,
+        embeds = await ui_service.insert_boss_book_entry(
+            guild_id,
+            channel_id,
+            user_id,
+            display_name,
+            self.attack_type,
         )
-        if not insert_result.is_success:
-            await interaction.response.defer(ephemeral=True)
-            log.error(insert_result.error_messages)
-            return
-
-        embeds = await _main_service.refresh_clan_battle_boss_embeds(
-            guild_id, message_id
-        )
-        if not insert_result.is_success:
+        if not embeds.is_success:
             await interaction.response.defer(ephemeral=True)
             log.error(embeds.error_messages)
             return
 
-        await self.parent_interaction.message.edit(
+        await self.parent_inter.message.edit(
             embeds=embeds.result, view=ButtonView(guild_id)
         )
         await discord_close_response(interaction=interaction)
@@ -518,13 +449,11 @@ class BookMatkButton(Button):
         self,
         interaction: discord.Interaction,
         disable: bool,
-        _main_service: MainService = Provide["main_service"],
-        _ui_service: UiService = Provide["ui_service"],
         l: Locale = Provide["locale"],
     ):
         self.local_emoji = EmojiEnum.MATK
         self.attack_type = AttackTypeEnum.MATK
-        self.parent_interaction = interaction
+        self.parent_inter = interaction
 
         super().__init__(
             label=l.t(interaction.guild_id, "ui.button.magical"),
@@ -538,37 +467,28 @@ class BookMatkButton(Button):
     async def callback(
         self,
         interaction: discord.Interaction,
-        _main_service: MainService = Provide["main_service"],
-        _ui_service: UiService = Provide["ui_service"],
+        ui_service: UiService = Provide["ui_service"],
         l: Locale = Provide["locale"],
         log: KuriLogger = Provide["logger"],
     ):
         user_id = interaction.user.id
         display_name = interaction.user.display_name
+        channel_id = interaction.channel.id
         guild_id = interaction.guild_id
-        message_id = self.parent_interaction.message.id
 
-        insert_result = await _main_service.insert_boss_book_entry(
-            guild_id=guild_id,
-            message_id=message_id,
-            user_id=user_id,
-            display_name=display_name,
-            attack_type=self.attack_type,
+        embeds = await ui_service.insert_boss_book_entry(
+            guild_id,
+            channel_id,
+            user_id,
+            display_name,
+            self.attack_type,
         )
-        if not insert_result.is_success:
-            await interaction.response.defer(ephemeral=True)
-            log.error(insert_result.error_messages)
-            return
-
-        embeds = await _main_service.refresh_clan_battle_boss_embeds(
-            guild_id, message_id
-        )
-        if not insert_result.is_success:
+        if not embeds.is_success:
             await interaction.response.defer(ephemeral=True)
             log.error(embeds.error_messages)
             return
 
-        await self.parent_interaction.message.edit(
+        await self.parent_inter.message.edit(
             embeds=embeds.result, view=ButtonView(guild_id)
         )
         await discord_close_response(interaction=interaction)
@@ -585,13 +505,11 @@ class BookLeftoverButton(Button):
         self,
         leftover: ClanBattleLeftover,
         interaction: discord.Interaction,
-        _main_service: MainService = Provide["main_service"],
-        _ui_service: UiService = Provide["ui_service"],
         l: Locale = Provide["locale"],
     ):
         self.local_emoji = EmojiEnum.CARRY
         self.attack_type = AttackTypeEnum.CARRY
-        self.parent_interaction = interaction
+        self.parent_inter = interaction
         self.parent_overall_id = leftover.clan_battle_overall_entry_id
         self.label_string = l.t(
             interaction.guild_id,
@@ -613,48 +531,30 @@ class BookLeftoverButton(Button):
     async def callback(
         self,
         interaction: discord.Interaction,
-        _main_service: MainService = Provide["main_service"],
-        _ui_service: UiService = Provide["ui_service"],
+        ui_service: UiService = Provide["ui_service"],
         l: Locale = Provide["locale"],
         log: KuriLogger = Provide["logger"],
     ):
         user_id = interaction.user.id
         display_name = interaction.user.display_name
+        channel_id = interaction.channel.id
         guild_id = interaction.guild_id
-        message_id = self.parent_interaction.message.id
-        leftover_time = self.leftover_time
-        attack_type = self.attack_type
-        parent_overall_id = self.parent_overall_id
 
-        insert_result = await _main_service.insert_boss_book_entry(
-            guild_id=guild_id,
-            message_id=message_id,
-            user_id=user_id,
-            display_name=display_name,
-            attack_type=attack_type,
-            parent_overall_id=parent_overall_id,
-            leftover_time=leftover_time,
+        embeds = await ui_service.insert_boss_book_entry(
+            guild_id,
+            channel_id,
+            user_id,
+            display_name,
+            self.attack_type,
+            self.parent_overall_id,
+            self.leftover_time,
         )
-        if not insert_result.is_success:
-            await interaction.response.defer(ephemeral=True)
-            log.error(insert_result.error_messages)
-            return
-
-        message = await discord_try_fetch_message(interaction.channel, message_id)
-        if message is None:
-            await interaction.response.defer(ephemeral=True)
-            log.error("Could not fetch message")
-            return
-
-        embeds = await _main_service.refresh_clan_battle_boss_embeds(
-            guild_id, message_id
-        )
-        if not insert_result.is_success:
+        if not embeds.is_success:
             await interaction.response.defer(ephemeral=True)
             log.error(embeds.error_messages)
             return
 
-        await self.parent_interaction.message.edit(
+        await self.parent_inter.message.edit(
             embeds=embeds.result, view=ButtonView(guild_id)
         )
         await discord_close_response(interaction=interaction)

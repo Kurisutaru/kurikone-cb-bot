@@ -9,7 +9,6 @@ from logger import KuriLogger
 from repository import (
     GuildRepository,
     ChannelRepository,
-    ChannelMessageRepository,
     ClanBattleBossEntryRepository,
     ClanBattleBossBookRepository,
     ClanBattlePeriodRepository,
@@ -18,7 +17,6 @@ from repository import (
     ClanBattleOverallEntryRepository,
     GuildPlayerRepository,
     ClanBattleReportMessageRepository,
-    GenericRepository,
     ErrorLogRepository,
 )
 from services import MainService, ClanBattlePeriodService, Services, UiService
@@ -54,7 +52,6 @@ class Container(containers.DeclarativeContainer):
     # Repositories
     guild_repo = providers.Singleton(GuildRepository)
     channel_repo = providers.Singleton(ChannelRepository)
-    channel_message_repo = providers.Singleton(ChannelMessageRepository)
     clan_battle_boss_entry_repo = providers.Singleton(ClanBattleBossEntryRepository)
     clan_battle_boss_book_repo = providers.Singleton(ClanBattleBossBookRepository)
     clan_battle_period_repo = providers.Singleton(ClanBattlePeriodRepository)
@@ -67,7 +64,6 @@ class Container(containers.DeclarativeContainer):
     clan_battle_report_message_repo = providers.Singleton(
         ClanBattleReportMessageRepository
     )
-    generic_repo = providers.Singleton(GenericRepository)
     error_log_repo = providers.Singleton(ErrorLogRepository)
 
     # Services (deferred import to avoid circular dependency)
@@ -75,7 +71,6 @@ class Container(containers.DeclarativeContainer):
         Services,  # Lazy import
         guild_repo=guild_repo,
         channel_repo=channel_repo,
-        channel_message_repo=channel_message_repo,
         clan_battle_boss_entry_repo=clan_battle_boss_entry_repo,
         clan_battle_boss_book_repo=clan_battle_boss_book_repo,
         clan_battle_period_repo=clan_battle_period_repo,
@@ -84,7 +79,6 @@ class Container(containers.DeclarativeContainer):
         clan_battle_overall_entry_repo=clan_battle_overall_entry_repo,
         guild_player_repo=guild_player_repo,
         clan_battle_report_message_repo=clan_battle_report_message_repo,
-        generic_repo=generic_repo,
         error_log_repo=error_log_repo,
     )
 

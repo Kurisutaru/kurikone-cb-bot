@@ -4,7 +4,7 @@ from discord.ext import commands
 from discord.ext.commands import Bot
 
 from config import check_env_vars, config
-from dependency import Container, container
+from dependency import container
 from globals import GUILD_LOCALE, TL_SHIFTER_CHANNEL
 
 from logger import KuriLogger

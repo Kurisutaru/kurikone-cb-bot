@@ -41,6 +41,7 @@ class EmojiEnum(Enum):
     BOOK = "⚔️"
     ENTRY = "📝"
     FINISH = "🏁"
+    ROTATE = "🔄"
     STAR = "🌟"
     YES = "✔"
     NO = "❌"

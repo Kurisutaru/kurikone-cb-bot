@@ -3,12 +3,10 @@ import traceback
 import uuid
 
 import discord
-from dependency_injector.wiring import inject, Provide
 from discord import Embed, Message, TextChannel, app_commands
 from discord.abc import GuildChannel
 from discord.ext.commands.bot import Bot
 
-# from database import db_pool
 from globals import NEW_LINE
 from locales import Locale
 from logger import KuriLogger
@@ -24,6 +22,7 @@ from utils import (
     generate_random_boss_period,
     generate_current_cb_period,
     now,
+    date_between,
 )
 
 
@@ -32,7 +31,6 @@ class Services:
         self,
         guild_repo: GuildRepository,
         channel_repo: ChannelRepository,
-        channel_message_repo: ChannelMessageRepository,
         clan_battle_boss_entry_repo: ClanBattleBossEntryRepository,
         clan_battle_boss_book_repo: ClanBattleBossBookRepository,
         clan_battle_period_repo: ClanBattlePeriodRepository,
@@ -41,12 +39,10 @@ class Services:
         clan_battle_overall_entry_repo: ClanBattleOverallEntryRepository,
         guild_player_repo: GuildPlayerRepository,
         clan_battle_report_message_repo: ClanBattleReportMessageRepository,
-        generic_repo: GenericRepository,
         error_log_repo: ErrorLogRepository,
     ):
         self.guild_repo = guild_repo
         self.channel_repo = channel_repo
-        self.channel_message_repo = channel_message_repo
         self.clan_battle_boss_entry_repo = clan_battle_boss_entry_repo
         self.clan_battle_boss_book_repo = clan_battle_boss_book_repo
         self.clan_battle_period_repo = clan_battle_period_repo
@@ -55,7 +51,6 @@ class Services:
         self.clan_battle_overall_entry_repo = clan_battle_overall_entry_repo
         self.guild_player_repo = guild_player_repo
         self.clan_battle_report_message_repo = clan_battle_report_message_repo
-        self.generic_repo = generic_repo
         self.error_log_repo = error_log_repo
 
     @inject
@@ -127,27 +122,30 @@ class MainService:
             if not channel_result.is_success:
                 raise Exception(channel_result.error_messages)
 
-            for enum, channel in channel_result.result:
+            for channel in channel_result.result:
                 # Category doing nothing, pass
-                if enum == ChannelEnum.CATEGORY:
+                if channel.channel_type == ChannelEnum.CATEGORY:
                     continue
 
                 # For TL Shifting watcher
-                if enum == ChannelEnum.TL_SHIFTER and channel:
-                    tl_shifter_channel[channel.id] = None
+                if channel.channel_type == ChannelEnum.TL_SHIFTER and channel:
+                    tl_shifter_channel[channel.channel_id] = None
                     continue
 
+                discord_channel = guild.get_channel(channel.channel_id)
                 # Report
-                if enum == ChannelEnum.REPORT and channel:
-                    message = await self.setup_channel_report_message(channel)
+                if channel.channel_type == ChannelEnum.REPORT and channel:
+                    message = await self.setup_channel_report_message(discord_channel)
                     if not message.is_success:
                         raise Exception(message.error_messages)
                     continue
 
                 # Boss Channel
                 # Return if not enum named boss
-                if "boss" in enum.name.lower():
-                    message = await self.setup_channel_boss_message(enum, channel)
+                if "boss" in channel.channel_type.name.lower():
+                    message = await self.setup_channel_boss_message(
+                        channel, discord_channel
+                    )
                     if not message.is_success:
                         raise Exception(message.error_messages)
 
@@ -198,8 +196,8 @@ class MainService:
         guild: discord.Guild,
         _service: Services = Provide["services"],
         log: KuriLogger = Provide["logger"],
-    ) -> ServiceResult[list[tuple[ChannelEnum, GuildChannel]]]:
-        service_result = ServiceResult[list[tuple[ChannelEnum, GuildChannel]]]()
+    ) -> ServiceResult[list[Channel]]:
+        service_result = ServiceResult[list[Channel]]()
         try:
             overwrites = {
                 guild.default_role: discord.PermissionOverwrite(
@@ -248,15 +246,12 @@ class MainService:
                             overwrites=local_overwrites,
                         )
 
-                    _service.channel_repo.insert_channel(
-                        Channel(
-                            channel_id=channel.id, guild_id=guild.id, channel_type=enum
-                        )
+                    channel_data = _service.channel_repo.insert_channel(
+                        Channel(channel.id, guild.id, enum)
                     )
-                    processed_channel.append((enum, channel))
+                    processed_channel.append(channel_data)
                 else:
-                    channel = guild.get_channel(channel_data.channel_id)
-                    processed_channel.append((enum, channel))
+                    processed_channel.append(channel_data)
 
             service_result.set_success(processed_channel)
 
@@ -296,102 +291,64 @@ class MainService:
     @inject
     async def setup_channel_boss_message(
         self,
-        enum: ChannelEnum,
-        channel: GuildChannel,
+        channel: Channel,
+        discord_channel: GuildChannel,
         _service: Services = Provide["services"],
         log: KuriLogger = Provide["logger"],
         l: Locale = Provide["locale"],
     ) -> ServiceResult[Optional[Message]]:
         service_result = ServiceResult[Optional[Message]]()
         try:
-            if not isinstance(channel, TextChannel):
+            if not isinstance(discord_channel, TextChannel):
                 return service_result
 
-            guild_id = channel.guild.id
+            guild_id = discord_channel.guild.id
 
-            # Get Message from Database
-            ch_message = (
-                _service.channel_message_repo.get_channel_message_by_channel_id(
-                    channel_id=channel.id
-                )
-            )
-
-            if ch_message is None:
-                message = await channel.send(
+            if channel.message_id is None:
+                message = await discord_channel.send(
                     content=l.t(guild_id, "ui.status.preparing_data")
                 )
-                ch_message = ChannelMessage(
-                    channel_id=channel.id,
-                    message_id=message.id,
+                channel.message_id = message.id
+                _service.channel_repo.update_channel(channel)
+            else:
+                message = await discord_try_fetch_message(
+                    discord_channel, channel.message_id
                 )
-                _service.channel_message_repo.insert_channel_message(ch_message)
 
-            period = _service.clan_battle_period_repo.get_current_active_cb_period()
-            boss_id = getattr(period, f"{enum.value['type'].lower()}_id")
+            period = _service.clan_battle_period_repo.get_current_active_cb_period_day()
+            boss_id = getattr(
+                period, f"{channel.channel_type.value['type'].lower()}_id"
+            )
 
             cb_entry = _service.clan_battle_boss_entry_repo.get_boss_entry_by_param(
                 guild_id, period.clan_battle_period_id, boss_id
             )
-            message = await discord_try_fetch_message(channel, ch_message.message_id)
 
-            if (
-                message
-                and cb_entry
-                and period
-                and (
-                    cb_entry.clan_battle_period_id != period.clan_battle_period_id
-                    or cb_entry.clan_battle_boss_id != boss_id
-                )
-            ):
-                # Set the embed color daaark
+            # Edit previous message to remove button and make embed dark
+            if message and cb_entry is None and period.current_day == 1:
+                # Edit old
                 for embed in message.embeds:
                     embed.colour = discord.Colour.dark_grey()
                 await message.edit(view=None, embeds=message.embeds)
-                message = None
-                cb_entry = None
-
-            # Main logic flow
-            if message is None:
-                # Case when message doesn't exist (was deleted)
-                message = await channel.send(
+                # Create new one
+                message = await discord_channel.send(
                     content=l.t(guild_id, "ui.status.preparing_data")
                 )
-                ch_message = ChannelMessage(
-                    channel_id=channel.id,
-                    message_id=message.id,
-                )
+                channel.message_id = message.id
+                _service.channel_repo.update_channel(channel)
 
-                if cb_entry:
-                    # Update existing entry with new message ID
-                    cb_entry.message_id = message.id
-                    _service.clan_battle_boss_entry_repo.update_message_id(
-                        cb_entry.clan_battle_boss_entry_id, message.id
-                    )
-                else:
-                    # Create new entry since neither message nor entry exists
-                    await self.insert_clan_battle_entry_by_round(
-                        guild_id=guild_id,
-                        message_id=message.id,
-                        boss_id=boss_id,
-                        period_id=period.clan_battle_period_id,
-                        boss_round=1,
-                    )
-
-                # Update channel message in both cases
-                _service.channel_message_repo.update_channel_message(ch_message)
-
-            elif cb_entry is None:
+            # Main logic flow
+            if cb_entry is None:
                 # Case when message exists but no entry exists
                 await self.insert_clan_battle_entry_by_round(
                     guild_id=guild_id,
-                    message_id=message.id,
                     boss_id=boss_id,
                     period_id=period.clan_battle_period_id,
                     boss_round=1,
                 )
 
             # Refresh the bosses
-            embeds = await self.refresh_clan_battle_boss_embeds(guild_id, message.id)
+            embeds = await self.refresh_clan_battle_boss_embeds(guild_id, boss_id)
             if embeds.is_success:
                 import ui
 
@@ -411,7 +368,6 @@ class MainService:
     async def insert_clan_battle_entry_by_round(
         self,
         guild_id: int,
-        message_id: int,
         boss_id: int,
         period_id: int,
         boss_round: int,
@@ -440,14 +396,10 @@ class MainService:
 
             cb_entry = ClanBattleBossEntry(
                 guild_id=guild_id,
-                message_id=message_id,
                 clan_battle_period_id=period_id,
                 clan_battle_boss_id=cb_boss.clan_battle_boss_id,
-                name=f"{cb_boss.name} 「{cb_boss.description}」",
-                image_path=cb_boss.image_path,
                 boss_round=1,
                 current_health=cb_boss_health.health,
-                max_health=cb_boss_health.health,
             )
 
             cb_entry = (
@@ -464,18 +416,18 @@ class MainService:
 
         return service_result
 
+    @transactional
     @inject
     async def refresh_clan_battle_boss_embeds(
         self,
         guild_id: int,
-        message_id: int,
+        boss_id: int,
         _service: Services = Provide["services"],
         log: KuriLogger = Provide["logger"],
     ) -> ServiceResult[list[Embed]]:
         service_result = ServiceResult[list[Embed]]()
         try:
             embeds = []
-            message_id = message_id
             guild_id = guild_id
 
             active_period = (
@@ -483,27 +435,24 @@ class MainService:
             )
 
             # Header
-            entry = _service.clan_battle_boss_entry_repo.get_last_by_message_id(
-                message_id=message_id
+            entry = _service.clan_battle_boss_entry_repo.get_boss_entry_by_param(
+                guild_id, active_period.clan_battle_period_id, boss_id
             )
 
             embeds.append(create_header_embed(guild_id, entry))
 
             # Entry
             cb_overall_repository = ClanBattleOverallEntryRepository()
-            done_entries = cb_overall_repository.get_all_by_param_and_round(
-                guild_id,
-                active_period.clan_battle_period_id,
-                entry.clan_battle_boss_id,
-                entry.boss_round,
+            done_entries = cb_overall_repository.get_all_by_boss_entry_id(
+                guild_id, entry.clan_battle_boss_entry_id
             )
 
             if len(done_entries) > 0:
                 embeds.append(create_done_embed(guild_id, done_entries))
 
             # Book
-            book_entries = _service.clan_battle_boss_book_repo.get_all_by_message_id(
-                message_id=message_id
+            book_entries = _service.clan_battle_boss_book_repo.get_all_by_entry_id(
+                guild_id, entry.clan_battle_boss_entry_id
             )
 
             if len(book_entries) > 0:
@@ -521,79 +470,74 @@ class MainService:
     @inject
     async def done_entry(
         self,
-        guild_id: int,
-        message_id: int,
-        user_id: int,
-        display_name: str,
-        _service: Services = Provide["services"],
+        interaction: discord.Interaction,
+        service: Services = Provide["services"],
         log: KuriLogger = Provide["logger"],
         l: Locale = Provide["locale"],
-    ) -> ServiceResult[None]:
-        service_result = ServiceResult[None]()
+    ) -> ServiceResult[list[Embed]]:
+        service_result = ServiceResult[list[Embed]]()
 
         try:
-
-            book = _service.clan_battle_boss_book_repo.get_player_book_entry(
-                message_id, user_id
+            boss_entry = service.clan_battle_boss_entry_repo.get_boss_entry_active_cb_by_channel_id(
+                interaction.channel.id
             )
-            if book is None:
-                service_result.set_error(f"Book result is None")
-                return service_result
 
-            boss_entry = _service.clan_battle_boss_entry_repo.get_last_by_message_id(
-                message_id
+            book_result = (
+                service.clan_battle_boss_book_repo.get_player_book_by_entry_id(
+                    boss_entry.clan_battle_boss_entry_id,
+                    interaction.user.id,
+                )
             )
-            if boss_entry is None:
-                service_result.set_error(f"Boss entry is None")
-                return service_result
 
-            period = _service.clan_battle_period_repo.get_current_active_cb_period_day()
-            if period is None:
-                service_result.set_error(f"Period is None")
-                return service_result
+            period = service.clan_battle_period_repo.get_current_active_cb_period_day()
 
-            _service.clan_battle_boss_book_repo.delete_book_by_id(
-                book.clan_battle_boss_book_id
+            service.clan_battle_boss_book_repo.delete_book_by_id(
+                book_result.clan_battle_boss_book_id
             )
 
             # Prepare insert into overall Entry
             cb_overall_repository = ClanBattleOverallEntryRepository()
             overall = cb_overall_repository.insert(
                 cb_overall_entry=ClanBattleOverallEntry(
-                    guild_id=guild_id,
+                    guild_id=interaction.guild_id,
+                    clan_battle_boss_entry_id=boss_entry.clan_battle_boss_entry_id,
                     clan_battle_period_id=period.clan_battle_period_id,
                     clan_battle_boss_id=boss_entry.clan_battle_boss_id,
-                    player_id=user_id,
-                    player_name=display_name,
+                    player_id=interaction.user.id,
+                    player_name=interaction.user.display_name,
                     boss_round=boss_entry.boss_round,
                     day=period.current_day,
-                    attack_type=book.attack_type,
-                    damage=book.damage,
+                    attack_type=book_result.attack_type,
+                    damage=book_result.damage,
                 )
             )
 
-            if not book.clan_battle_overall_entry_id is None:
-                _service.clan_battle_overall_entry_repo.update_overall_link(
-                    cb_overall_entry_id=book.clan_battle_overall_entry_id,
+            if not book_result.clan_battle_overall_entry_id is None:
+                service.clan_battle_overall_entry_repo.update_overall_link(
+                    cb_overall_entry_id=book_result.clan_battle_overall_entry_id,
                     overall_leftover_entry_id=overall.clan_battle_overall_entry_id,
                 )
 
             # Update Boss Entry
-            _service.clan_battle_boss_entry_repo.update_on_attack(
+            service.clan_battle_boss_entry_repo.update_on_attack(
                 clan_battle_boss_entry_id=boss_entry.clan_battle_boss_entry_id,
                 current_health=reduce_int_ab_non_zero(
-                    boss_entry.current_health, book.damage
+                    boss_entry.current_health, book_result.damage
                 ),
             )
 
-            service_result.set_success(None)
+            embeds = await self.refresh_clan_battle_boss_embeds(
+                interaction.guild_id, boss_entry.clan_battle_boss_id
+            )
+
+            service_result.set_success(embeds.result)
         except Exception as e:
             log.error(e)
             transaction_rollback()
-            trx_id = _service.gen_id()
-            asyncio.create_task(_service.error_log_db(guild_id, e, trx_id))
+            trx_id = service.gen_id()
+            asyncio.create_task(service.error_log_db(interaction.guild_id, e, trx_id))
             service_result.set_error(
-                l.t(guild_id, "message.unhandled_exception", uuid=trx_id)
+                l.t(interaction.guild_id, "message.unhandled_exception", uuid=trx_id)
             )
 
         return service_result
@@ -602,148 +546,121 @@ class MainService:
     @inject
     async def dead_ok(
         self,
-        guild_id: int,
-        message_id: int,
-        user_id: int,
-        display_name: str,
+        interaction: discord.Interaction,
         leftover_time: int,
-        _service: Services = Provide["services"],
+        service: Services = Provide["services"],
         log: KuriLogger = Provide["logger"],
         l: Locale = Provide["locale"],
     ) -> ServiceResult[ClanBattleOverallEntry]:
         service_result = ServiceResult[ClanBattleOverallEntry]()
+        guild_id = interaction.guild_id
         try:
-
-            book = _service.clan_battle_boss_book_repo.get_player_book_entry(
-                message_id, user_id
+            boss_entry = service.clan_battle_boss_entry_repo.get_boss_entry_active_cb_by_channel_id(
+                interaction.channel.id
             )
-            if book is None:
-                service_result.set_error(f"Book result is None")
-                return service_result
 
-            # Get CB Entry
-            boss_entry = _service.clan_battle_boss_entry_repo.get_last_by_message_id(
-                message_id
+            book_result = (
+                service.clan_battle_boss_book_repo.get_player_book_by_entry_id(
+                    boss_entry.clan_battle_boss_entry_id,
+                    interaction.user.id,
+                )
             )
-            if boss_entry is None:
-                service_result.set_error(f"Boss entry is None")
-                return service_result
 
-            period = _service.clan_battle_period_repo.get_current_active_cb_period_day()
-            if period is None:
-                service_result.set_error(f"Period is None")
-                return service_result
+            period = service.clan_battle_period_repo.get_current_active_cb_period_day()
 
-            # Delete self book - Unused
-            # _service.clan_battle_boss_book_repo.delete_book_by_id(
-            #    book.clan_battle_boss_book_id
-            # )
-
-            # Delete all book by boss entry (Including who deaded the bosses)
-            _service.clan_battle_boss_book_repo.delete_book_by_entry_id(
+            # Delete all book by boss entry (Including whom deaded the bosses)
+            service.clan_battle_boss_book_repo.delete_book_by_entry_id(
                 boss_entry.clan_battle_boss_entry_id
             )
 
             # Prepare insert into overall Entry
-            overall = _service.clan_battle_overall_entry_repo.insert(
+            overall = service.clan_battle_overall_entry_repo.insert(
                 cb_overall_entry=ClanBattleOverallEntry(
                     guild_id=guild_id,
+                    clan_battle_boss_entry_id=boss_entry.clan_battle_boss_entry_id,
                     clan_battle_period_id=period.clan_battle_period_id,
                     clan_battle_boss_id=boss_entry.clan_battle_boss_id,
-                    player_id=user_id,
-                    player_name=display_name,
+                    player_id=interaction.user.id,
+                    player_name=interaction.user.display_name,
                     boss_round=boss_entry.boss_round,
                     day=period.current_day,
-                    attack_type=book.attack_type,
-                    damage=book.damage,
+                    attack_type=book_result.attack_type,
+                    damage=book_result.damage,
                     leftover_time=(
                         None
-                        if book.attack_type == AttackTypeEnum.CARRY
+                        if book_result.attack_type == AttackTypeEnum.CARRY
                         else leftover_time
                     ),
                 )
             )
 
             # Update Boss Entry
-            _service.clan_battle_boss_entry_repo.update_on_attack(
+            service.clan_battle_boss_entry_repo.update_on_attack(
                 clan_battle_boss_entry_id=boss_entry.clan_battle_boss_entry_id,
                 current_health=reduce_int_ab_non_zero(
-                    boss_entry.current_health, book.damage
+                    boss_entry.current_health, book_result.damage
                 ),
             )
 
-            if not book.clan_battle_overall_entry_id is None:
-                _service.clan_battle_overall_entry_repo.update_overall_link(
-                    cb_overall_entry_id=book.clan_battle_overall_entry_id,
+            if not book_result.clan_battle_overall_entry_id is None:
+                service.clan_battle_overall_entry_repo.update_overall_link(
+                    cb_overall_entry_id=book_result.clan_battle_overall_entry_id,
                     overall_leftover_entry_id=overall.clan_battle_overall_entry_id,
                 )
 
+            await self.generate_next_boss(
+                interaction,
+                book_result.attack_type,
+                leftover_time,
+            )
+
             service_result.set_success(overall)
+
         except Exception as e:
             log.error(e)
             transaction_rollback()
-            trx_id = _service.gen_id()
-            asyncio.create_task(_service.error_log_db(guild_id, e, trx_id))
+            trx_id = service.gen_id()
+            asyncio.create_task(service.error_log_db(guild_id, e, trx_id))
             service_result.set_error(
                 l.t(guild_id, "message.unhandled_exception", uuid=trx_id)
             )
 
         return service_result
 
-    @transactional
     @inject
     async def generate_next_boss(
         self,
-        interaction: discord.interactions.Interaction,
-        boss_id: int,
-        message_id: int,
+        interaction: discord.Interaction,
         attack_type: AttackTypeEnum,
         leftover_time: int,
-        _service: Services = Provide["services"],
+        service: Services = Provide["services"],
         log: KuriLogger = Provide["logger"],
         l: Locale = Provide["locale"],
     ) -> ServiceResult[ClanBattleBossEntry]:
         service_result = ServiceResult[ClanBattleBossEntry]()
 
         try:
-            message_id = message_id
             guild_id = interaction.guild_id
             channel_id = interaction.channel.id
 
-            # Get CB Entry
-            active_period = (
-                _service.clan_battle_period_repo.get_current_active_cb_period()
+            boss_entry = service.clan_battle_boss_entry_repo.get_boss_entry_active_cb_by_channel_id(
+                interaction.channel.id
             )
-            if active_period is None:
-                service_result.set_error(f"Active Period is None")
-                return service_result
 
-            # Get CB Entry
-            boss_entry = _service.clan_battle_boss_entry_repo.get_last_by_message_id(
-                message_id
-            )
-            if boss_entry is None:
-                service_result.set_error(f"Boss entry is None")
-                return service_result
+            period = service.clan_battle_period_repo.get_current_active_cb_period_day()
 
             # Edit Old one
-            prev_msg = await discord_try_fetch_message(
-                channel=interaction.channel, message_id=message_id
-            )
-            if prev_msg is None:
-                service_result.set_error(f"Previous message is not found")
-                return service_result
 
             done_entries = (
-                _service.clan_battle_overall_entry_repo.get_all_by_param_and_round(
+                service.clan_battle_overall_entry_repo.get_all_by_param_and_round(
                     guild_id,
-                    active_period.clan_battle_period_id,
+                    period.clan_battle_period_id,
                     boss_entry.clan_battle_boss_id,
                     boss_entry.boss_round,
                 )
             )
 
-            await prev_msg.edit(
+            await interaction.message.edit(
                 content="",
                 embeds=[
                     create_header_embed(
@@ -769,50 +686,35 @@ class MainService:
 
             next_round = boss_entry.boss_round + 1
 
-            boss = _service.clan_battle_boss_repo.fetch_clan_battle_boss_by_id(boss_id)
-            if boss is None:
-                service_result.set_error(f"Boss entry is None")
-                return service_result
-
-            health = (
-                _service.clan_battle_boss_health_repo.get_one_by_position_and_round(
-                    position=boss.position, boss_round=next_round
-                )
+            boss = service.clan_battle_boss_repo.fetch_clan_battle_boss_by_id_and_round(
+                boss_entry.clan_battle_boss_id, next_round
             )
-
-            if health is None:
-                service_result.set_error(f"Boss Health is None")
-                return service_result
-
-            period = _service.clan_battle_period_repo.get_current_active_cb_period()
-            if health is None:
-                service_result.set_error(f"Period is None")
-                return service_result
 
             new_message = await interaction.channel.send(
                 content=l.t(guild_id, "ui.status.preparing_data")
             )
-            channel_message = ChannelMessage(
-                channel_id=channel_id,
-                message_id=new_message.id,
-            )
 
-            _service.channel_message_repo.update_channel_message(channel_message)
+            service.channel_repo.update_channel_message(channel_id, new_message.id)
 
             boss_entry = ClanBattleBossEntry(
                 guild_id=guild_id,
-                message_id=new_message.id,
                 clan_battle_period_id=period.clan_battle_period_id,
                 clan_battle_boss_id=boss.clan_battle_boss_id,
-                name=f"{boss.name} 「{boss.description}」",
-                image_path=boss.image_path,
                 boss_round=next_round,
-                current_health=health.health,
-                max_health=health.health,
+                current_health=boss.health,
             )
 
-            _service.clan_battle_boss_entry_repo.insert_clan_battle_boss_entry(
+            service.clan_battle_boss_entry_repo.insert_clan_battle_boss_entry(
                 boss_entry
+            )
+
+            from ui import ButtonView
+
+            embeds = await self.refresh_clan_battle_boss_embeds(
+                interaction.guild_id, boss_entry.clan_battle_boss_id
+            )
+            await new_message.edit(
+                content="", embeds=embeds.result, view=ButtonView(guild_id)
             )
 
             service_result.set_success(boss_entry)
@@ -821,62 +723,6 @@ class MainService:
             transaction_rollback()
             service_result.set_error(str(e))
             print(e)
-
-        return service_result
-
-    @transactional
-    @inject
-    async def insert_boss_book_entry(
-        self,
-        guild_id: int,
-        message_id: int,
-        user_id: int,
-        display_name: str,
-        attack_type: AttackTypeEnum,
-        _service: Services = Provide["services"],
-        log: KuriLogger = Provide["logger"],
-        l: Locale = Provide["locale"],
-        parent_overall_id: int = None,
-        leftover_time: int = None,
-    ) -> ServiceResult[ClanBattleBossBook]:
-        service_result = ServiceResult[ClanBattleBossBook]()
-        try:
-
-            book_count = _service.clan_battle_boss_book_repo.get_player_book_count(
-                guild_id, user_id
-            )
-            if book_count is None:
-                service_result.set_error(f"Player Book Count not found")
-                return service_result
-
-            boss_entry = _service.clan_battle_boss_entry_repo.get_last_by_message_id(
-                message_id
-            )
-            if boss_entry is None:
-                service_result.set_error(f"Boss entry not found")
-                return service_result
-
-            cb_book = ClanBattleBossBook(
-                clan_battle_boss_entry_id=boss_entry.clan_battle_boss_entry_id,
-                guild_id=guild_id,
-                player_id=user_id,
-                player_name=display_name,
-                attack_type=attack_type,
-                clan_battle_overall_entry_id=parent_overall_id,
-                leftover_time=leftover_time,
-            )
-
-            result = _service.clan_battle_boss_book_repo.insert_boss_book_entry(cb_book)
-            service_result.set_success(result)
-
-        except Exception as e:
-            log.error(e)
-            transaction_rollback()
-            trx_id = _service.gen_id()
-            asyncio.create_task(_service.error_log_db(guild_id, e, trx_id))
-            service_result.set_error(
-                l.t(guild_id, "message.unhandled_exception", uuid=trx_id)
-            )
 
         return service_result
 
@@ -945,9 +791,6 @@ class MainService:
 
             # Guild Player
             _service.guild_player_repo.delete_by_guild_id(guild_id)
-
-            # Channel Message
-            _service.channel_message_repo.delete_by_guild_id(guild_id)
 
             # Channel
             channels = _service.channel_repo.get_all_by_guild_id(guild_id)
@@ -1111,32 +954,16 @@ class MainService:
                 service_result.set_error("Report channel not found in guild")
                 return service_result
 
-            # Get or create base report message
-            report_message_data = (
-                _service.channel_message_repo.get_channel_message_by_channel_id(
-                    channel.id
-                )
-            )
-            if report_message_data is None:
-                report_message = await channel.send(
+            if channel_data.message_id is None:
+                message = await channel.send(
                     content=l.t(guild_id, "ui.status.preparing_data")
                 )
-                channel_message = ChannelMessage(
-                    channel_id=channel.id, message_id=report_message.id
-                )
-                _service.channel_message_repo.insert_channel_message(channel_message)
+                channel_data.message_id = message.id
+                _service.channel_repo.update_channel(channel_data)
             else:
-                report_message = await discord_try_fetch_message(
-                    channel, report_message_data.message_id
+                message = await discord_try_fetch_message(
+                    channel, channel_data.message_id
                 )
-                if report_message is None:
-                    report_message = await channel.send(
-                        content=l.t(guild_id, "ui.status.preparing_data")
-                    )
-                    report_message_data.message_id = report_message.id
-                    _service.channel_message_repo.update_channel_message(
-                        report_message_data
-                    )
 
             # Get latest CB report message from DB
             cb_report_message_data = (
@@ -1149,20 +976,17 @@ class MainService:
             if cb_report_message_data is None:
                 # Alter here if message exist but report data is new,
                 # so it don't replace old one, but create new one if Period LIVE
-                if report_message and cur_period.period_type == PeriodType.LIVE:
-                    report_message = await channel.send(
-                        content=l.t(guild_id, "ui.status.preparing_data")
-                    )
-                    report_message_data.message_id = report_message.id
-                    _service.channel_message_repo.update_channel_message(
-                        report_message_data
-                    )
+                if cur_period.period_type == PeriodType.LIVE:
+                    if message.content != l.t(guild_id, "ui.status.preparing_data"):
+                        message = await channel.send(content="ui.status.preparing_data")
+                        channel_data.message_id = message.id
+                        _service.channel_repo.update_channel(channel_data)
 
                 cb_report_message_data = ClanBattleReportMessage(
                     guild_id=guild_id,
                     clan_battle_period_id=cur_period.clan_battle_period_id,
                     day=cur_period.current_day,
-                    message_id=report_message.id,
+                    message_id=message.id,
                 )
                 _service.clan_battle_report_message_repo.insert(cb_report_message_data)
 
@@ -1180,17 +1004,15 @@ class MainService:
                 return service_result
 
             embed = Embed(description=report_gen.result, color=discord.Colour.blurple())
-            await report_message.edit(content="", embed=embed)
+            await message.edit(content="", embed=embed)
 
             # Then check if we need a new message for new day
             if cur_period.current_day > cb_report_message_data.day:
                 new_report_message = await channel.send(
                     content=l.t(guild_id, "ui.status.preparing_data")
                 )
-                report_message_data.message_id = new_report_message.id
-                _service.channel_message_repo.update_channel_message(
-                    report_message_data
-                )
+                channel_data.message_id = new_report_message.id
+                _service.channel_repo.update_channel(channel_data)
 
                 new_cb_report_message_data = ClanBattleReportMessage(
                     guild_id=guild_id,
@@ -1222,7 +1044,7 @@ class MainService:
                 service_result.set_success(new_report_message)
                 return service_result
 
-            service_result.set_success(report_message)
+            service_result.set_success(message)
         except Exception as e:
             log.error(e)
             transaction_rollback()
@@ -1482,13 +1304,10 @@ class UiService:
         guild_id = interaction.guild_id
         try:
             user_id = interaction.user.id
-            message_id = interaction.message.id
 
             # Check if ended
-            boss_entry = _service.clan_battle_boss_entry_repo.get_last_active_period_by_message_id(
-                message_id
-            )
-            if boss_entry is None:
+            boss_entry = _service.clan_battle_period_repo.get_current_active_cb_period()
+            if not date_between(now(), boss_entry.date_from, boss_entry.date_to):
                 service_result.set_error(l.t(guild_id, "ui.status.clan_battle_ended"))
                 return service_result
 
@@ -1542,18 +1361,22 @@ class UiService:
         guild_id = interaction.guild_id
         try:
             user_id = interaction.user.id
-            message_id = interaction.message.id
 
             # Check if ended
-            boss_entry = _service.clan_battle_boss_entry_repo.get_last_active_period_by_message_id(
-                message_id
-            )
-            if boss_entry is None:
+            boss_entry = _service.clan_battle_period_repo.get_current_active_cb_period()
+            if not date_between(now(), boss_entry.date_from, boss_entry.date_to):
                 service_result.set_error(l.t(guild_id, "ui.status.clan_battle_ended"))
                 return service_result
 
-            book_result = _service.clan_battle_boss_book_repo.get_player_book_entry(
-                message_id=message_id, player_id=user_id
+            entry = _service.clan_battle_boss_entry_repo.get_boss_entry_active_cb_by_channel_id(
+                interaction.channel.id
+            )
+
+            book_result = (
+                _service.clan_battle_boss_book_repo.get_player_book_by_entry_id(
+                    entry.clan_battle_boss_entry_id,
+                    user_id,
+                )
             )
 
             if book_result is None:
@@ -1566,7 +1389,7 @@ class UiService:
                 book_result.clan_battle_boss_book_id
             )
             embeds = await MainService().refresh_clan_battle_boss_embeds(
-                guild_id, interaction.message.id
+                guild_id, entry.clan_battle_boss_id
             )
 
             service_result.set_success(embeds.result)
@@ -1594,17 +1417,22 @@ class UiService:
         guild_id = interaction.guild_id
         try:
             # Check if ended
-            boss_entry = _service.clan_battle_boss_entry_repo.get_last_active_period_by_message_id(
-                interaction.message.id
-            )
-            if boss_entry is None:
+            boss_entry = _service.clan_battle_period_repo.get_current_active_cb_period()
+            if not date_between(now(), boss_entry.date_from, boss_entry.date_to):
                 service_result.set_error(l.t(guild_id, "ui.status.clan_battle_ended"))
                 return service_result
 
-            book = _service.clan_battle_boss_book_repo.get_player_book_entry(
-                interaction.message.id, interaction.user.id
+            entry = _service.clan_battle_boss_entry_repo.get_boss_entry_active_cb_by_channel_id(
+                interaction.channel.id
             )
-            if book is None:
+
+            book_result = (
+                _service.clan_battle_boss_book_repo.get_player_book_by_entry_id(
+                    entry.clan_battle_boss_entry_id,
+                    interaction.user.id,
+                )
+            )
+            if book_result is None:
                 service_result.set_error(
                     f"## {l.t(interaction.guild_id, "ui.status.not_yet_booked")}"
                 )
@@ -1628,7 +1456,7 @@ class UiService:
         self,
         interaction: discord.Interaction,
         user_input: str,
-        _service: Services = Provide["services"],
+        service: Services = Provide["services"],
         log: KuriLogger = Provide["logger"],
         l: Locale = Provide["locale"],
     ) -> ServiceResult[list[Embed]]:
@@ -1638,10 +1466,8 @@ class UiService:
             message_id = interaction.message.id
 
             # Check if ended
-            boss_entry = _service.clan_battle_boss_entry_repo.get_last_active_period_by_message_id(
-                message_id
-            )
-            if boss_entry is None:
+            boss_entry = service.clan_battle_period_repo.get_current_active_cb_period()
+            if not date_between(now(), boss_entry.date_from, boss_entry.date_to):
                 service_result.set_error(l.t(guild_id, "ui.status.clan_battle_ended"))
                 return service_result
 
@@ -1659,28 +1485,34 @@ class UiService:
                 )
                 return service_result
 
-            # Update damage
-            book = _service.clan_battle_boss_book_repo.get_player_book_entry(
-                message_id=interaction.message.id, player_id=interaction.user.id
+            entry = service.clan_battle_boss_entry_repo.get_boss_entry_active_cb_by_channel_id(
+                interaction.channel.id
             )
 
-            if book is None:
+            book_result = (
+                service.clan_battle_boss_book_repo.get_player_book_by_entry_id(
+                    entry.clan_battle_boss_entry_id,
+                    interaction.user.id,
+                )
+            )
+
+            if book_result is None:
                 raise l.t(guild_id, "ui.validation.book_entry_not_found")
 
-            _service.clan_battle_boss_book_repo.update_damage_boss_book_by_id(
-                book.clan_battle_boss_book_id, damage
+            service.clan_battle_boss_book_repo.update_damage_boss_book_by_id(
+                book_result.clan_battle_boss_book_id, damage
             )
 
             embeds = await MainService().refresh_clan_battle_boss_embeds(
-                guild_id, message_id
+                guild_id, entry.clan_battle_boss_id
             )
             service_result.set_success(embeds.result)
 
         except Exception as e:
             log.error(e)
             transaction_rollback()
-            trx_id = _service.gen_id()
-            asyncio.create_task(_service.error_log_db(guild_id, e, trx_id))
+            trx_id = service.gen_id()
+            asyncio.create_task(service.error_log_db(guild_id, e, trx_id))
             service_result.set_error(
                 l.t(guild_id, "message.unhandled_exception", uuid=trx_id)
             )
@@ -1697,18 +1529,21 @@ class UiService:
         service_result = ServiceResult[None]()
         guild_id = interaction.guild_id
         try:
-            message_id = interaction.message.id
-            user_id = interaction.user.id
             # Check if ended
-            boss_entry = _service.clan_battle_boss_entry_repo.get_last_active_period_by_message_id(
-                message_id
-            )
-            if boss_entry is None:
+            boss_entry = _service.clan_battle_period_repo.get_current_active_cb_period()
+            if not date_between(now(), boss_entry.date_from, boss_entry.date_to):
                 service_result.set_error(l.t(guild_id, "ui.status.clan_battle_ended"))
                 return service_result
 
-            book_result = _service.clan_battle_boss_book_repo.get_player_book_entry(
-                message_id, user_id
+            entry = _service.clan_battle_boss_entry_repo.get_boss_entry_active_cb_by_channel_id(
+                interaction.channel.id
+            )
+
+            book_result = (
+                _service.clan_battle_boss_book_repo.get_player_book_by_entry_id(
+                    entry.clan_battle_boss_entry_id,
+                    interaction.user.id,
+                )
             )
 
             if book_result is None:
@@ -1723,7 +1558,7 @@ class UiService:
                 )
                 return service_result
 
-            return service_result
+            service_result.set_success(None)
         except Exception as e:
             trx_id = _service.gen_id()
             asyncio.create_task(_service.error_log_db(guild_id, e, trx_id))
@@ -1743,46 +1578,103 @@ class UiService:
         service_result = ServiceResult[ClanBattleBossBook]()
         guild_id = interaction.guild_id
         try:
-            message_id = interaction.message.id
-            user_id = interaction.user.id
-
             # Check if ended
-            boss_entry = _service.clan_battle_boss_entry_repo.get_last_active_period_by_message_id(
-                message_id
-            )
-            if boss_entry is None:
+            boss_entry = _service.clan_battle_period_repo.get_current_active_cb_period()
+            if not date_between(now(), boss_entry.date_from, boss_entry.date_to):
                 service_result.set_error(l.t(guild_id, "ui.status.clan_battle_ended"))
                 return service_result
 
-            book = _service.clan_battle_boss_book_repo.get_player_book_entry(
-                message_id, user_id
+            entry = _service.clan_battle_boss_entry_repo.get_boss_entry_active_cb_by_channel_id(
+                interaction.channel.id
             )
 
-            if book is None:
+            book_result = (
+                _service.clan_battle_boss_book_repo.get_player_book_by_entry_id(
+                    entry.clan_battle_boss_entry_id,
+                    interaction.user.id,
+                )
+            )
+
+            if book_result is None:
                 service_result.set_error(
                     f"## {l.t(guild_id, "ui.status.not_yet_booked")}"
                 )
                 return service_result
 
-            if book.damage is None:
+            if book_result.damage is None:
                 service_result.set_error(
                     f"## {l.t(guild_id, "ui.validation.enter_entry_type_first")}"
                 )
                 return service_result
 
-            boss_entry = _service.clan_battle_boss_entry_repo.get_last_by_message_id(
-                message_id
+            boss_entry = _service.clan_battle_boss_entry_repo.get_boss_entry_active_cb_by_channel_id(
+                interaction.channel.id
             )
-            if book.damage < boss_entry.current_health:
+            if book_result.damage < boss_entry.current_health:
                 service_result.set_error(
                     f"## {l.t(guild_id, "ui.validation.entry_damage_less_than_boss_hp")}"
                 )
                 return service_result
 
-            service_result.set_success(book)
+            service_result.set_success(book_result)
         except Exception as e:
             trx_id = _service.gen_id()
             asyncio.create_task(_service.error_log_db(guild_id, e, trx_id))
+            service_result.set_error(
+                l.t(guild_id, "message.unhandled_exception", uuid=trx_id)
+            )
+
+        return service_result
+
+    @transactional
+    @inject
+    async def insert_boss_book_entry(
+        self,
+        guild_id: int,
+        channel_id: int,
+        user_id: int,
+        display_name: str,
+        attack_type: AttackTypeEnum,
+        parent_overall_id: int = None,
+        leftover_time: int = None,
+        main_service: MainService = Provide["main_service"],
+        service: Services = Provide["services"],
+        log: KuriLogger = Provide["logger"],
+        l: Locale = Provide["locale"],
+    ) -> ServiceResult[list[Embed]]:
+        service_result = ServiceResult[list[Embed]]()
+        try:
+            channel = service.channel_repo.get_by_channel_id_with_boss(channel_id)
+
+            boss_entry = (
+                service.clan_battle_boss_entry_repo.get_boss_entry_active_cb_by_param(
+                    guild_id, channel.boss_id
+                )
+            )
+
+            service.clan_battle_boss_book_repo.insert_boss_book_entry(
+                ClanBattleBossBook(
+                    clan_battle_boss_entry_id=boss_entry.clan_battle_boss_entry_id,
+                    guild_id=guild_id,
+                    player_id=user_id,
+                    player_name=display_name,
+                    attack_type=attack_type,
+                    clan_battle_overall_entry_id=parent_overall_id,
+                    leftover_time=leftover_time,
+                )
+            )
+
+            embeds = await main_service.refresh_clan_battle_boss_embeds(
+                guild_id, boss_entry.clan_battle_boss_id
+            )
+
+            service_result.set_success(embeds.result)
+
+        except Exception as e:
+            log.error(e)
+            transaction_rollback()
+            trx_id = service.gen_id()
+            asyncio.create_task(service.error_log_db(guild_id, e, trx_id))
             service_result.set_error(
                 l.t(guild_id, "message.unhandled_exception", uuid=trx_id)
             )
@@ -1951,8 +1843,8 @@ class ClanBattleBossBookService:
         service_result = ServiceResult[ClanBattleBossBook]()
 
         try:
-            cb_book = _service.clan_battle_boss_book_repo.get_player_book_entry(
-                message_id=message_id, player_id=player_id
+            cb_book = _service.clan_battle_boss_book_repo.get_player_book_by_entry_id(
+                clan_battle_boss_entry_id=message_id, player_id=player_id
             )
             service_result.set_success(cb_book)
 

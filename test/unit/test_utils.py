@@ -16,6 +16,7 @@ from models import (
     ClanBattleBoss,
     ClanBattleOverallEntry,
     ClanBattleBossBook,
+    ClanBattleBossEntries,
 )
 
 # Patch all problematic imports before importing the module
@@ -172,13 +173,12 @@ def test_create_header_embed(mock_container):
 
     mock_container.locale.override(MagicMock(spec=Locale))
 
-    mock_clan_battle_boss_entry = ClanBattleBossEntry(
+    mock_clan_battle_boss_entry = ClanBattleBossEntries(
         guild_id=1,
         clan_battle_boss_entry_id=1,
-        message_id=1,
         clan_battle_period_id=1,
         clan_battle_boss_id=1,
-        name="Boss",
+        boss_name="Boss",
         image_path="Image",
         boss_round=1,
         current_health=1,
@@ -446,3 +446,24 @@ def test_create_book_embed(mock_container):
         1, list_boss_cb_player_entries, discord.Color.random()
     )
     assert embeds is not None
+
+
+def test_date_between():
+    assert (
+        utils.date_between(
+            datetime(2025, 4, 15), datetime(2025, 4, 1), datetime(2025, 4, 30)
+        )
+        == True
+    )
+    assert (
+        utils.date_between(
+            datetime(2025, 3, 1), datetime(2025, 4, 1), datetime(2025, 4, 30)
+        )
+        == False
+    )
+    assert (
+        utils.date_between(
+            datetime(2025, 5, 1), datetime(2025, 4, 1), datetime(2025, 4, 30)
+        )
+        == False
+    )
