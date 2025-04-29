@@ -1,9 +1,15 @@
+import asyncio
+import os
+import platform
+import signal
+import sys
+
 import discord
 from dependency_injector.wiring import inject, Provide
 from discord.ext import commands
-from discord.ext.commands import Bot
 
 from config import check_env_vars, config
+from database import DatabasePool
 from dependency import container
 from globals import GUILD_LOCALE, TL_SHIFTER_CHANNEL
 
@@ -11,75 +17,89 @@ from logger import KuriLogger
 
 from services import MainService
 
-intents = discord.Intents.default()
-intents.message_content = True
-intents.members = True
-
-bot = commands.Bot(command_prefix="!", intents=intents)
+should_restart = False
 
 
-@bot.event
-@inject
-async def on_ready(
-    log: KuriLogger = Provide["logger"],
-    main_service: MainService = Provide["main_service"],
-):
-    await bot.wait_until_ready()
-    log.info(f"We have logged in as {bot.user}")
+# Graceful shutdown, my mariadb complaining aborted connection
+class MainBot(commands.Bot):
+    container = None
 
-    await bot.load_extension("cogs.help")
-    await bot.load_extension("cogs.setup")
-    await bot.load_extension("cogs.clan_battle")
+    @inject
+    def __init__(
+        self,
+        *args,
+        logger: KuriLogger = Provide["logger"],
+        main_service: MainService = Provide["main_service"],
+        db_pool: DatabasePool = Provide["db_pool"],
+        **kwargs,
+    ):
+        intents = discord.Intents.default()
+        intents.message_content = True
+        intents.members = True
 
-    await update_presence(bot)
-    await main_service.check_command_tree_sync(bot)
-    await main_service.check_clan_battle_period()
+        command_prefix = "!"
 
-    for guild in bot.guilds:
-        GUILD_LOCALE[guild.id] = guild.preferred_locale.value
-        await setup_channel(guild)
+        self.main_service = main_service
+        self.db_pool = db_pool
+        self.log = logger
+        self.log.info("Starting Kurikone Clan Battle Bot...")
+        super().__init__(
+            command_prefix=command_prefix, intents=intents, *args, **kwargs
+        )
+
+    async def close(self) -> None:
+        self.log.info("Closing bot and database pool...")
+        if self.db_pool:
+            self.db_pool.close()
+
+        self.log.info("Closing bot...")
+        await super().close()
+
+    async def on_ready(self):
+        await self.wait_until_ready()
+        self.log.info(f"We have logged in as {self.user}")
+
+        await self.load_extension("cogs.help")
+        await self.load_extension("cogs.setup")
+        await self.load_extension("cogs.clan_battle")
+
+        await self.update_presence()
+        await self.main_service.check_command_tree_sync(self)
+        await self.main_service.check_clan_battle_period()
+
+        for guild in self.guilds:
+            GUILD_LOCALE[guild.id] = guild.preferred_locale.value
+            await self.setup_channel(guild)
+
+    async def on_guild_join(self, guild):
+        await self.update_presence()
+        await self.setup_channel(guild)
+
+    async def on_guild_remove(self, guild):
+        self.log.info(f"Leaving guild {guild.id} - {guild.name}")
+        await self.update_presence()
+        await self.main_service.uninstall_bot_command(guild, TL_SHIFTER_CHANNEL)
+
+    async def setup_channel(self, guild):
+        self.log.info(f"Setup for guild {guild.id} - {guild.name}")
+        await self.main_service.setup_guild_channel_message(guild, TL_SHIFTER_CHANNEL)
+
+    async def update_presence(self) -> None:
+        activity = discord.Activity(
+            name=f"{len(self.guilds)} Servers",
+            type=discord.ActivityType.listening,
+        )
+        await self.change_presence(activity=activity)
 
 
-@bot.event
-async def on_guild_join(guild):
-    await update_presence(bot)
-    await setup_channel(guild)
+async def main():
+    global should_restart
 
-
-@bot.event
-@inject
-async def on_guild_remove(
-    guild,
-    log: KuriLogger = Provide["logger"],
-    main_service: MainService = Provide["main_service"],
-):
-    log.info(f"Leaving guild {guild.id} - {guild.name}")
-    await update_presence(bot)
-    await main_service.uninstall_bot_command(guild, TL_SHIFTER_CHANNEL)
-
-
-async def setup_channel(
-    guild,
-    log: KuriLogger = Provide["logger"],
-    main_service: MainService = Provide["main_service"],
-):
-    log.info(f"Setup for guild {guild.id} - {guild.name}")
-    await main_service.setup_guild_channel_message(guild, TL_SHIFTER_CHANNEL)
-
-
-async def update_presence(discord_bot: Bot) -> None:
-    activity = discord.Activity(
-        name=f"{len(discord_bot.guilds)} Servers", type=discord.ActivityType.listening
-    )
-    await discord_bot.change_presence(activity=activity)
-
-
-if __name__ == "__main__":
     container.init_resources()
-    bot.container = container
     container.wire(
         modules=[
             __name__,
+            "main",
             "config",
             "database",
             "services",
@@ -90,6 +110,58 @@ if __name__ == "__main__":
         ],
         packages=["cogs"],
     )
-    # Check so people don't run away without .env file
     check_env_vars()
-    bot.run(config.DISCORD_TOKEN, log_handler=None)
+
+    log: KuriLogger = container.logger()
+
+    bot = MainBot()
+    bot.container = container
+
+    stop_event = asyncio.Event()
+
+    def handle_stop_signal(*_):
+        stop_event.set()
+
+    def handle_restart_signal(*_):
+        global should_restart
+        should_restart = True
+        stop_event.set()
+
+    loop = asyncio.get_running_loop()
+
+    if platform.system() != "Windows":
+        loop.add_signal_handler(signal.SIGINT, lambda: stop_event.set())  # type: ignore
+        loop.add_signal_handler(signal.SIGTERM, lambda: stop_event.set())  # type: ignore
+        if hasattr(signal, "SIGHUP"):
+            loop.add_signal_handler(signal.SIGHUP, lambda: handle_restart_signal())  # type: ignore
+
+    bot_task = asyncio.create_task(bot.start(config.DISCORD_TOKEN))
+
+    try:
+        await stop_event.wait()
+    except KeyboardInterrupt:
+        # Windows only
+        pass
+    finally:
+        log.info("Shutdown command detected...")
+        await bot.close()
+        # Cancel bot_task if still running
+        if not bot_task.done():
+            bot_task.cancel()
+            try:
+                await bot_task
+            except asyncio.CancelledError:
+                pass
+
+        if should_restart:
+            log.info("Restarting bot process...")
+            await asyncio.sleep(2)
+            os.execv(sys.executable, [sys.executable] + sys.argv)
+
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        # Windows only
+        pass
