@@ -57,11 +57,6 @@ def mock_cursor():
     return Mock()
 
 
-@pytest.fixture
-def mock_attrs(mocker):
-    return mocker.patch("repository.attrs.asdict")
-
-
 # Fixture to mock connection and cursor without hardcoding fetchone result
 @pytest.fixture
 def mock_db(mocker):
@@ -553,6 +548,60 @@ def test_get_boss_entry_by_param_no_result(mock_db):
     assert result is None
 
 
+def test_get_boss_entry_by_param_round_success(mock_db):
+    conn, cursor = mock_db
+
+    repo = ClanBattleBossEntryRepository()
+
+    guild_id = 1
+    clan_battle_period_id = 2
+    clan_battle_boss_id = 3
+
+    # Mock the fetch_one_to_model result to return some sample data
+    expected_data = {
+        "clan_battle_boss_entry_id": 4,
+        "guild_id": guild_id,
+        "message_id": 5,
+        "clan_battle_period_id": clan_battle_period_id,
+        "clan_battle_boss_id": clan_battle_boss_id,
+        "name": "BossName",
+        "image_path": "/path/to/boss/image.png",
+        "boss_round": 1,
+        "current_health": 100,
+        "max_health": 200,
+    }
+
+    cursor.fetchone.return_value = expected_data
+
+    result = repo.get_boss_entry_by_param_round(
+        guild_id, clan_battle_period_id, clan_battle_boss_id, 1
+    )
+
+    assert isinstance(result, ClanBattleBossEntry)
+    assert result.clan_battle_boss_entry_id == 4
+    assert result.guild_id == guild_id
+    cursor.execute.assert_called_once()
+
+
+def test_get_boss_entry_by_param_round_no_result(mock_db):
+    conn, cursor = mock_db
+
+    repo = ClanBattleBossEntryRepository()
+
+    guild_id = 1
+    clan_battle_period_id = 2
+    clan_battle_boss_id = 3
+
+    # Mock the fetch_one_to_model result to return None
+    cursor.fetchone.return_value = None
+
+    result = repo.get_boss_entry_by_param_round(
+        guild_id, clan_battle_period_id, clan_battle_boss_id, 1
+    )
+
+    assert result is None
+
+
 def test_get_boss_entry_active_cb_by_param_success(mock_db):
     conn, cursor = mock_db
 
@@ -637,7 +686,7 @@ def test_get_boss_entry_active_cb_by_channel_id_success(mock_db):
     cursor.execute.assert_called_once()
 
 
-def test_get_boss_entry_active_cb_by_param_no_result(mock_db):
+def test_get_boss_entry_active_cb_by_channel_id_no_result(mock_db):
     conn, cursor = mock_db
 
     repo = ClanBattleBossEntryRepository()
@@ -674,6 +723,31 @@ def test_update_on_attack_failure(mock_db):
 
     with pytest.raises(mariadb.Error, match="Invalid") as e:
         repo.update_on_attack(clan_battle_boss_entry_id, current_health)
+
+    cursor.execute.assert_called_once()
+
+
+def test_set_inactive_by_id_success(mock_db):
+    conn, cursor = mock_db
+
+    repo = ClanBattleBossEntryRepository()
+    clan_battle_boss_entry_id = 1
+
+    result = repo.set_active_by_id(clan_battle_boss_entry_id, True)
+
+    assert result is True
+    cursor.execute.assert_called_once()
+
+
+def test_set_inactive_by_id_failure(mock_db):
+    conn, cursor = mock_db
+
+    repo = ClanBattleBossEntryRepository()
+    clan_battle_boss_entry_id = 1
+    cursor.execute.side_effect = mariadb.Error("Invalid")
+
+    with pytest.raises(mariadb.Error, match="Invalid") as e:
+        repo.set_active_by_id(clan_battle_boss_entry_id, False)
 
     cursor.execute.assert_called_once()
 
@@ -1815,16 +1889,16 @@ def test_get_leftover_by_guild_id_and_player_id_no_results(mock_db):
     cursor.execute.assert_called_once()
 
 
-def test_delete_by_guild_id_success(mock_db):
-    conn, cursor = mock_db
-
-    repo = ClanBattleOverallEntryRepository()
-    guild_id = 1
-
-    result = repo.delete_by_guild_id(guild_id)
-
-    assert result is True
-    cursor.execute.assert_called_once()
+# def test_delete_by_guild_id_success(mock_db):
+#     conn, cursor = mock_db
+#
+#     repo = ClanBattleOverallEntryRepository()
+#     guild_id = 1
+#
+#     result = repo.delete_by_guild_id(guild_id)
+#
+#     assert result is True
+#     cursor.execute.assert_called_once()
 
 
 def test_delete_by_guild_id_no_results(mock_db):

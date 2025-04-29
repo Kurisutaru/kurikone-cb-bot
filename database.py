@@ -16,6 +16,8 @@ class DatabasePool:
         config: GlobalConfig = Provide["config"],
     ):
         try:
+            self.log = log
+            self.config = config
             self._pool = PooledDB(
                 creator=mariadb.connect,
                 maxconnections=config.MAX_POOL_SIZE,
@@ -41,6 +43,12 @@ class DatabasePool:
     def get_connection(self):
         conn = self._pool.connection()
         return conn
+
+    def close(self):
+        """Close the underlying connection pool."""
+        if self._pool:
+            self.log.info("Closing database connection pool...")
+            self._pool.close()
 
     def __enter__(self):
         return self.get_connection()

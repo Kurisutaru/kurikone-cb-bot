@@ -170,7 +170,6 @@ class MainService:
         guild_name: str,
         _service: Services = Provide["services"],
         log: KuriLogger = Provide["logger"],
-        l: Locale = Provide["locale"],
     ) -> ServiceResult[Guild]:
         service_result = ServiceResult[Guild]()
         try:
@@ -400,6 +399,7 @@ class MainService:
                 clan_battle_boss_id=cb_boss.clan_battle_boss_id,
                 boss_round=1,
                 current_health=cb_boss_health.health,
+                is_active=True,
             )
 
             cb_entry = (
@@ -696,17 +696,36 @@ class MainService:
 
             service.channel_repo.update_channel_message(channel_id, new_message.id)
 
-            boss_entry = ClanBattleBossEntry(
-                guild_id=guild_id,
-                clan_battle_period_id=period.clan_battle_period_id,
-                clan_battle_boss_id=boss.clan_battle_boss_id,
-                boss_round=next_round,
-                current_health=boss.health,
+            # Inactive old one
+            service.clan_battle_boss_entry_repo.set_active_by_id(
+                boss_entry.clan_battle_boss_entry_id, False
             )
 
-            service.clan_battle_boss_entry_repo.insert_clan_battle_boss_entry(
-                boss_entry
+            boss_entry = (
+                service.clan_battle_boss_entry_repo.get_boss_entry_by_param_round(
+                    interaction.guild_id,
+                    period.clan_battle_period_id,
+                    boss_entry.clan_battle_boss_id,
+                    next_round,
+                )
             )
+            if boss_entry is None:
+                boss_entry = ClanBattleBossEntry(
+                    guild_id=guild_id,
+                    clan_battle_period_id=period.clan_battle_period_id,
+                    clan_battle_boss_id=boss.clan_battle_boss_id,
+                    boss_round=next_round,
+                    current_health=boss.health,
+                    is_active=True,
+                )
+
+                service.clan_battle_boss_entry_repo.insert_clan_battle_boss_entry(
+                    boss_entry
+                )
+            else:
+                service.clan_battle_boss_entry_repo.set_active_by_id(
+                    boss_entry.clan_battle_boss_entry_id, True
+                )
 
             from ui import ButtonView
 
@@ -1058,103 +1077,6 @@ class MainService:
 
     @transactional
     @inject
-    async def check_cb_period_message(
-        self,
-        guild: discord.Guild,
-        _service: Services = Provide["services"],
-        log: KuriLogger = Provide["logger"],
-        l: Locale = Provide["locale"],
-    ) -> ServiceResult[None]:
-        service_result = ServiceResult[None]()
-        guild_id = guild.id
-        try:
-            # Get CB period mark as active
-            active_period = (
-                _service.clan_battle_period_repo.get_current_active_cb_period()
-            )
-            # Get current CB period (should be)
-            current_period = _service.clan_battle_period_repo.get_latest_cb_period()
-
-            if (
-                active_period
-                and current_period
-                and active_period.clan_battle_period_id
-                == current_period.clan_battle_period_id
-            ):
-                service_result.set_success(None)
-                return service_result
-
-            # Get channel data once
-            channel_data = _service.channel_repo.get_boss_channel_by_guild_id(guild_id)
-            if channel_data is None:
-                service_result.set_error("Guild channel not found")
-                return service_result
-
-            # Loop through boss Channel
-            for chan in channel_data:
-                channel = guild.get_channel(chan.channel_id)
-                if channel is None:
-                    service_result.set_error("Channel not found in guild")
-                    return service_result
-
-                # Get ChannelMessage for MessageId, to get old message and edit remove the button view and make it dark
-                ch_message = (
-                    _service.channel_message_repo.get_channel_message_by_channel_id(
-                        channel_id=channel.id
-                    )
-                )
-                if ch_message is None:
-                    service_result.set_error("Channel Message not found in guild")
-                    return service_result
-
-                cur_msg = await discord_try_fetch_message(
-                    channel, ch_message.message_id
-                )
-                if cur_msg:
-                    # Set the embed color daaark
-                    for embed in cur_msg.embeds:
-                        embed.colour = discord.Colour.dark_grey()
-                    await cur_msg.edit(content=None, embeds=cur_msg.embeds, view=None)
-
-                # Create new one without touching old one
-                message = await channel.send(
-                    content=l.t(guild_id, "ui.status.preparing_data")
-                )
-                ch_message.message_id = message.id
-                _service.channel_message_repo.update_channel_message(ch_message)
-
-                boss_id = getattr(
-                    active_period, f"{chan.channel_type.value['type'].lower()}_id"
-                )
-
-                await self.insert_clan_battle_entry_by_round(
-                    guild_id=guild_id,
-                    message_id=message.id,
-                    boss_id=boss_id,
-                    period_id=active_period.clan_battle_period_id,
-                    boss_round=1,
-                )
-
-                # Refresh the bosses
-                embeds = await self.refresh_clan_battle_boss_embeds(
-                    guild_id, message.id
-                )
-                if embeds.is_success:
-                    import ui
-
-                    await message.edit(
-                        content="", embeds=embeds.result, view=ui.ButtonView(guild_id)
-                    )
-
-            service_result.set_success(None)
-        except Exception as e:
-            log.error(e)
-            transaction_rollback()
-
-        return service_result
-
-    @transactional
-    @inject
     async def check_clan_battle_period(
         self,
         log: KuriLogger = Provide["logger"],
@@ -1463,8 +1385,6 @@ class UiService:
         service_result = ServiceResult[list[Embed]]()
         guild_id = interaction.guild_id
         try:
-            message_id = interaction.message.id
-
             # Check if ended
             boss_entry = service.clan_battle_period_repo.get_current_active_cb_period()
             if not date_between(now(), boss_entry.date_from, boss_entry.date_to):
@@ -1681,6 +1601,76 @@ class UiService:
 
         return service_result
 
+    @transactional
+    @inject
+    async def rotate_round(
+        self,
+        interaction: discord.Interaction,
+        boss_round: int,
+        main_service: MainService = Provide["main_service"],
+        service: Services = Provide["services"],
+        l: Locale = Provide["locale"],
+        log: KuriLogger = Provide["logger"],
+    ) -> ServiceResult[list[Embed]]:
+        service_result = ServiceResult[list[Embed]]()
+        guild_id = interaction.guild.id
+        try:
+            boss_entry = service.clan_battle_boss_entry_repo.get_boss_entry_active_cb_by_channel_id(
+                interaction.channel.id
+            )
+
+            round_entry = (
+                service.clan_battle_boss_entry_repo.get_boss_entry_by_param_round(
+                    interaction.guild_id,
+                    boss_entry.clan_battle_period_id,
+                    boss_entry.clan_battle_boss_id,
+                    boss_round,
+                )
+            )
+
+            service.clan_battle_boss_entry_repo.set_active_by_id(
+                boss_entry.clan_battle_boss_entry_id, False
+            )
+
+            if round_entry is None:
+                boss_db = service.clan_battle_boss_repo.fetch_clan_battle_boss_by_id_and_round(
+                    boss_entry.clan_battle_boss_id, boss_round
+                )
+
+                round_entry = (
+                    service.clan_battle_boss_entry_repo.insert_clan_battle_boss_entry(
+                        ClanBattleBossEntry(
+                            guild_id=boss_entry.guild_id,
+                            clan_battle_period_id=boss_entry.clan_battle_period_id,
+                            clan_battle_boss_id=boss_entry.clan_battle_boss_id,
+                            boss_round=boss_round,
+                            current_health=boss_db.health,
+                            is_active=True,
+                        )
+                    )
+                )
+            else:
+                service.clan_battle_boss_entry_repo.set_active_by_id(
+                    round_entry.clan_battle_boss_entry_id, True
+                )
+
+            embeds = await main_service.refresh_clan_battle_boss_embeds(
+                interaction.guild_id, round_entry.clan_battle_boss_id
+            )
+
+            service_result.set_success(embeds.result)
+
+        except Exception as e:
+            log.error(e)
+            transaction_rollback()
+            trx_id = service.gen_id()
+            asyncio.create_task(service.error_log_db(guild_id, e, trx_id))
+            service_result.set_error(
+                l.t(guild_id, "message.unhandled_exception", uuid=trx_id)
+            )
+
+        return service_result
+
 
 class GuildService:
 
@@ -1814,179 +1804,5 @@ class ClanBattlePeriodService:
         except Exception as e:
             service_result.set_error(str(e))
             print(e)
-
-        return service_result
-
-
-class ClanBattleBossBookService:
-
-    @inject
-    async def get_player_book_count(
-        self, guild_id: int, player_id: int, _service: Services = Provide["services"]
-    ) -> ServiceResult[int]:
-        service_result = ServiceResult[int]()
-
-        try:
-            cb_book = _service.clan_battle_boss_book_repo.get_player_book_count(
-                guild_id=guild_id, player_id=player_id
-            )
-            service_result.set_success(cb_book)
-        except Exception as e:
-            service_result.set_error(str(e))
-
-        return service_result
-
-    @inject
-    async def get_player_book_entry(
-        self, message_id: int, player_id: int, _service: Services = Provide["services"]
-    ) -> ServiceResult[ClanBattleBossBook]:
-        service_result = ServiceResult[ClanBattleBossBook]()
-
-        try:
-            cb_book = _service.clan_battle_boss_book_repo.get_player_book_by_entry_id(
-                clan_battle_boss_entry_id=message_id, player_id=player_id
-            )
-            service_result.set_success(cb_book)
-
-        except Exception as e:
-            service_result.set_error(str(e))
-
-        return service_result
-
-    @transactional
-    @inject
-    async def delete_book_by_id(
-        self,
-        book_id: int,
-        _service: Services = Provide["services"],
-        log: KuriLogger = Provide["logger"],
-    ) -> ServiceResult[None]:
-        service_result = ServiceResult[None]()
-        try:
-            _service.clan_battle_boss_book_repo.delete_book_by_id(book_id)
-            service_result.set_success(None)
-
-        except Exception as e:
-            log.error(e)
-            transaction_rollback()
-            service_result.set_error(str(e))
-
-        return service_result
-
-    @transactional
-    @inject
-    async def update_damage_boss_book_by_id(
-        self,
-        book_id: int,
-        damage_boss_book_id: int,
-        _service: Services = Provide["services"],
-        log: KuriLogger = Provide["logger"],
-    ) -> ServiceResult[None]:
-        service_result = ServiceResult[None]()
-        try:
-            _service.clan_battle_boss_book_repo.update_damage_boss_book_by_id(
-                book_id, damage_boss_book_id
-            )
-            service_result.set_success(None)
-
-        except Exception as e:
-            log.error(e)
-            transaction_rollback()
-            service_result.set_error(str(e))
-
-        return service_result
-
-
-class ClanBattleOverallEntryService:
-
-    @inject
-    async def get_player_overall_entry_count(
-        self, guild_id: int, player_id: int, _service: Services = Provide["services"]
-    ) -> ServiceResult[int]:
-        service_result = ServiceResult[int]()
-
-        try:
-            book_count = (
-                _service.clan_battle_overall_entry_repo.get_player_overall_entry_count(
-                    guild_id, player_id
-                )
-            )
-            service_result.set_success(book_count)
-        except Exception as e:
-            service_result.set_error(str(e))
-
-        return service_result
-
-    @inject
-    async def get_leftover_by_guild_id_and_player_id(
-        self, guild_id: int, player_id: int, _service: Services = Provide["services"]
-    ) -> ServiceResult[list[ClanBattleLeftover]]:
-        service_result = ServiceResult[list[ClanBattleLeftover]]()
-
-        try:
-            leftover_list = _service.clan_battle_overall_entry_repo.get_leftover_by_guild_id_and_player_id(
-                guild_id, player_id
-            )
-            service_result.set_success(leftover_list)
-        except Exception as e:
-            service_result.set_error(str(e))
-
-        return service_result
-
-
-class ClanBattleBossEntryService:
-
-    @transactional
-    @inject
-    async def insert_clan_battle_boss_entry(
-        self,
-        clan_battle_boss_entry: ClanBattleBossEntry,
-        _service: Services = Provide["services"],
-        log: KuriLogger = Provide["logger"],
-    ) -> ServiceResult[ClanBattleBossEntry]:
-        service_result = ServiceResult[ClanBattleBossEntry]()
-
-        try:
-            result = _service.clan_battle_boss_entry_repo.insert_clan_battle_boss_entry(
-                clan_battle_boss_entry
-            )
-            service_result.set_success(result)
-        except Exception as e:
-            log.error(e)
-            transaction_rollback()
-            service_result.set_error(str(e))
-
-        return service_result
-
-    @inject
-    async def get_last_by_message_id(
-        self, message_id: int, _service: Services = Provide["services"]
-    ) -> ServiceResult[ClanBattleBossEntry]:
-        service_result = ServiceResult[ClanBattleBossEntry]()
-
-        try:
-            result = _service.clan_battle_boss_entry_repo.get_last_by_message_id(
-                message_id
-            )
-            service_result.set_success(result)
-        except Exception as e:
-            service_result.set_error(str(e))
-
-        return service_result
-
-
-class ClanBattleBossPeriodService:
-
-    @inject
-    async def get_current_cb_period(
-        self, _service: Services = Provide["services"]
-    ) -> ServiceResult[ClanBattlePeriod]:
-        service_result = ServiceResult[ClanBattlePeriod]()
-
-        try:
-            result = _service.clan_battle_period_repo.get_latest_cb_period()
-            service_result.set_success(result)
-        except Exception as e:
-            service_result.set_error(str(e))
 
         return service_result

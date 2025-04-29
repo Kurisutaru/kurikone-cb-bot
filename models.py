@@ -54,6 +54,7 @@ class ClanBattleBossEntry:
     clan_battle_boss_id: int = field(default=None)
     boss_round: int = field(default=None)
     current_health: int = field(default=None)
+    is_active: bool = field(default=None)
 
 
 @define

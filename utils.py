@@ -338,8 +338,8 @@ def generate_done_attack_list(
     ]
     for data in datas:
         line = f"{NEW_LINE}{data.attack_type.value} {f"[{format_large_number(data.damage)}] " if data.damage else ''}: {data.player_name}"
-        if data.attack_type == AttackTypeEnum.CARRY or data.leftover_time:
-            line += f"{NEW_LINE} ┗━ {EmojiEnum.STAR.value} ({data.leftover_time if data.leftover_time else 0 }s)"
+        if data.attack_type != AttackTypeEnum.CARRY and not data.leftover_time is None:
+            line += f"{NEW_LINE} ┗━ {EmojiEnum.STAR.value} ({data.leftover_time}s)"
 
         lines.append(line)
 

@@ -325,14 +325,16 @@ class ClanBattleBossEntryRepository:
                         clan_battle_period_id, 
                         clan_battle_boss_id, 
                         boss_round, 
-                        current_health
+                        current_health,
+                        is_active
                     ) 
                     VALUES (
                          %(guild_id)s, 
                          %(clan_battle_period_id)s, 
                          %(clan_battle_boss_id)s,
                          %(boss_round)s,
-                         %(current_health)s
+                         %(current_health)s,
+                         %(is_active)s
                     )
                     """,
                     attrs.asdict(clan_battle_boss_entry),
@@ -357,7 +359,8 @@ class ClanBattleBossEntryRepository:
                            CBB.image_path,
                            CBBE.boss_round,
                            CBBE.current_health,
-                           CBBH.health as max_health
+                           CBBH.health as max_health,
+                           CBBE.is_active
                     FROM clan_battle_boss_entry CBBE
                              JOIN clan_battle_boss CBB ON CBBE.clan_battle_boss_id = CBB.clan_battle_boss_id
                              JOIN clan_battle_boss_health CBBH
@@ -365,6 +368,7 @@ class ClanBattleBossEntryRepository:
                     WHERE guild_id = %(guild_id)s
                         AND CBBE.clan_battle_period_id = %(clan_battle_period_id)s
                         AND CBB.clan_battle_boss_id = %(clan_battle_boss_id)s
+                        AND CBBE.is_active = 1
                     ORDER BY CBBE.boss_round DESC, CBBE.clan_battle_boss_entry_id DESC
                     LIMIT 1
                     """,
@@ -372,6 +376,48 @@ class ClanBattleBossEntryRepository:
                         "guild_id": guild_id,
                         "clan_battle_period_id": clan_battle_period_id,
                         "clan_battle_boss_id": clan_battle_boss_id,
+                    },
+                )
+                return fetch_one_to_model(cursor, ClanBattleBossEntries)
+
+    def get_boss_entry_by_param_round(
+        self,
+        guild_id: int,
+        clan_battle_period_id: int,
+        clan_battle_boss_id: int,
+        boss_round: int,
+    ) -> Optional[ClanBattleBossEntries]:
+        with connection_context() as conn:
+
+            with conn.cursor(dictionary=True) as cursor:
+                cursor.execute(
+                    """
+                    SELECT CBBE.clan_battle_boss_entry_id,
+                           CBBE.guild_id,
+                           CBBE.clan_battle_period_id,
+                           CBB.clan_battle_boss_id,
+                           CONCAT(CBB.name, ' 「', CBB.description ,'」') as boss_name,
+                           CBB.image_path,
+                           CBBE.boss_round,
+                           CBBE.current_health,
+                           CBBH.health as max_health,
+                           CBBE.is_active
+                    FROM clan_battle_boss_entry CBBE
+                             JOIN clan_battle_boss CBB ON CBBE.clan_battle_boss_id = CBB.clan_battle_boss_id
+                             JOIN clan_battle_boss_health CBBH
+                                  ON CBB.position = CBBH.position AND CBBE.boss_round BETWEEN CBBH.round_from AND CBBH.round_to
+                    WHERE guild_id = %(guild_id)s
+                        AND CBBE.clan_battle_period_id = %(clan_battle_period_id)s
+                        AND CBB.clan_battle_boss_id = %(clan_battle_boss_id)s
+                        AND CBBE.boss_round = %(boss_round)s
+                    ORDER BY CBBE.boss_round DESC, CBBE.clan_battle_boss_entry_id DESC
+                    LIMIT 1
+                    """,
+                    {
+                        "guild_id": guild_id,
+                        "clan_battle_period_id": clan_battle_period_id,
+                        "clan_battle_boss_id": clan_battle_boss_id,
+                        "boss_round": boss_round,
                     },
                 )
                 return fetch_one_to_model(cursor, ClanBattleBossEntries)
@@ -392,7 +438,8 @@ class ClanBattleBossEntryRepository:
                            CBB.image_path,
                            CBBE.boss_round,
                            CBBE.current_health,
-                           CBBH.health as max_health
+                           CBBH.health as max_health,
+                           CBBE.is_active
                     FROM clan_battle_boss_entry CBBE
                              JOIN clan_battle_period CBP ON CBBE.clan_battle_period_id = CBP.clan_battle_period_id
                              JOIN clan_battle_boss CBB ON CBBE.clan_battle_boss_id = CBB.clan_battle_boss_id
@@ -401,6 +448,7 @@ class ClanBattleBossEntryRepository:
                     WHERE guild_id = %(guild_id)s
                         AND CBP.is_active = 1
                         AND CBB.clan_battle_boss_id = %(clan_battle_boss_id)s
+                        AND CBBE.is_active = 1
                     ORDER BY CBBE.boss_round DESC, CBBE.clan_battle_boss_entry_id DESC
                     LIMIT 1
                     """,
@@ -453,7 +501,8 @@ class ClanBattleBossEntryRepository:
                            CBB.image_path,
                            CBBE.boss_round,
                            CBBE.current_health,
-                           CBBH.health                                  AS max_health
+                           CBBH.health                                  AS max_health,
+                           CBBE.is_active
                     FROM clan_battle_boss_entry CBBE
                              JOIN clan_battle_period CBP
                                   ON CBBE.clan_battle_period_id = CBP.clan_battle_period_id
@@ -465,7 +514,7 @@ class ClanBattleBossEntryRepository:
                              JOIN SELECTED_BOSS SB
                                   ON CBBE.guild_id = SB.guild_id
                                       AND CBB.clan_battle_boss_id = SB.clan_battle_boss_id
-                    WHERE CBP.is_active = 1
+                    WHERE CBBE.is_active = 1
                     ORDER BY CBBE.boss_round DESC, CBBE.clan_battle_boss_entry_id DESC
                     LIMIT 1
                     """,
@@ -489,6 +538,23 @@ class ClanBattleBossEntryRepository:
                     {
                         "clan_battle_boss_entry_id": clan_battle_boss_entry_id,
                         "current_health": current_health,
+                    },
+                )
+
+                return True
+
+    def set_active_by_id(self, clan_battle_boss_entry_id: int, is_active: bool) -> bool:
+        with connection_context() as conn:
+            with conn.cursor(dictionary=True) as cursor:
+                cursor.execute(
+                    """
+                    UPDATE clan_battle_boss_entry 
+                    SET is_active = %(is_active)s
+                    WHERE clan_battle_boss_entry_id = %(clan_battle_boss_entry_id)s
+                    """,
+                    {
+                        "clan_battle_boss_entry_id": clan_battle_boss_entry_id,
+                        "is_active": is_active,
                     },
                 )
 

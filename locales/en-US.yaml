@@ -13,11 +13,16 @@ en-US:
         title: "Leftover Input"
         label: "Leftover Time (in seconds)"
         placeholder: "e.g. 30"
+      round_input:
+        title: "Round Input"
+        label: "Select round"
+        placeholder: "e.g. 5"
     button:
       yes: "Yes"
       no: "No"
       book: "Book"
       cancel: "Cancel"
+      rotate: "Rotate"
       entry: "Entry"
       done: "Done"
       dead: "Dead"

@@ -13,11 +13,16 @@ ja:
         title: "残り時間入力"
         label: "残り時間（秒）"
         placeholder: "例: 30"
+      round_input:
+        title: "ラウンド入力"
+        label: "ラウンドを選択"
+        placeholder: "例: 5"
     button:
       yes: "はい"
       no: "いいえ"
       book: "予約"
       cancel: "キャンセル"
+      rotate: "回転"
       entry: "エントリー"
       done: "完了"
       dead: "撃破"

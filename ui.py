@@ -6,14 +6,13 @@ from discord import ButtonStyle, TextStyle
 from discord.ui import View, Button, Modal, TextInput
 
 from enums import EmojiEnum, AttackTypeEnum
-from models import ClanBattleLeftover
-from services import MainService, UiService
 from locales import Locale
 from logger import KuriLogger
+from models import ClanBattleLeftover
+from services import MainService, UiService
 from utils import (
     send_message_short,
     send_message_medium,
-    discord_try_fetch_message,
     send_message_long,
     discord_close_response,
     send_channel_message_short,
@@ -91,6 +90,78 @@ class CancelButton(Button):
         await send_message_short(
             interaction, l.t(guild_id, "ui.events.removed_from_booking_list"), True
         )
+
+
+# Round Button
+class RotateButton(Button):
+    def __init__(self, text=EmojiEnum.ROTATE.name.capitalize()):
+        super().__init__(
+            label=text, style=ButtonStyle.blurple, emoji=EmojiEnum.ROTATE.value, row=0
+        )
+
+    @inject
+    async def callback(
+        self,
+        interaction: discord.Interaction,
+        l: Locale = Provide["locale"],
+        log: KuriLogger = Provide["logger"],
+    ):
+        modal = RoundModal(interaction)
+        await interaction.response.send_modal(modal)
+
+
+# Round Modal
+class RoundModal(Modal):
+    @inject
+    def __init__(
+        self,
+        parent_inter: discord.Interaction,
+        l: Locale = Provide["locale"],
+    ):
+        self.guild_id = parent_inter.guild_id
+        self.user_input.label = l.t(self.guild_id, "ui.popup.round_input.label")
+        self.user_input.placeholder = l.t(
+            self.guild_id, "ui.popup.round_input.placeholder"
+        )
+        self.parent_inter = parent_inter
+        super().__init__(title=l.t(parent_inter.guild_id, "ui.popup.round_input.title"))
+
+    # Define a text input
+    user_input = TextInput(
+        label="Round",
+        placeholder="5",
+        style=TextStyle.short,
+        required=True,
+        min_length=1,
+        max_length=2,
+    )
+
+    @inject
+    async def on_submit(
+        self,
+        interaction: discord.Interaction,
+        ui_service: UiService = Provide["ui_service"],
+        l: Locale = Provide["locale"],
+        log: KuriLogger = Provide["logger"],
+    ):
+        if not self.user_input.value.isdigit():
+            await send_message_short(
+                interaction=interaction,
+                content=f"## {l.t(interaction.guild_id, "ui.validation.only_numbers_allowed")}",
+                ephemeral=True,
+            )
+            return
+
+        round_select = int(self.user_input.value)
+        service = await ui_service.rotate_round(interaction, round_select)
+        if not service.is_success:
+            await send_message_short(interaction, service.error_messages, True)
+            return
+
+        await self.parent_inter.message.edit(
+            embeds=service.result, view=ButtonView(interaction.guild_id)
+        )
+        await interaction.response.defer(ephemeral=True)
 
 
 # Entry Button
@@ -255,7 +326,6 @@ class DeadButton(Button):
         log: KuriLogger = Provide["logger"],
     ):
         guild_id = interaction.guild_id
-        message_id = interaction.message.id
 
         service = await _ui_service.dead_button_service(interaction)
         if not service.is_success:
@@ -318,7 +388,6 @@ class LeftoverModal(Modal):
         l: Locale = Provide["locale"],
         log: KuriLogger = Provide["logger"],
     ):
-        message_id = interaction.message.id
         guild_id = interaction.guild.id
         # Handle the submitted input
         if not self.user_input.value.isdigit():
@@ -599,6 +668,7 @@ class ButtonView(View):
         super().__init__(timeout=None)
         self.add_item(BookButton(text=l.t(guild_id, "ui.button.book")))
         self.add_item(CancelButton(text=l.t(guild_id, "ui.button.cancel")))
+        self.add_item(RotateButton(text=l.t(guild_id, "ui.button.rotate")))
         self.add_item(EntryButton(text=l.t(guild_id, "ui.button.entry")))
         self.add_item(DoneButton(text=l.t(guild_id, "ui.button.done")))
         self.add_item(DeadButton(text=l.t(guild_id, "ui.button.dead")))
