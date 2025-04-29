@@ -188,20 +188,20 @@ class ChannelRepository:
                                            WHERE is_active = 1
                                            ORDER BY clan_battle_period_id DESC
                                            LIMIT 1)
-                    SELECT c.channel_id,
-                           c.guild_id,
-                           c.channel_type,
-                           c.message_id,
+                    SELECT C.channel_id,
+                           C.guild_id,
+                           C.channel_type,
+                           C.message_id,
                            CASE
-                               WHEN c.channel_type = 'BOSS1' THEN AP.boss1_id
-                               WHEN c.channel_type = 'BOSS2' THEN AP.boss2_id
-                               WHEN c.channel_type = 'BOSS3' THEN AP.boss3_id
-                               WHEN c.channel_type = 'BOSS4' THEN AP.boss4_id
-                               WHEN c.channel_type = 'BOSS5' THEN AP.boss5_id
+                               WHEN C.channel_type = 'BOSS1' THEN AP.boss1_id
+                               WHEN C.channel_type = 'BOSS2' THEN AP.boss2_id
+                               WHEN C.channel_type = 'BOSS3' THEN AP.boss3_id
+                               WHEN C.channel_type = 'BOSS4' THEN AP.boss4_id
+                               WHEN C.channel_type = 'BOSS5' THEN AP.boss5_id
                                END AS boss_id
                     FROM channel C
                              CROSS JOIN ACTIVE_PERIOD AP
-                                    WHERE channel_id = %(channel_id)s
+                                    WHERE C.channel_id = %(channel_id)s
                                     LIMIT 1
                     """,
                     {
