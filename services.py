@@ -995,7 +995,10 @@ class MainService:
             if cb_report_message_data is None:
                 # Alter here if message exist but report data is new,
                 # so it don't replace old one, but create new one if Period LIVE
-                if cur_period.period_type == PeriodType.LIVE:
+                if cur_period.period_type == PeriodType.LIVE or (
+                    cur_period.period_type == PeriodType.OFFSEASON
+                    and cur_period.current_day == 1
+                ):
                     if message.content != l.t(guild_id, "ui.status.preparing_data"):
                         message = await channel.send(content="ui.status.preparing_data")
                         channel_data.message_id = message.id
@@ -1108,23 +1111,26 @@ class MainService:
                 if active_period is None:
                     bosses = _service.clan_battle_boss_repo.get_all()
                     rand_boss = generate_random_boss_period(bosses)
-                    generate_period = generate_current_cb_period()
+                    current_period = generate_current_cb_period()
                     # Append the generated random boss
-                    generate_period.merge_bosses(rand_boss)
+                    current_period.merge_bosses(rand_boss)
                 else:
-                    generate_period = generate_current_cb_period()
-                    generate_period.merge_bosses(active_period)
+                    current_period = generate_current_cb_period()
+                    current_period.merge_bosses(active_period)
 
                 # Set all other period not active
-                _service.clan_battle_period_repo.set_all_inactive()
-                _service.clan_battle_period_repo.insert(generate_period)
+                _service.clan_battle_period_repo.set_period_all_inactive()
+                _service.clan_battle_period_repo.insert(current_period)
             # If there's created period, set other inactive, set current into active
             else:
                 # Set all other period not active
-                _service.clan_battle_period_repo.set_all_inactive()
+                _service.clan_battle_period_repo.set_period_all_inactive()
                 _service.clan_battle_period_repo.set_active_by_id(
                     current_period.clan_battle_period_id
                 )
+
+            # Invalid all Boss Entries
+            _service.clan_battle_boss_entry_repo.set_boss_entry_all_inactive()
 
             service_result.set_success(True)
         except Exception as e:

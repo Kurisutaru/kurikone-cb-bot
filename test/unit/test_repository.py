@@ -752,6 +752,31 @@ def test_set_inactive_by_id_failure(mock_db):
     cursor.execute.assert_called_once()
 
 
+def test_set_boss_entry_all_inactive_success(mock_db):
+    conn, cursor = mock_db
+
+    repo = ClanBattleBossEntryRepository()
+    clan_battle_boss_entry_id = 1
+
+    result = repo.set_boss_entry_all_inactive()
+
+    assert result is True
+    cursor.execute.assert_called_once()
+
+
+def test_set_boss_entry_all_inactive_failure(mock_db):
+    conn, cursor = mock_db
+
+    repo = ClanBattleBossEntryRepository()
+    clan_battle_boss_entry_id = 1
+    cursor.execute.side_effect = mariadb.Error("Invalid")
+
+    with pytest.raises(mariadb.Error, match="Invalid") as e:
+        repo.set_boss_entry_all_inactive()
+
+    cursor.execute.assert_called_once()
+
+
 def test_cb_entry_delete_by_guild_id_success(mock_db):
     conn, cursor = mock_db
 
@@ -1373,27 +1398,27 @@ def test_get_current_active_cb_period_day_no_results(mock_db):
     cursor.execute.assert_called_once()
 
 
-def test_set_all_inactive_success(mock_db):
+def test_set_period_all_inactive_success(mock_db):
     conn, cursor = mock_db
 
     # Mock the execute result to simulate successful update
     cursor.execute.return_value.rowcount = 3
 
     repo = ClanBattlePeriodRepository()
-    result = repo.set_all_inactive()
+    result = repo.set_period_all_inactive()
 
     assert result is True
     cursor.execute.assert_called_once()
 
 
-def test_set_all_inactive_no_changes(mock_db):
+def test_set_period_all_inactive_no_changes(mock_db):
     conn, cursor = mock_db
 
     # Mock the execute result to simulate no changes made
     cursor.execute.return_value.rowcount = 0
 
     repo = ClanBattlePeriodRepository()
-    result = repo.set_all_inactive()
+    result = repo.set_period_all_inactive()
 
     assert result is True
     cursor.execute.assert_called_once()

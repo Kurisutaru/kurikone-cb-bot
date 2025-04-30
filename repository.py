@@ -560,6 +560,19 @@ class ClanBattleBossEntryRepository:
 
                 return True
 
+    def set_boss_entry_all_inactive(self) -> bool:
+        with connection_context() as conn:
+            with conn.cursor(dictionary=True) as cursor:
+                cursor.execute(
+                    """
+                    UPDATE clan_battle_boss_entry 
+                    SET is_active = 0
+                    WHERE is_active = 1
+                    """,
+                )
+
+                return True
+
     def delete_by_guild_id(self, guild_id: int) -> bool:
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
@@ -824,7 +837,7 @@ class ClanBattlePeriodRepository:
                            boss4_id,
                            boss5_id
                     FROM clan_battle_period
-                    WHERE DATE_ADD(SYSDATE(), INTERVAL 5 HOUR) BETWEEN date_from AND date_to
+                    WHERE DATE_ADD(CURDATE(), INTERVAL 5 HOUR) BETWEEN date_from AND date_to
                     ORDER BY clan_battle_period_id DESC
                     LIMIT 1
                     """
@@ -925,11 +938,10 @@ class ClanBattlePeriodRepository:
                            boss3_id,
                            boss4_id,
                            boss5_id,
-                           IFNULL(DATEDIFF(
-                                          IF(HOUR(SYSDATE()) < 5, DATE_SUB(SYSDATE(), INTERVAL 1 DAY),
-                                             SYSDATE()),
-                                          date_from
-                                  ) + 1, -1) AS current_day
+                           IF(clan_battle_period_id IS NULL, -1, DATEDIFF(
+                                    IF(HOUR(SYSDATE()) < 5, DATE_SUB(SYSDATE(), INTERVAL 1 DAY), SYSDATE()),
+                                    date_from
+                                ) + 1) AS current_day
                     FROM (SELECT 1 AS dummy) AS d
                              LEFT JOIN clan_battle_period ON clan_battle_period_id = %(clan_battle_period_id)s
                     ORDER BY clan_battle_period_id DESC
@@ -955,11 +967,10 @@ class ClanBattlePeriodRepository:
                            boss3_id,
                            boss4_id,
                            boss5_id,
-                           IFNULL(DATEDIFF(
-                                          IF(HOUR(SYSDATE()) < 5, DATE_SUB(SYSDATE(), INTERVAL 1 DAY),
-                                             SYSDATE()),
-                                          date_from
-                                  ) + 1, -1) AS current_day
+                           IF(clan_battle_period_id IS NULL, -1, DATEDIFF(
+                                    IF(HOUR(SYSDATE()) < 5, DATE_SUB(SYSDATE(), INTERVAL 1 DAY), SYSDATE()),
+                                    date_from
+                                ) + 1) AS current_day
                     FROM (SELECT 1 AS dummy) AS d
                              LEFT JOIN clan_battle_period
                                        ON SYSDATE() BETWEEN date_from AND date_to
@@ -970,7 +981,7 @@ class ClanBattlePeriodRepository:
                 )
                 return fetch_one_to_model(cursor, ClanBattlePeriodDay)
 
-    def set_all_inactive(self) -> bool:
+    def set_period_all_inactive(self) -> bool:
         with connection_context() as conn:
             with conn.cursor(dictionary=True) as cursor:
                 cursor.execute(

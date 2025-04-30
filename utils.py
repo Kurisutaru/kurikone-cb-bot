@@ -415,14 +415,6 @@ def date_between(date: datetime, from_date: datetime, to_date: datetime) -> bool
 
 
 # Period thingy
-def calc_cb_num():
-    cur_date = now()
-    count = ((cur_date.year - PURIKONE_LIVE_SERVICE_DATE.year) * 12) + (
-        cur_date.month - PURIKONE_LIVE_SERVICE_DATE.month
-    )
-    return abs(count - 1)
-
-
 def ordinal(n):
     if 11 <= (n % 100) <= 13:
         suffix = "th"
@@ -433,68 +425,93 @@ def ordinal(n):
 
 def check_season_status(
     current_date: datetime = None,
-) -> dict[str, PeriodType | datetime]:
+) -> dict:
     if current_date is None:
-        current_date = now()
+        current_date = datetime.now()
 
-    # Get the end of current month
+        # Get the end of the current month
     if current_date.month == 12:
         next_month = current_date.replace(year=current_date.year + 1, month=1, day=1)
     else:
         next_month = current_date.replace(month=current_date.month + 1, day=1)
-
     end_of_month = next_month - timedelta(days=1)
     end_of_month = end_of_month.replace(hour=0, minute=0, second=0, microsecond=0)
 
-    # Calculate important dates
+    # Calculate LIVE period dates
     end_minus_5 = end_of_month - timedelta(days=5)
     end_minus_5 = end_minus_5.replace(
         hour=5, minute=0, second=0, microsecond=0
-    )  # Set to 05:00
-
+    )  # 05:00
     end_minus_1 = end_of_month - timedelta(days=1)
     end_minus_1 = end_minus_1.replace(
         hour=0, minute=0, second=0, microsecond=0
-    )  # Set to 00:00
+    )  # 00:00
 
-    # Check if current date is in LIVE period
-    if end_minus_5 <= current_date <= end_minus_1:
-        return {
-            "period_type": PeriodType.LIVE,
-            "date_from": end_minus_5,
-            "date_to": end_of_month,
-        }
+    # Determine if current date is in LIVE period
+    is_live = end_minus_5 <= current_date <= end_minus_1
+
+    # Calculate cycle number
+    base_months = ((current_date.year - PURIKONE_LIVE_SERVICE_DATE.year) * 12) + (
+        current_date.month - (PURIKONE_LIVE_SERVICE_DATE.month + 1)
+    )
+    if is_live or current_date.date() == end_of_month.date():
+        season_count = base_months + 2
     else:
-        # For OFFSEASON, we need dates from previous month's end-1 to current month's end-5
-        prev_month_end = current_date.replace(day=1) - timedelta(days=1)
-        prev_month_end = prev_month_end.replace(
-            hour=0, minute=0, second=0, microsecond=0
-        )
+        season_count = base_months + 1
 
-        prev_month_end_minus_1 = prev_month_end - timedelta(days=1)
-        prev_month_end_minus_1 = prev_month_end_minus_1.replace(
-            hour=0, minute=0, second=0, microsecond=0
-        )
+    # Determine period type and date range
+    if is_live:
+        period_type = PeriodType.LIVE
+        date_from = end_minus_5
+        date_to = end_of_month
+    else:
+        if current_date.date() == end_of_month.date():
+            # OFFSEASON: end of current month to end of next month -5
+            next_month_end = (
+                end_of_month.replace(
+                    month=end_of_month.month % 12 + 1,
+                    year=end_of_month.year + (1 if end_of_month.month == 12 else 0),
+                    day=1,
+                )
+                + timedelta(days=31)
+            ).replace(day=1) - timedelta(days=1)
+            next_month_end_minus_5 = next_month_end - timedelta(days=5)
+            next_month_end_minus_5 = next_month_end_minus_5.replace(
+                hour=5, minute=0, second=0, microsecond=0
+            )
+            date_from = end_of_month
+            date_to = next_month_end_minus_5
+        else:
+            # OFFSEASON: end of previous month to end of current month -5
+            prev_month_end = current_date.replace(day=1) - timedelta(days=1)
+            prev_month_end = prev_month_end.replace(
+                hour=0, minute=0, second=0, microsecond=0
+            )
+            date_from = prev_month_end
+            date_to = end_minus_5
+        period_type = PeriodType.OFFSEASON
 
-        current_month_end_minus_5 = end_of_month - timedelta(days=5)
-        current_month_end_minus_5 = current_month_end_minus_5.replace(
-            hour=5, minute=0, second=0, microsecond=0
-        )
+    # Compute season name
+    season_name = f"{ordinal(season_count)} {'Purikone CB' if period_type == PeriodType.LIVE else period_type.value}"
 
-        return {
-            "period_type": PeriodType.OFFSEASON,
-            "date_from": prev_month_end_minus_1,
-            "date_to": current_month_end_minus_5,
-        }
+    return {
+        "period_type": period_type,
+        "date_from": date_from,
+        "date_to": date_to,
+        "season_name": season_name,
+        "season_count": season_count,
+    }
 
 
 def generate_current_cb_period() -> ClanBattlePeriod:
     season_status = check_season_status()
 
     return ClanBattlePeriod(
-        clan_battle_period_name=f"{ordinal(calc_cb_num())} {"Purikone CB" if season_status['period_type'] == PeriodType.LIVE else season_status['period_type'].value}",
+        clan_battle_period_name=season_status["season_name"],
         is_active=True,
-        **season_status,
+        date_from=season_status["date_from"],
+        date_to=season_status["date_to"],
+        period_type=season_status["period_type"],
     )
 
 

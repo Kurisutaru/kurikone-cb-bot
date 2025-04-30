@@ -281,20 +281,6 @@ def test_format_time():
     assert utils.format_time(0) == "0:00"
 
 
-@freeze_time("2022-01-01 12:00:00+00:00")
-def test_calc_cb_num():
-    with patch.dict(
-        "sys.modules",
-        {
-            "config": MagicMock(),
-            "logger": MagicMock(),
-            "locales": MagicMock(),
-        },
-    ):
-        from utils import calc_cb_num
-    assert calc_cb_num() == 46
-
-
 def test_ordinal():
     assert utils.ordinal(1) == "1st"
     assert utils.ordinal(2) == "2nd"
